@@ -22,6 +22,7 @@ struct Index
 * rCodes - Codes to represent multi-indexing
 <br />
 <b>Note</b>:
+
 * In case rHeaders is an empty array, the default indexing will take over - 0 .. $
 
 <br>
