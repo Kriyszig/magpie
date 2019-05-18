@@ -1,0 +1,15 @@
+.dub
+docs.json
+__dummy.html
+docs/
+/magpie
+magpie.so
+magpie.dylib
+magpie.dll
+magpie.a
+magpie.lib
+magpie-test-*
+*.exe
+*.o
+*.obj
+*.lst
