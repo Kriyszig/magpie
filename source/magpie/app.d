@@ -6,31 +6,136 @@ import magpie.frame: DataFrame;
 
 void main()
 {
-	Slice!(double*, 3, Universal) s = (new double[24]).sliced(2,3,4).universal;
-    //s.writeln;
-    s = (new double[36]).sliced(3,3,4).universal;
-    s[1,1,1] = 4;
-    //s.writeln;
-    float b;
-    //writeln(to!string(b));
-    Slice!(char**, 3, Universal) sdf;
-    auto a = new double[1_000_000];
-    double j = 10.63;
-    for(int i = 0; i < 100000; i += 1000)
-    {
-        a[i] = j;
-        j += 100.467;
-    }
-    Slice!(double*, 2, Universal) k = (a).sliced(1000,1000).universal;
-    DataFrame!double d;
-    d.frameIndex.rCodes = [[1,2,3,0],[1,2,3,5555555]];
-    d.frameIndex.isMultiIndexed = true;
-    d.frameIndex.rIndices = [["yo","yoloy", "danndo", "jjjjjjjjjj"],[]];
-    d.frameIndex.rIndexTitles = ["Index", "Index2"];
-    d.frameIndex.cIndexTitles = ["DangDangg", "DangDangDangDang"];
-    d.frameIndex.cCodes = [[0,1,2,3],[0,1,2,3]];
-    d.frameIndex.cIndices = [["d", "d lang","d programming lang", "C+++"],
-                            ["d", "d lang","d programming lang", "C+++"]];
-    d.data = (new double(16)).sliced(4,4).universal;
-    d.display();
+    writeln("Example 1: Empty Dataframe");
+    DataFrame!double empty;
+    empty.display();
+
+    writeln("\nExample 2: Simple Data Frame");
+    DataFrame!double simpleEx;
+    simpleEx.frameIndex.rIndexTitles = ["Index"];
+    simpleEx.frameIndex.rCodes = [[0,1,2,3]];
+    simpleEx.frameIndex.rIndices = [[]];
+    simpleEx.frameIndex.cCodes = [[0,1,2,3]];
+    simpleEx.frameIndex.cIndices = [[]];
+    simpleEx.data = (new double(16)).sliced(4,4).universal;
+    simpleEx.display();
+
+    writeln("\nExample 3: Larger than terminal");
+    DataFrame!double largeEx;
+    largeEx.frameIndex.rIndexTitles = ["Index"];
+    largeEx.frameIndex.rCodes = [[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14]];
+    largeEx.frameIndex.rIndices = [[]];
+    largeEx.frameIndex.cCodes = [[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14]];
+    largeEx.frameIndex.cIndices = [[]];
+    largeEx.data = (new double(225)).sliced(15,15).universal;
+    largeEx.display();
+
+    writeln("\nExample 4: Dataframe with both row and column index titles");
+    DataFrame!double both;
+    both.frameIndex.rIndexTitles = ["Index"];
+    both.frameIndex.rCodes = [[0,1,2,3]];
+    both.frameIndex.rIndices = [[]];
+    both.frameIndex.cIndexTitles = ["Column Index:"];
+    both.frameIndex.cCodes = [[0,1,2,3]];
+    both.frameIndex.cIndices = [[]];
+    both.data = (new double(16)).sliced(4,4).universal;
+    both.display();
+    
+
+    writeln("\nExample 5: Multi-Indexed Rows");
+    DataFrame!double mirows;
+    mirows.frameIndex.rIndexTitles = ["Index1", "Index2"];
+    mirows.frameIndex.rCodes = [[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14],[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14]];
+    mirows.frameIndex.rIndices = [[], []];
+    mirows.frameIndex.cCodes = [[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14]];
+    mirows.frameIndex.cIndices = [[]];
+    mirows.data = (new double(225)).sliced(15,15).universal;
+    mirows.display();
+
+    writeln("\nExample 6: Multi Indexed Columns");
+    DataFrame!double mic;
+    mic.frameIndex.rIndexTitles = ["Index1", "Index2"];
+    mic.frameIndex.rCodes = [[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14]];
+    mic.frameIndex.rIndices = [[], []];
+    mic.frameIndex.cCodes = [[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14],[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14]];
+    mic.frameIndex.cIndices = [[],[]];
+    mic.data = (new double(225)).sliced(15,15).universal;
+    mic.display();
+
+    writeln("\nExample 6: Multi Indexed Columns with column index titles");
+    DataFrame!double mict;
+    mict.frameIndex.rIndexTitles = ["Index1", "Index2"];
+    mict.frameIndex.rCodes = [[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14]];
+    mict.frameIndex.rIndices = [[], []];
+    mict.frameIndex.cCodes = [[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14],[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14]];
+    mict.frameIndex.cIndexTitles = ["CIndex1:", "Cindex2:"];
+    mict.frameIndex.cIndices = [[],[]];
+    mict.data = (new double(225)).sliced(15,15).universal;
+    mict.display();
+
+    writeln("\nExample 7: Maximum Column Size");
+    simpleEx.frameIndex.rIndexTitles = ["IndexIndexIndexIndexIndexIndexIndexIndexIndexIndexIndexIndex"];
+    simpleEx.frameIndex.rCodes = [[0,1,2,3]];
+    simpleEx.frameIndex.rIndices = [[]];
+    simpleEx.frameIndex.cCodes = [[0,1,2,3]];
+    simpleEx.frameIndex.cIndices = [[]];
+    simpleEx.data = (new double(16)).sliced(4,4).universal;
+    simpleEx.display();
+
+    writeln("\nExample 8: Multi-Indexed Rows and Columns");
+    DataFrame!double ex1;
+    ex1.frameIndex.isMultiIndexed = true;
+    ex1.frameIndex.rIndexTitles = ["Index", "Index2"];
+    ex1.frameIndex.rIndices = [["yo","yoloy", "danndo", "jjjjjjjjjj"],[]];
+    ex1.frameIndex.rCodes = [[1,2,3,0],[1,2,3,5_555_555]];
+    //ex1.frameIndex.cIndexTitles = ["Language", "Language Again"];
+    ex1.frameIndex.cCodes = [[0,1,2,3],[0,1,2,3]];
+    ex1.frameIndex.cIndices = [["d","d lang","d programming lang","C+++"],["d","d lang","d programming lang","C+++"]];
+    ex1.data = (new double(16)).sliced(4,4).universal;
+    ex1.display();
+
+    writeln("\nExample 9: Multi-Indexed Rows and Columns with both row and colun index title");
+    ex1.frameIndex.isMultiIndexed = true;
+    ex1.frameIndex.rIndexTitles = ["Index", "Index2"];
+    ex1.frameIndex.rIndices = [["yo","yoloy", "danndo", "jjjjjjjjjj"],[]];
+    ex1.frameIndex.rCodes = [[1,2,3,0],[1,2,3,5_555_555]];
+    ex1.frameIndex.cIndexTitles = ["Language", "Language Again"];
+    ex1.frameIndex.cCodes = [[0,1,2,3],[0,1,2,3]];
+    ex1.frameIndex.cIndices = [["d","d lang","d programming lang","C+++"],["d","d lang","d programming lang","C+++"]];
+    ex1.data = (new double(16)).sliced(4,4).universal;
+    ex1.display();
+
+    writeln("\nExample 10: Multi-Indexed Rows and Columns skipping same index in rows index");
+    ex1.frameIndex.isMultiIndexed = true;
+    ex1.frameIndex.rIndexTitles = ["Index", "Index2"];
+    ex1.frameIndex.rIndices = [["yo","yoloy", "danndo", "jjjjjjjjjj"],[]];
+    ex1.frameIndex.rCodes = [[1,1,0,0],[1,2,3,5_555_555]];
+    ex1.frameIndex.cIndexTitles = ["Language", "Language Again"];
+    ex1.frameIndex.cCodes = [[0,1,2,3],[0,1,2,3]];
+    ex1.frameIndex.cIndices = [["d","d lang","d programming lang","C+++"],["d","d lang","d programming lang","C+++"]];
+    ex1.data = (new double(16)).sliced(4,4).universal;
+    ex1.display();
+
+    writeln("\nExample 11: Multi-Indexed Rows and Columns skipping same index in column index");
+    ex1.frameIndex.isMultiIndexed = true;
+    ex1.frameIndex.rIndexTitles = ["Index", "Index2"];
+    ex1.frameIndex.rIndices = [["yo","yoloy", "danndo", "jjjjjjjjjj"],[]];
+    ex1.frameIndex.rCodes = [[1,1,0,0],[1,2,3,5_555_555]];
+    ex1.frameIndex.cIndexTitles = ["Language", "Language Again"];
+    ex1.frameIndex.cCodes = [[0,0,2,3],[0,1,2,3]];
+    ex1.frameIndex.cIndices = [["d","d lang","d programming lang","C+++"],["d","d lang","d programming lang","C+++"]];
+    ex1.data = (new double(16)).sliced(4,4).universal;
+    ex1.display();
+
+    writeln("\nExample 12: Multi-Indexed Rows and Columns - skipping doesn't happen for the innermost index");
+    // Illegal example - Here two sets of values can be inferred from same pair of index
+    ex1.frameIndex.isMultiIndexed = true;
+    ex1.frameIndex.rIndexTitles = ["Index", "Index2"];
+    ex1.frameIndex.rIndices = [["yo","yoloy", "danndo", "jjjjjjjjjj"],[]];
+    ex1.frameIndex.rCodes = [[1,1,0,0],[1,1,3,5_555_555]];
+    ex1.frameIndex.cIndexTitles = ["Language", "Language Again"];
+    ex1.frameIndex.cCodes = [[0,0,2,3],[0,0,2,3]];
+    ex1.frameIndex.cIndices = [["d","d lang","d programming lang","C+++"],["d","d lang","d programming lang","C+++"]];
+    ex1.data = (new double(16)).sliced(4,4).universal;
+    ex1.display();
 }

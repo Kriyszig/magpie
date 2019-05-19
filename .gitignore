@@ -13,3 +13,4 @@ magpie-test-*
 *.o
 *.obj
 *.lst
+*.a
