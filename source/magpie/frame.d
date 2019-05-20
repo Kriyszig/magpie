@@ -569,16 +569,11 @@ public:
             throw new DataFrameExceptions("Expected data to be entered into the DataFrame bur recieved empty array");
         }
         ulong len = data2d[0].length;   // Stores the width of the DataFrame
-        bool padding = false;           // To ceck if the dat is rectangular or not
         for(int i = 0; i < data2d.length; ++i)
         {
-            if(data2d[i].length != len)
+            if(data2d[i].length > len)
             {
-                padding = true;
-                if(data2d[i].length > len)
-                {
-                    len = data2d[i].length;
-                }
+                len = data2d[i].length;
             }
         }
         // Checking if data2d is empty - second pass
@@ -590,27 +585,21 @@ public:
             );
         }
 
-        // Padding the dat is necessary
-        if(padding)
-        {
-            for(int i = 0; i < data2d.length; ++i)
-            {
-                if(data2d[i].length != len)
-                {
-                    for(ulong j = data2d[i].length; j < len; ++j)
-                    {
-                        data2d[i] ~= [T.init];
-                    }
-                }
-            }
-        }
-        import std.stdio: writeln;
         // Flattening the data into a 1D array
         T[] flattened = [];
         for(int i = 0; i < data2d.length; ++i)
         {
             flattened ~= data2d[i];
+            if(data2d[i].length != len)
+            {
+                // Padding in case the data is not rectangular
+                for(ulong j = data2d[i].length; j < len; ++j)
+                {
+                    flattened ~= [T.init];
+                }
+            }
         }
+
         // Resetting index
         frameIndex = Index();
         // Converting data to 2d Slice
@@ -651,11 +640,13 @@ unittest
     // df.display();
 }
 
+// Assignment that requires padding
 unittest
 {
     import std.stdio: writeln;
+    // df is of type int instead of float as assert will not consided 2 nan equal
     DataFrame!int df;
     df = [[1],[3, 4]];
     assert(df.data == [1,0,3,4].sliced(2,2).universal);
-    // writeln(df.data);
+    // df.display();
 }
