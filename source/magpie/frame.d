@@ -48,6 +48,53 @@ private:
         }
     }
 
+    // Given a set of indexes and codes in random order, arranges the indices in ascending order and swaps around the codes
+    // Note: Any changes made should be reflected below in the unit test for this function
+    void arrangeIndex(string[] indices, int[] code)
+    {
+        // If length of indices is 0, codes themself represent indexing which doesn't require sorting
+        if(indices.length == 0)
+        {
+            return;
+        }
+        // Selection sort
+        for(int i = 0; i < indices.length; ++i)
+        {
+            int pos = i;
+            for(int j = i + 1; j < indices.length; ++j)
+            {
+                if(indices[j] < indices[pos])
+                {
+                    pos = j;
+                }
+            }
+
+            // In case the first element is the smallest element
+            if(pos == i)
+            {
+                continue;
+            }
+
+            // Swaping index around
+            immutable string tmp = indices[pos];
+            indices[pos] = indices[i];
+            indices[i] = tmp;
+
+            // Swapping codes around
+            for(int j = 0; j < code.length; ++j)
+            {
+                if(code[j] == i)
+                {
+                    code[j] = pos;
+                }
+                else if(code[j] == pos)
+                {
+                    code[j] = i;
+                }
+            }
+        }
+    }
+
 public:
     /++
     Display: Displays the dataframe on the terminal in a tabular form.
@@ -631,7 +678,7 @@ unittest
     // df.display();
 }
 
-// assignment operation with 2d array
+/// assignment operation with 2d array
 unittest
 {
     DataFrame!double df;
@@ -640,7 +687,7 @@ unittest
     // df.display();
 }
 
-// Assignment that requires padding
+/// Assignment that requires padding
 unittest
 {
     import std.stdio: writeln;
@@ -649,4 +696,61 @@ unittest
     df = [[1],[3, 4]];
     assert(df.data == [1,0,3,4].sliced(2,2).universal);
     // df.display();
+}
+
+// Unit test for private member function
+unittest
+{
+    // This code is same as arrangeIndex private method of dataframe
+    void arrangeIndex(string[] indices, int[] code)
+    {
+        // If length of indices is 0, codes themself represent indexing which doesn't require sorting
+        if(indices.length == 0)
+        {
+            return;
+        }
+        // Selection sort
+        for(int i = 0; i < indices.length; ++i)
+        {
+            int pos = i;
+            for(int j = i + 1; j < indices.length; ++j)
+            {
+                if(indices[j] < indices[pos])
+                {
+                    pos = j;
+                }
+            }
+
+            // In case the first element is the smallest element
+            if(pos == i)
+            {
+                continue;
+            }
+
+            // Swaping index around
+            immutable string tmp = indices[pos];
+            indices[pos] = indices[i];
+            indices[i] = tmp;
+
+            // Swapping codes around
+            for(int j = 0; j < code.length; ++j)
+            {
+                if(code[j] == i)
+                {
+                    code[j] = pos;
+                }
+                else if(code[j] == pos)
+                {
+                    code[j] = i;
+                }
+            }
+        }
+    }
+
+    string[] index = ["b","a","d","c"];
+    int[] code = [0,1,2,3];
+    // Arranging index in ascending order while changing index so the result will still be ["b","a","d","c"]
+    arrangeIndex(index, code);
+    assert(index == ["a", "b", "c", "d"]);
+    assert(code == [1, 0, 3, 2]);
 }
