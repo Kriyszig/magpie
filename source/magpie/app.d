@@ -52,7 +52,7 @@ void main()
 
     writeln("\nExample 6: Multi Indexed Columns");
     DataFrame!double mic;
-    mic.frameIndex.rIndexTitles = ["Index1", "Index2"];
+    mic.frameIndex.rIndexTitles = ["Index1"];
     mic.frameIndex.rCodes = [[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14]];
     mic.frameIndex.rIndices = [[], []];
     mic.frameIndex.cCodes = [[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14],[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14]];
@@ -62,7 +62,7 @@ void main()
 
     writeln("\nExample 7: Multi Indexed Columns with column index titles");
     DataFrame!double mict;
-    mict.frameIndex.rIndexTitles = ["Index1", "Index2"];
+    mict.frameIndex.rIndexTitles = ["Index1"];
     mict.frameIndex.rCodes = [[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14]];
     mict.frameIndex.rIndices = [[], []];
     mict.frameIndex.cCodes = [[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14],[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14]];

@@ -667,6 +667,174 @@ public:
             frameIndex.cCodes[0] ~= [i];
         }
     }
+
+    /++
+    df.to_csv(): Method to write dataframe to a CSV file
+    +/
+    void to_csv(string path, bool writeIndex = true, bool writeColumns = true, char sep = ',')
+    {
+        import std.stdio: File;
+        File outputfile = File(path, "w");
+        // Terminating in case the DataFrame is empty. I will still open the file nonetheless and write nothing to signify empty dataframe
+        if(data.shape[0] == 0 || data.shape[1] == 0)
+        {
+            outputfile.close();
+            return;
+        }
+
+        // In case writeColumns is enabled
+        if(writeColumns)
+        {  
+            // Printing column indexes
+            // Note: The below subtraction from ulong will not lead to undefined behavior as frameIndex.cCodes.length is always > 1
+            for(int i = 0; i < frameIndex.cCodes.length - 1; ++i)
+            {
+                // Leaving white spaces and printing column index titles in case writeIndex is also enabled
+                if(writeIndex)
+                {
+                    for(int j = 0; j < frameIndex.rCodes.length - 1; ++j)
+                    {
+                        outputfile.write(sep);
+                    }
+
+                    if(frameIndex.cIndexTitles.length == 0)
+                    {
+                        outputfile.write(sep);
+                    }
+                    else
+                    {
+                        outputfile.write(frameIndex.cIndexTitles[i], sep);
+                    }
+                }
+
+                // Writing column titles
+                for(int j = 0; j < frameIndex.cCodes[i].length; ++j)
+                {
+                    // If cIndices for particular level doesn't exist, rCodes will become default indexes
+                    if(frameIndex.cIndices[i].length == 0)
+                    {
+                        if(j < frameIndex.cCodes[i].length - 1)
+                        {
+                            outputfile.write(frameIndex.cCodes[i][j], sep);
+                        }
+                        else
+                        {
+                            outputfile.write(frameIndex.cCodes[i][j]);
+                        }
+                    }
+                    else
+                    {
+                        if(j < frameIndex.cCodes[i].length - 1)
+                        {
+                            outputfile.write(frameIndex.cIndices[i][frameIndex.cCodes[i][j]], sep);
+                        }
+                        else
+                        {
+                            outputfile.write(frameIndex.cIndices[i][frameIndex.cCodes[i][j]]);
+                        }
+                    }
+                }
+
+                outputfile.write("\n");
+            }
+            
+            // Last level of column indexes
+            for(int i = 0; i < frameIndex.rCodes.length - 1; ++i)
+            {
+                // If writing row index is enabled, eriting row title in last level of column indexes if column index titles doesn't exist
+                if(writeIndex && frameIndex.cIndexTitles.length == 0)
+                {
+                    outputfile.write(frameIndex.rIndexTitles[i], sep);
+                }
+                else if(writeIndex)
+                {
+                    outputfile.write(sep);
+                }
+            }
+
+            if(writeIndex && frameIndex.cIndexTitles.length == 0)
+            {
+                outputfile.write(frameIndex.rIndexTitles[frameIndex.rIndexTitles.length - 1], sep);
+            }
+            else if(writeIndex && frameIndex.cIndexTitles.length != 0)
+            {
+                outputfile.write(frameIndex.cIndexTitles[frameIndex.cIndexTitles.length - 1], sep);
+            }
+            
+            // Writing last level of column index
+            ulong i = frameIndex.cCodes.length - 1;
+            for(int j = 0; j < frameIndex.cCodes[i].length; ++j)
+            {
+                if(frameIndex.cIndices[i].length == 0)
+                {
+                    if(j < frameIndex.cCodes[i].length - 1)
+                    {
+                        outputfile.write(frameIndex.cCodes[i][j], sep);
+                    }
+                    else
+                    {
+                        outputfile.write(frameIndex.cCodes[i][j]);
+                    }
+                }
+                else
+                {
+                    if(j < frameIndex.cCodes[i].length - 1)
+                    {
+                        outputfile.write(frameIndex.cIndices[i][frameIndex.cCodes[i][j]], sep);
+                    }
+                    else
+                    {
+                        outputfile.write(frameIndex.cIndices[i][frameIndex.cCodes[i][j]]);
+                    }
+                }
+            }
+
+            outputfile.write("\n");
+        }
+
+        // wRiting row index title in seperate ine in case column index title exist and user needs it to be written to file
+        if(writeIndex && writeColumns && frameIndex.cIndexTitles.length != 0)
+        {
+            outputfile.write(frameIndex.rIndexTitles[0]);
+            for(int i = 1; i < frameIndex.rIndexTitles.length; ++i)
+            {
+                outputfile.write(sep, frameIndex.rIndexTitles[i]);
+            }
+            outputfile.write("\n");
+        }
+
+        // Writing row indexes? and data
+        for(int i = 0; i < data.shape[0]; ++i)
+        {
+            // Checking if user wants indexing to be written to file
+            if(writeIndex)
+            {
+                for(int j = 0; j < frameIndex.rCodes.length; ++j)
+                {
+                    if(frameIndex.rIndices[j].length == 0)
+                    {
+                        outputfile.write(frameIndex.rCodes[j][i], sep);
+                    }
+                    else
+                    {
+                        outputfile.write(frameIndex.rIndices[j][frameIndex.rCodes[j][i]], sep);
+                    }
+                }
+            }
+
+            // Writing data to file
+            outputfile.write(data[i][0]);
+            for(int j = 1; j < data.shape[1]; ++j)
+            {
+                outputfile.write(sep, data[i][j]);
+            }
+
+            outputfile.write("\n");
+        }
+
+        // Closing file once operation is done
+        outputfile.close();
+    }
 }
 
 /// assignment operation with 1D array
@@ -690,7 +858,6 @@ unittest
 /// Assignment that requires padding
 unittest
 {
-    import std.stdio: writeln;
     // df is of type int instead of float as assert will not consided 2 nan equal
     DataFrame!int df;
     df = [[1],[3, 4]];
@@ -753,4 +920,75 @@ unittest
     arrangeIndex(index, code);
     assert(index == ["a", "b", "c", "d"]);
     assert(code == [1, 0, 3, 2]);
+}
+
+/// writing dataframe to CSV
+unittest
+{
+    import std.stdio: File;
+    import std.string: chomp;
+
+    // Creating a dataframe with both multi indexed rows and columns
+    DataFrame!int df;
+    df = [[1,2,3], [4,5,6]];
+    df.frameIndex.rIndexTitles = ["Index1", "Index2"];
+    df.frameIndex.rIndices = [[],[]];
+    df.frameIndex.rCodes = [[0,1], [0,1]];
+    df.frameIndex.cIndexTitles = ["cindex1","cindex2"];
+    df.frameIndex.cIndices = [[], []];
+    df.frameIndex.cCodes = [[0,1,2], [0,1,2]];
+    // df.display();
+
+    // Writing the entire dataframe to the csv file
+    df.to_csv("./test/tocsv/ex1tp1.csv");
+    File outfile = File("./test/tocsv/ex1tp1.csv", "r");
+
+    int i = 0;
+    string[] lines = [",cindex1,0,1,2",",cindex2,0,1,2","Index1,Index2","0,0,1,2,3","1,1,4,5,6",""];
+    // Comparing the output with the above expected string
+    while (!outfile.eof()) { 
+        immutable string line = chomp(outfile.readln()); 
+        assert(line == lines[i]);
+        ++i;
+    }
+    outfile.close();
+
+    // Writing the dataframe without column index
+    df.to_csv("./test/tocsv/ex1tp2.csv", true, false);
+    outfile = File("./test/tocsv/ex1tp2.csv", "r");
+    i = 0;
+    lines = ["0,0,1,2,3","1,1,4,5,6",""];
+    // Comparing the output with the above expected string
+    while (!outfile.eof()) { 
+        immutable string line = chomp(outfile.readln()); 
+        assert(line == lines[i]);
+        ++i; 
+    }
+    outfile.close();
+
+    // Writing dataframe without row index
+    df.to_csv("./test/tocsv/ex1tp3.csv", false, true);
+    outfile = File("./test/tocsv/ex1tp3.csv", "r");
+    i = 0;
+    lines = ["0,1,2","0,1,2","1,2,3","4,5,6",""];
+    // Comparing the output with the above expected string
+    while (!outfile.eof()) { 
+        immutable string line = chomp(outfile.readln()); 
+        assert(line == lines[i]);
+        ++i; 
+    }
+    outfile.close();
+
+    // Writing only DataFrame data
+    df.to_csv("./test/tocsv/ex1tp4.csv", false, false);
+    outfile = File("./test/tocsv/ex1tp4.csv", "r");
+    i = 0;
+    lines = ["1,2,3","4,5,6",""];
+    // Comparing the output with the above expected string
+    while (!outfile.eof()) { 
+        immutable string line = chomp(outfile.readln()); 
+        assert(line == lines[i]);
+        ++i; 
+    }
+    outfile.close();
 }
