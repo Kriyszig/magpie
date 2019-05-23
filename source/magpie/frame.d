@@ -864,14 +864,13 @@ public:
         import std.string: chomp;
         import std.array: split;
         import std.algorithm: countUntil;
-        import std.conv: to;
+        import std.conv: to, ConvException;
 
         File csvfile = File(path, "r");
         int i = 0, dataIndex = 0;
         frameIndex = Index();
         T[][] parseddata = [];
         bool containsColTitles = false;
-
 
         while(!csvfile.eof())
         {
@@ -906,7 +905,7 @@ public:
                         frameIndex.isMultiIndexed = true;
                         frameIndex.cCodes[i] ~= [frameIndex.cCodes[i][j - indexDepth - 1]];
                     }
-                    if(pos < 0)
+                    else if(pos < 0)
                     {
                         frameIndex.cIndices[i] ~= [line[j]];
                         frameIndex.cCodes[i] ~= [cast(int) frameIndex.cIndices[i].length - 1];
@@ -965,7 +964,14 @@ public:
 
                 for(int j = indexDepth; j < line.length; ++j)
                 {
-                    parseddata[dataIndex] ~= [to!T(line[j])];
+                    try
+                    {
+                        parseddata[dataIndex] ~= [to!T(line[j])];
+                    }
+                    catch(ConvException e)
+                    {
+                        parseddata[dataIndex] ~= [T.init];
+                    }
                 }
 
                 ++dataIndex;
@@ -1000,12 +1006,108 @@ public:
                 }
             }
         }
-                
-        for(int j = 1; j < parseddata.length; ++j)
+
+        if(frameIndex.cCodes.length > 1)
         {
-            parseddata[0] ~= parseddata[j];
+            immutable ulong maxindexlen = frameIndex.cCodes[frameIndex.cCodes.length - 1].length;
+            for(int j = 0; j < frameIndex.cCodes.length; ++j)
+            {
+                if(frameIndex.cCodes[j].length > maxindexlen)
+                {
+                    frameIndex.cCodes[j] = frameIndex.cCodes[j][0 .. maxindexlen];
+                }
+                else
+                {
+                    int paddingele = frameIndex.cCodes[j][frameIndex.cCodes[j].length - 1];
+                    for(ulong k = frameIndex.cCodes[j].length; k < maxindexlen; ++k)
+                    {
+                        frameIndex.cCodes[j] ~= paddingele;
+                    }
+                }
+            }
         }
-        data = parseddata[0].sliced(frameIndex.rCodes[0].length, frameIndex.cCodes[0].length).universal;
+
+        if(frameIndex.rCodes.length > 1)
+        {
+            immutable ulong maxindexlen = frameIndex.rCodes[frameIndex.rCodes.length - 1].length;
+            for(int j = 0; j < frameIndex.rCodes.length; ++j)
+            {
+                if(frameIndex.rCodes[j].length > maxindexlen)
+                {
+                    frameIndex.rCodes[j] = frameIndex.rCodes[j][0 .. maxindexlen];
+                }
+                else
+                {
+                    int paddingele = frameIndex.rCodes[j][frameIndex.rCodes[j].length - 1];
+                    for(ulong k = frameIndex.rCodes[j].length; k < maxindexlen; ++k)
+                    {
+                        frameIndex.rCodes[j] ~= paddingele;
+                    }
+                }
+            }
+        }
+
+        for(int j = 0; j < frameIndex.cCodes.length; ++j)
+        {
+            if(frameIndex.cIndices[j].length != 0)
+            {
+                try
+                {
+                    int[] indexInt = [];
+                    for(int k = 0; k < frameIndex.cCodes[j].length; ++k)
+                    {
+                        indexInt ~= [to!int(frameIndex.cIndices[j][frameIndex.cCodes[j][k]])];
+                    }
+                    frameIndex.cIndices[j] = [];
+                    frameIndex.cCodes[j] = indexInt;
+                }
+                catch(ConvException e)
+                {
+                    arrangeIndex(frameIndex.cIndices[j],frameIndex.cCodes[j]);
+                }
+            }
+        }
+
+        for(int j = 0; j < frameIndex.rCodes.length; ++j)
+        {
+            if(frameIndex.rIndices[j].length != 0)
+            {
+                try
+                {
+
+                    int[] indexInt = [];
+                    for(int k = 0; k < frameIndex.rCodes[j].length; ++k)
+                    {
+                        indexInt ~= [to!int(frameIndex.rIndices[j][frameIndex.rCodes[j][k]])];
+                    }
+                    frameIndex.rIndices[j] = [];
+                    frameIndex.rCodes[j] = indexInt;
+                }
+                catch(ConvException e)
+                {
+                    arrangeIndex(frameIndex.rIndices[j],frameIndex.rCodes[j]);
+                }
+            }
+        }
+
+        T[] flatten = [];
+        ulong maxlen = frameIndex.cCodes[frameIndex.cCodes.length - 1].length;
+        for(int j = 0; j < parseddata.length; ++j)
+        {
+            if(parseddata[j].length > maxlen)
+            {
+                flatten ~= parseddata[j][0 .. maxlen];
+            }
+            else
+            {
+                flatten ~= parseddata[j];
+                for(ulong k = parseddata[j].length; k < maxlen; ++k)
+                {
+                    flatten ~= [T.init];
+                }
+            }
+        }
+        data = flatten.sliced(frameIndex.rCodes[0].length, frameIndex.cCodes[0].length).universal;
     }
 }
 
@@ -1280,6 +1382,38 @@ unittest
     df.to_csv("./test/tocsv/ex4tp1.csv", false);
     File f1 = File("./test/fromcsv/heart.csv", "r");
     File f2 = File("./test/tocsv/ex4tp1.csv", "r");
+    while(!f1.eof())
+    {
+        assert(f1.readln() == f2.readln());
+    }
+    assert(f1.eof() == f2.eof());
+    f1.close();
+    f2.close();
+}
+
+/// Parsing multi-indexed dataframe with skipped index
+unittest
+{
+    import std.stdio: File;
+    DataFrame!double df;
+    df.from_csv("./test/tocsv/ex2tp1.csv", 2, 2);
+    // df.display();
+    df.to_csv("./test/tocsv/ex5tp1.csv");
+    File f1 = File("./test/tocsv/ex2tp1.csv", "r");
+    File f2 = File("./test/tocsv/ex5tp1.csv", "r");
+    while(!f1.eof())
+    {
+        assert(f1.readln() == f2.readln());
+    }
+    assert(f1.eof() == f2.eof());
+    f1.close();
+    f2.close();
+
+    df.from_csv("./test/tocsv/ex2tp2.csv", 2, 2);
+    // df.display();
+    df.to_csv("./test/tocsv/ex5tp2.csv");
+    f1 = File("./test/tocsv/ex2tp2.csv", "r");
+    f2 = File("./test/tocsv/ex5tp2.csv", "r");
     while(!f1.eof())
     {
         assert(f1.readln() == f2.readln());
