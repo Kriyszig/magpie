@@ -713,7 +713,14 @@ public:
                     // If cIndices for particular level doesn't exist, rCodes will become default indexes
                     if(frameIndex.cIndices[i].length == 0)
                     {
-                        if(j < frameIndex.cCodes[i].length - 1)
+                        if(frameIndex.isMultiIndexed && j > 0 && frameIndex.cCodes[i][j] == frameIndex.cCodes[i][j - 1])
+                        {
+                            if(j < frameIndex.cCodes[i].length - 1)
+                            {
+                                outputfile.write(sep);
+                            }
+                        }
+                        else if(j < frameIndex.cCodes[i].length - 1)
                         {
                             outputfile.write(frameIndex.cCodes[i][j], sep);
                         }
@@ -724,7 +731,14 @@ public:
                     }
                     else
                     {
-                        if(j < frameIndex.cCodes[i].length - 1)
+                        if(frameIndex.isMultiIndexed && j > 0 && frameIndex.cCodes[i][j] == frameIndex.cCodes[i][j - 1])
+                        {
+                            if(j < frameIndex.cCodes[i].length - 1)
+                            {
+                                outputfile.write(sep);
+                            }
+                        }
+                        else if(j < frameIndex.cCodes[i].length - 1)
                         {
                             outputfile.write(frameIndex.cIndices[i][frameIndex.cCodes[i][j]], sep);
                         }
@@ -811,7 +825,12 @@ public:
             {
                 for(int j = 0; j < frameIndex.rCodes.length; ++j)
                 {
-                    if(frameIndex.rIndices[j].length == 0)
+                    if(frameIndex.isMultiIndexed && i > 0 && j < frameIndex.rCodes.length - 1
+                    && frameIndex.rCodes[j][i] == frameIndex.rCodes[j][i - 1])
+                    {
+                        outputfile.write(sep);
+                    }
+                    else if(frameIndex.rIndices[j].length == 0)
                     {
                         outputfile.write(frameIndex.rCodes[j][i], sep);
                     }
@@ -989,6 +1008,53 @@ unittest
         immutable string line = chomp(outfile.readln()); 
         assert(line == lines[i]);
         ++i; 
+    }
+    outfile.close();
+}
+
+/// Writing multi indexed DataFrame to csv
+unittest
+{
+    import std.stdio: File;
+    import std.string: chomp;
+
+    // Building a multi-indexed dataframe
+    DataFrame!int df;
+    df = [[1,2],[3,4]];
+    df.frameIndex.isMultiIndexed = true;
+    df.frameIndex.cIndexTitles = ["cindex1","cindex2"];
+    df.frameIndex.cCodes = [[0,0],[0,1]];
+    df.frameIndex.cIndices = [["D"],["Programming", "Language"]];
+    df.frameIndex.rIndexTitles = ["index1", "index2"];
+    df.frameIndex.rCodes = [[1,1],[0,1]];
+    df.frameIndex.rIndices = [[], ["D", "C+++"]];
+    // df.display();
+    df.to_csv("./test/tocsv/ex2tp1.csv");
+    File outfile = File("./test/tocsv/ex2tp1.csv", "r");
+
+    int i = 0;
+    string[] lines = [",cindex1,D,",",cindex2,Programming,Language","index1,index2","1,D,1,2",",C+++,3,4",""];
+    // Comparing the output with the above expected string
+    while (!outfile.eof()) { 
+        immutable string line = chomp(outfile.readln()); 
+        assert(line == lines[i]);
+        ++i;
+    }
+    outfile.close();
+
+    // Checking if multi-index on innermost level will not lead to skipping
+    df.frameIndex.cCodes = [[0,0], [0,0]];
+    df.frameIndex.rCodes = [[1,1], [0,0]];
+    df.to_csv("./test/tocsv/ex2tp2.csv");
+    outfile = File("./test/tocsv/ex2tp2.csv", "r");
+
+    i = 0;
+    lines = [",cindex1,D,",",cindex2,Programming,Programming","index1,index2","1,D,1,2",",D,3,4",""];
+    // Comparing the output with the above expected string
+    while (!outfile.eof()) { 
+        immutable string line = chomp(outfile.readln()); 
+        assert(line == lines[i]);
+        ++i;
     }
     outfile.close();
 }
