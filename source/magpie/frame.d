@@ -11,18 +11,18 @@ struct Index
     bool isMultiIndexed = false;
 
     /// Field Tiyle for all the rowIndex
-    string[] rIndexTitles;
+    string[] rIndexTitles = [];
     /// Strings representing row indexes
-    string[][]  rIndices;
+    string[][]  rIndices = [];
     /// Codes linking the position of the index to it's location in rIndices
-    int[][] rCodes;
+    int[][] rCodes = [];
 
     /// Field Titles for Column Index
-    string[] cIndexTitles;
+    string[] cIndexTitles = [];
     /// Strings representing column index
-    string[][] cIndices;
+    string[][] cIndices = [];
     /// Codes linking the position of each column index to it's location in cIndices
-    int[][] cCodes;
+    int[][] cCodes = [];
 
 }
 
@@ -854,6 +854,159 @@ public:
         // Closing file once operation is done
         outputfile.close();
     }
+
+    /++
+    from_csv(): Parses data  from a structured csv into a DataFrame
+    +/
+    void from_csv(string path, int indexDepth = 1, int columnDepth = 1, char sep = ',')
+    {
+        import std.stdio: File;
+        import std.string: chomp;
+        import std.array: split;
+        import std.algorithm: countUntil;
+        import std.conv: to;
+
+        File csvfile = File(path, "r");
+        int i = 0, dataIndex = 0;
+        frameIndex = Index();
+        T[][] parseddata = [];
+        bool containsColTitles = false;
+
+
+        while(!csvfile.eof())
+        {
+            string[] line = chomp(csvfile.readln()).split(sep);
+            if(i < columnDepth)
+            {
+                if(i == columnDepth - 1 && indexDepth > 0 && !containsColTitles && line[0].length != 0)
+                {
+                    frameIndex.rIndexTitles = line[0 .. indexDepth];
+                }
+                else if(!containsColTitles && indexDepth > 0 && line[indexDepth - 1].length != 0)
+                {
+                    containsColTitles = true;
+                }
+
+                if(containsColTitles)
+                {
+                    frameIndex.cIndexTitles ~= [line[indexDepth - 1]];
+                }
+
+                for(int j = indexDepth; j < line.length; ++j)
+                {
+                    if(frameIndex.cCodes.length == i)
+                    {
+                        frameIndex.cCodes ~= [[]];
+                        frameIndex.cIndices ~= [[]];
+                    }
+
+                    immutable int pos = cast(int) countUntil(frameIndex.cIndices[i], line[j]);
+                    if(j > indexDepth && line[j].length == 0)
+                    {
+                        frameIndex.isMultiIndexed = true;
+                        frameIndex.cCodes[i] ~= [frameIndex.cCodes[i][j - indexDepth - 1]];
+                    }
+                    if(pos < 0)
+                    {
+                        frameIndex.cIndices[i] ~= [line[j]];
+                        frameIndex.cCodes[i] ~= [cast(int) frameIndex.cIndices[i].length - 1];
+                    }
+                    else
+                    {
+                        frameIndex.cCodes[i] ~= [frameIndex.cCodes[i][j - indexDepth - 1]];
+                    }
+                }
+            }
+            else if(i == columnDepth && (containsColTitles || (columnDepth == 1 && indexDepth == 1)))
+            {
+                if(columnDepth == 1 && indexDepth == 1)
+                {
+                    if(line.length == 1)
+                    {
+                        frameIndex.cIndexTitles = frameIndex.rIndexTitles;
+                        containsColTitles = true;
+                    }
+                }
+                if(containsColTitles)
+                {
+                    frameIndex.rIndexTitles = line[0 .. indexDepth];
+                }
+            }
+            else if(line.length > 0)
+            {
+                if(dataIndex == 0)
+                {
+                    for(int j = 0; j < indexDepth; ++j)
+                    {
+                        frameIndex.rIndices ~= [[]];
+                        frameIndex.rCodes ~= [[]];
+                    }
+                }
+                parseddata ~= [[]];
+
+                for(int j = 0; j < indexDepth; ++j)
+                {
+                    immutable int pos = cast(int) countUntil(frameIndex.rIndices[j], line[j]);
+                    if(dataIndex > 0 && line[j].length == 0)
+                    {
+                        frameIndex.rCodes[j] ~= [frameIndex.rCodes[j][dataIndex - 1]];
+                    }
+                    else if(pos < 0)
+                    {
+                        frameIndex.rIndices[j] ~= [line[j]];
+                        frameIndex.rCodes[j] ~= [cast(int) frameIndex.rIndices[j].length - 1];
+                    }
+                    else
+                    {
+                        frameIndex.rCodes[j] ~= [frameIndex.rCodes[j][dataIndex - 1]];
+                    }
+
+                }
+
+                for(int j = indexDepth; j < line.length; ++j)
+                {
+                    parseddata[dataIndex] ~= [to!T(line[j])];
+                }
+
+                ++dataIndex;
+            }
+            ++i;
+        }
+        csvfile.close();
+
+        if(indexDepth == 0)
+        {
+            frameIndex.rIndexTitles = ["Index"];
+            frameIndex.rIndices = [[]];
+            frameIndex.rCodes = [[]];
+            for(int j = 0; j < parseddata.length; ++j)
+            {
+                frameIndex.rCodes[0] ~= [j];
+            }
+        }
+        if(columnDepth == 0)
+        {
+            frameIndex.cIndices = [[]];
+            frameIndex.cCodes = [[]];
+            for(int j = 0; j < parseddata[0].length; ++j)
+            {
+                frameIndex.cCodes[0] ~= [j];
+            }
+            if(indexDepth != 0)
+            {
+                for(int j = 0 ;j < indexDepth; ++j)
+                {
+                    frameIndex.rIndexTitles ~= ["Index" ~ to!string(j+1)];
+                }
+            }
+        }
+                
+        for(int j = 1; j < parseddata.length; ++j)
+        {
+            parseddata[0] ~= parseddata[j];
+        }
+        data = parseddata[0].sliced(frameIndex.rCodes[0].length, frameIndex.cCodes[0].length).universal;
+    }
 }
 
 /// assignment operation with 1D array
@@ -1057,4 +1210,81 @@ unittest
         ++i;
     }
     outfile.close();
+}
+
+/// Parsing CSV files to DataFrame
+unittest
+{
+    import std.stdio: File;
+    DataFrame!int df;
+    df.from_csv("./test/tocsv/ex1tp1.csv", 2, 2);
+    // df.display();
+    df.to_csv("./test/tocsv/ex3tp1.csv");
+    File f1 = File("./test/tocsv/ex1tp1.csv", "r");
+    File f2 = File("./test/tocsv/ex3tp1.csv", "r");
+    while(!f1.eof())
+    {
+        assert(f1.readln() == f2.readln());
+    }
+    assert(f1.eof() == f2.eof());
+    f1.close();
+    f2.close();
+    
+    df.from_csv("./test/tocsv/ex1tp2.csv", 2, 0);
+    // df.display();
+    df.to_csv("./test/tocsv/ex3tp2.csv", true, false);
+    f1 = File("./test/tocsv/ex1tp2.csv", "r");
+    f2 = File("./test/tocsv/ex3tp2.csv", "r");
+    while(!f1.eof())
+    {
+        assert(f1.readln() == f2.readln());
+    }
+    assert(f1.eof() == f2.eof());
+    f1.close();
+    f2.close();
+    
+    df.from_csv("./test/tocsv/ex1tp3.csv", 0, 2);
+    // df.display();
+    df.to_csv("./test/tocsv/ex3tp3.csv", false, true);
+    f1 = File("./test/tocsv/ex1tp3.csv", "r");
+    f2 = File("./test/tocsv/ex3tp3.csv", "r");
+    while(!f1.eof())
+    {
+        assert(f1.readln() == f2.readln());
+    }
+    assert(f1.eof() == f2.eof());
+    f1.close();
+    f2.close();
+    
+    df.from_csv("./test/tocsv/ex1tp4.csv", 0, 0);
+    //df.display();
+    df.to_csv("./test/tocsv/ex3tp4.csv", false, false);
+    f1 = File("./test/tocsv/ex1tp4.csv", "r");
+    f2 = File("./test/tocsv/ex3tp4.csv", "r");
+    while(!f1.eof())
+    {
+        assert(f1.readln() == f2.readln());
+    }
+    assert(f1.eof() == f2.eof());
+    f1.close();
+    f2.close();
+}
+
+/// Parsing Kaggle Datasets as PoW
+unittest
+{
+    import std.stdio: File;
+    DataFrame!double df;
+    df.from_csv("./test/fromcsv/heart.csv", 0, 1);
+    // df.display();
+    df.to_csv("./test/tocsv/ex4tp1.csv", false);
+    File f1 = File("./test/fromcsv/heart.csv", "r");
+    File f2 = File("./test/tocsv/ex4tp1.csv", "r");
+    while(!f1.eof())
+    {
+        assert(f1.readln() == f2.readln());
+    }
+    assert(f1.eof() == f2.eof());
+    f1.close();
+    f2.close();
 }
