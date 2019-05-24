@@ -1,12 +1,13 @@
 {
+	"name": "magpie",
+	"targetType": "library",
+	"description": "Data analysis / manipulation library for D",
+	"license": "proprietary",
 	"authors": [
 		"Norman"
 	],
 	"copyright": "Copyright © 2019, Norman",
 	"dependencies": {
 		"mir-algorithm": "~>3.4.6"
-	},
-	"description": "Data analysis / manipulation library for D",
-	"license": "proprietary",
-	"name": "magpie"
+	}
 }
