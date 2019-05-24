@@ -78,15 +78,12 @@ public:
     void display()
     {
         import std.stdio: writeln;
-        import magpie.format: display;
-        writeln(display!T(frameIndex, data));
+        import magpie.format: formatToString;
+        writeln(formatToString!T(frameIndex, data));
         // Displaying DataFrame dimension for user to hanve an understanding of the quantity of data in case the total data was cut-off while displaying
         ulong rows = (frameIndex.cCodes.length + data.shape[0] + ((frameIndex.cIndexTitles.length > 0)?1: 0));
         writeln("Dataframe Dimension: [ ", rows, " X ", frameIndex.rCodes.length + data.shape[1] , " ]");
         writeln("Operable Data Dimension: [ ", data.shape[0], " X ", data.shape[1], " ]");
-        // writeln(colSize);
-        // writeln(forward, "\t", backward);
-        // writeln(data);
     }
 
     /++
@@ -184,186 +181,8 @@ public:
     +/
     void to_csv(string path, bool writeIndex = true, bool writeColumns = true, char sep = ',')
     {
-        import std.stdio: File;
-        File outputfile = File(path, "w");
-        // Terminating in case the DataFrame is empty. I will still open the file nonetheless and write nothing to signify empty dataframe
-        if(data.shape[0] == 0 || data.shape[1] == 0)
-        {
-            outputfile.close();
-            return;
-        }
-
-        // In case writeColumns is enabled
-        if(writeColumns)
-        {  
-            // Printing column indexes
-            // Note: The below subtraction from ulong will not lead to undefined behavior as frameIndex.cCodes.length is always > 1
-            for(int i = 0; i < frameIndex.cCodes.length - 1; ++i)
-            {
-                // Leaving white spaces and printing column index titles in case writeIndex is also enabled
-                if(writeIndex)
-                {
-                    for(int j = 0; j < frameIndex.rCodes.length - 1; ++j)
-                    {
-                        outputfile.write(sep);
-                    }
-
-                    if(frameIndex.cIndexTitles.length == 0)
-                    {
-                        outputfile.write(sep);
-                    }
-                    else
-                    {
-                        outputfile.write(frameIndex.cIndexTitles[i], sep);
-                    }
-                }
-
-                // Writing column titles
-                for(int j = 0; j < frameIndex.cCodes[i].length; ++j)
-                {
-                    // If cIndices for particular level doesn't exist, rCodes will become default indexes
-                    if(frameIndex.cIndices[i].length == 0)
-                    {
-                        if(frameIndex.isMultiIndexed && j > 0 && frameIndex.cCodes[i][j] == frameIndex.cCodes[i][j - 1])
-                        {
-                            if(j < frameIndex.cCodes[i].length - 1)
-                            {
-                                outputfile.write(sep);
-                            }
-                        }
-                        else if(j < frameIndex.cCodes[i].length - 1)
-                        {
-                            outputfile.write(frameIndex.cCodes[i][j], sep);
-                        }
-                        else
-                        {
-                            outputfile.write(frameIndex.cCodes[i][j]);
-                        }
-                    }
-                    else
-                    {
-                        if(frameIndex.isMultiIndexed && j > 0 && frameIndex.cCodes[i][j] == frameIndex.cCodes[i][j - 1])
-                        {
-                            if(j < frameIndex.cCodes[i].length - 1)
-                            {
-                                outputfile.write(sep);
-                            }
-                        }
-                        else if(j < frameIndex.cCodes[i].length - 1)
-                        {
-                            outputfile.write(frameIndex.cIndices[i][frameIndex.cCodes[i][j]], sep);
-                        }
-                        else
-                        {
-                            outputfile.write(frameIndex.cIndices[i][frameIndex.cCodes[i][j]]);
-                        }
-                    }
-                }
-
-                outputfile.write("\n");
-            }
-            
-            // Last level of column indexes
-            for(int i = 0; i < frameIndex.rCodes.length - 1; ++i)
-            {
-                // If writing row index is enabled, eriting row title in last level of column indexes if column index titles doesn't exist
-                if(writeIndex && frameIndex.cIndexTitles.length == 0)
-                {
-                    outputfile.write(frameIndex.rIndexTitles[i], sep);
-                }
-                else if(writeIndex)
-                {
-                    outputfile.write(sep);
-                }
-            }
-
-            if(writeIndex && frameIndex.cIndexTitles.length == 0)
-            {
-                outputfile.write(frameIndex.rIndexTitles[frameIndex.rIndexTitles.length - 1], sep);
-            }
-            else if(writeIndex && frameIndex.cIndexTitles.length != 0)
-            {
-                outputfile.write(frameIndex.cIndexTitles[frameIndex.cIndexTitles.length - 1], sep);
-            }
-            
-            // Writing last level of column index
-            ulong i = frameIndex.cCodes.length - 1;
-            for(int j = 0; j < frameIndex.cCodes[i].length; ++j)
-            {
-                if(frameIndex.cIndices[i].length == 0)
-                {
-                    if(j < frameIndex.cCodes[i].length - 1)
-                    {
-                        outputfile.write(frameIndex.cCodes[i][j], sep);
-                    }
-                    else
-                    {
-                        outputfile.write(frameIndex.cCodes[i][j]);
-                    }
-                }
-                else
-                {
-                    if(j < frameIndex.cCodes[i].length - 1)
-                    {
-                        outputfile.write(frameIndex.cIndices[i][frameIndex.cCodes[i][j]], sep);
-                    }
-                    else
-                    {
-                        outputfile.write(frameIndex.cIndices[i][frameIndex.cCodes[i][j]]);
-                    }
-                }
-            }
-
-            outputfile.write("\n");
-        }
-
-        // wRiting row index title in seperate ine in case column index title exist and user needs it to be written to file
-        if(writeIndex && writeColumns && frameIndex.cIndexTitles.length != 0)
-        {
-            outputfile.write(frameIndex.rIndexTitles[0]);
-            for(int i = 1; i < frameIndex.rIndexTitles.length; ++i)
-            {
-                outputfile.write(sep, frameIndex.rIndexTitles[i]);
-            }
-            outputfile.write("\n");
-        }
-
-        // Writing row indexes? and data
-        for(int i = 0; i < data.shape[0]; ++i)
-        {
-            // Checking if user wants indexing to be written to file
-            if(writeIndex)
-            {
-                for(int j = 0; j < frameIndex.rCodes.length; ++j)
-                {
-                    if(frameIndex.isMultiIndexed && i > 0 && j < frameIndex.rCodes.length - 1
-                    && frameIndex.rCodes[j][i] == frameIndex.rCodes[j][i - 1])
-                    {
-                        outputfile.write(sep);
-                    }
-                    else if(frameIndex.rIndices[j].length == 0)
-                    {
-                        outputfile.write(frameIndex.rCodes[j][i], sep);
-                    }
-                    else
-                    {
-                        outputfile.write(frameIndex.rIndices[j][frameIndex.rCodes[j][i]], sep);
-                    }
-                }
-            }
-
-            // Writing data to file
-            outputfile.write(data[i][0]);
-            for(int j = 1; j < data.shape[1]; ++j)
-            {
-                outputfile.write(sep, data[i][j]);
-            }
-
-            outputfile.write("\n");
-        }
-
-        // Closing file once operation is done
-        outputfile.close();
+        import magpie.format: writeasCSV;
+        writeasCSV!T(frameIndex, data, path, writeIndex, writeColumns, sep);
     }
 
     /++

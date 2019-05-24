@@ -6,7 +6,7 @@ import mir.ndslice: Slice, Universal;
 /++
 display(T)(frameIndex, data, terminalw): Function that formats the data frame data to a termianl friendly formateed string.
 +/
-string display(T)(Index frameIndex, Slice!(T*, 2, Universal) data, int terminalw = 0)
+string formatToString(T)(Index frameIndex, Slice!(T*, 2, Universal) data, int terminalw = 0)
 {
     // Checking if the given dataframe is empty
     if(data.shape[0] == 0 || data.shape[1] == 0)
@@ -478,28 +478,214 @@ string display(T)(Index frameIndex, Slice!(T*, 2, Universal) data, int terminalw
             returnstr ~= "\n";
         }
     }
-    // Displaying DataFrame dimension for user to hanve an understanding of the quantity of data in case the total data was cut-off while displaying
     
     return returnstr;
 }
 
+void writeasCSV(T)(Index frameIndex, Slice!(T*, 2, Universal) data, string path, bool writeIndex = true, bool writeColumns = true, char sep = ',')
+{
+    import std.stdio: File;
+    File outputfile = File(path, "w");
+    // Terminating in case the DataFrame is empty. I will still open the file nonetheless and write nothing to signify empty dataframe
+    if(data.shape[0] == 0 || data.shape[1] == 0)
+    {
+        outputfile.close();
+        return;
+    }
+
+    // In case writeColumns is enabled
+    if(writeColumns)
+    {  
+        // Printing column indexes
+        // Note: The below subtraction from ulong will not lead to undefined behavior as frameIndex.cCodes.length is always > 1
+        for(int i = 0; i < frameIndex.cCodes.length - 1; ++i)
+        {
+            // Leaving white spaces and printing column index titles in case writeIndex is also enabled
+            if(writeIndex)
+            {
+                for(int j = 0; j < frameIndex.rCodes.length - 1; ++j)
+                {
+                    outputfile.write(sep);
+                }
+
+                if(frameIndex.cIndexTitles.length == 0)
+                {
+                    outputfile.write(sep);
+                }
+                else
+                {
+                    outputfile.write(frameIndex.cIndexTitles[i], sep);
+                }
+            }
+
+            // Writing column titles
+            for(int j = 0; j < frameIndex.cCodes[i].length; ++j)
+            {
+                // If cIndices for particular level doesn't exist, rCodes will become default indexes
+                if(frameIndex.cIndices[i].length == 0)
+                {
+                    if(frameIndex.isMultiIndexed && j > 0 && frameIndex.cCodes[i][j] == frameIndex.cCodes[i][j - 1])
+                    {
+                        if(j < frameIndex.cCodes[i].length - 1)
+                        {
+                            outputfile.write(sep);
+                        }
+                    }
+                    else if(j < frameIndex.cCodes[i].length - 1)
+                    {
+                        outputfile.write(frameIndex.cCodes[i][j], sep);
+                    }
+                    else
+                    {
+                        outputfile.write(frameIndex.cCodes[i][j]);
+                    }
+                }
+                else
+                {
+                    if(frameIndex.isMultiIndexed && j > 0 && frameIndex.cCodes[i][j] == frameIndex.cCodes[i][j - 1])
+                    {
+                        if(j < frameIndex.cCodes[i].length - 1)
+                        {
+                            outputfile.write(sep);
+                        }
+                    }
+                    else if(j < frameIndex.cCodes[i].length - 1)
+                    {
+                        outputfile.write(frameIndex.cIndices[i][frameIndex.cCodes[i][j]], sep);
+                    }
+                    else
+                    {
+                        outputfile.write(frameIndex.cIndices[i][frameIndex.cCodes[i][j]]);
+                    }
+                }
+            }
+
+            outputfile.write("\n");
+        }
+        
+        // Last level of column indexes
+        for(int i = 0; i < frameIndex.rCodes.length - 1; ++i)
+        {
+            // If writing row index is enabled, eriting row title in last level of column indexes if column index titles doesn't exist
+            if(writeIndex && frameIndex.cIndexTitles.length == 0)
+            {
+                outputfile.write(frameIndex.rIndexTitles[i], sep);
+            }
+            else if(writeIndex)
+            {
+                outputfile.write(sep);
+            }
+        }
+
+        if(writeIndex && frameIndex.cIndexTitles.length == 0)
+        {
+            outputfile.write(frameIndex.rIndexTitles[frameIndex.rIndexTitles.length - 1], sep);
+        }
+        else if(writeIndex && frameIndex.cIndexTitles.length != 0)
+        {
+            outputfile.write(frameIndex.cIndexTitles[frameIndex.cIndexTitles.length - 1], sep);
+        }
+        
+        // Writing last level of column index
+        ulong i = frameIndex.cCodes.length - 1;
+        for(int j = 0; j < frameIndex.cCodes[i].length; ++j)
+        {
+            if(frameIndex.cIndices[i].length == 0)
+            {
+                if(j < frameIndex.cCodes[i].length - 1)
+                {
+                    outputfile.write(frameIndex.cCodes[i][j], sep);
+                }
+                else
+                {
+                    outputfile.write(frameIndex.cCodes[i][j]);
+                }
+            }
+            else
+            {
+                if(j < frameIndex.cCodes[i].length - 1)
+                {
+                    outputfile.write(frameIndex.cIndices[i][frameIndex.cCodes[i][j]], sep);
+                }
+                else
+                {
+                    outputfile.write(frameIndex.cIndices[i][frameIndex.cCodes[i][j]]);
+                }
+            }
+        }
+
+        outputfile.write("\n");
+    }
+
+    // wRiting row index title in seperate ine in case column index title exist and user needs it to be written to file
+    if(writeIndex && writeColumns && frameIndex.cIndexTitles.length != 0)
+    {
+        outputfile.write(frameIndex.rIndexTitles[0]);
+        for(int i = 1; i < frameIndex.rIndexTitles.length; ++i)
+        {
+            outputfile.write(sep, frameIndex.rIndexTitles[i]);
+        }
+        outputfile.write("\n");
+    }
+
+    // Writing row indexes? and data
+    for(int i = 0; i < data.shape[0]; ++i)
+    {
+        // Checking if user wants indexing to be written to file
+        if(writeIndex)
+        {
+            for(int j = 0; j < frameIndex.rCodes.length; ++j)
+            {
+                if(frameIndex.isMultiIndexed && i > 0 && j < frameIndex.rCodes.length - 1
+                && frameIndex.rCodes[j][i] == frameIndex.rCodes[j][i - 1])
+                {
+                    outputfile.write(sep);
+                }
+                else if(frameIndex.rIndices[j].length == 0)
+                {
+                    outputfile.write(frameIndex.rCodes[j][i], sep);
+                }
+                else
+                {
+                    outputfile.write(frameIndex.rIndices[j][frameIndex.rCodes[j][i]], sep);
+                }
+            }
+        }
+
+        // Writing data to file
+        outputfile.write(data[i][0]);
+        for(int j = 1; j < data.shape[1]; ++j)
+        {
+            outputfile.write(sep, data[i][j]);
+        }
+
+        outputfile.write("\n");
+    }
+
+    // Closing file once operation is done
+    outputfile.close();
+}
+
+/// Basic DataFrame
 unittest
 {
     import magpie.frame: DataFrame;
     DataFrame!int df;
     df = [1,2,3,4,5,6];
     immutable string retstr = "Index  0  1  2  3  4  5\n0      1  2  3  4  5  6\n";
-    assert(display!int(df.frameIndex, df.data, 200) == retstr);
+    assert(formatToString!int(df.frameIndex, df.data, 200) == retstr);
 }
 
+/// Empty DataFrame
 unittest
 {
     import magpie.frame: DataFrame;
     DataFrame!double empty;
     immutable string retstr = "The DataFrame is empty\n";
-    assert(display!double(empty.frameIndex, empty.data, 200) == retstr);
+    assert(formatToString!double(empty.frameIndex, empty.data, 200) == retstr);
 }
 
+/// A simple but larger DataFrame
 unittest
 {
     import magpie.frame: DataFrame;
@@ -523,9 +709,10 @@ unittest
     ~ "1      3.92387e+179  3.92387e+179  3.92387e+179  3.92387e+179\n"
     ~ "2      3.92387e+179  3.92387e+179  3.92387e+179  3.92387e+179\n"
     ~ "3      3.92387e+179  3.92387e+179  3.92387e+179  3.92387e+179\n";
-    assert(display!double(simpleEx.frameIndex, simpleEx.data, 200) == retstr);
+    assert(formatToString!double(simpleEx.frameIndex, simpleEx.data, 200) == retstr);
 }
 
+/// Wide DataFrame
 unittest
 {
     import magpie.frame: DataFrame;
@@ -576,9 +763,10 @@ unittest
     ~ "  3.92387e+179  3.92387e+179  3.92387e+179  3.92387e+179  3.92387e+179  3.92387e+179\n"
     ~ "14     3.92387e+179  3.92387e+179  3.92387e+179  3.92387e+179  3.92387e+179  3.92387e+179  ...  3.92387e+179"
     ~ "  3.92387e+179  3.92387e+179  3.92387e+179  3.92387e+179  3.92387e+179  3.92387e+179\n";
-    assert(display!double(largeEx.frameIndex, largeEx.data, 200) == retstr);
+    assert(formatToString!double(largeEx.frameIndex, largeEx.data, 200) == retstr);
 }
 
+/// DataFrame with column title
 unittest
 {
     import magpie.frame: DataFrame;
@@ -604,9 +792,10 @@ unittest
     ~ "1              3.92387e+179  3.92387e+179  3.92387e+179  3.92387e+179\n"
     ~ "2              3.92387e+179  3.92387e+179  3.92387e+179  3.92387e+179\n"
     ~ "3              3.92387e+179  3.92387e+179  3.92387e+179  3.92387e+179\n";
-    assert(display!double(both.frameIndex, both.data, 200) == retstr);
+    assert(formatToString!double(both.frameIndex, both.data, 200) == retstr);
 }
 
+/// Multi-Indexed Rows
 unittest
 {
     import magpie.frame: DataFrame;
@@ -641,10 +830,11 @@ unittest
     ~ "12      12      3.92387e+179  3.92387e+179  3.92387e+179  3.92387e+179  3.92387e+179  ...  3.92387e+179  3.92387e+179  3.92387e+179  3.92387e+179  3.92387e+179  3.92387e+179  3.92387e+179\n"
     ~ "13      13      3.92387e+179  3.92387e+179  3.92387e+179  3.92387e+179  3.92387e+179  ...  3.92387e+179  3.92387e+179  3.92387e+179  3.92387e+179  3.92387e+179  3.92387e+179  3.92387e+179\n"
     ~ "14      14      3.92387e+179  3.92387e+179  3.92387e+179  3.92387e+179  3.92387e+179  ...  3.92387e+179  3.92387e+179  3.92387e+179  3.92387e+179  3.92387e+179  3.92387e+179  3.92387e+179\n";
-    assert(display!double(mirows.frameIndex, mirows.data, 200) == retstr);
+    assert(formatToString!double(mirows.frameIndex, mirows.data, 200) == retstr);
 
 }
 
+/// Multi-Indexed columns
 unittest
 {
     import magpie.frame: DataFrame;
@@ -681,9 +871,10 @@ unittest
     ~ "13      3.92387e+179  3.92387e+179  3.92387e+179  3.92387e+179  3.92387e+179  3.92387e+179  ...  3.92387e+179  3.92387e+179  3.92387e+179  3.92387e+179  3.92387e+179  3.92387e+179  3.92387e+179\n"
     ~ "14      3.92387e+179  3.92387e+179  3.92387e+179  3.92387e+179  3.92387e+179  3.92387e+179  ...  3.92387e+179  3.92387e+179  3.92387e+179  3.92387e+179  3.92387e+179  3.92387e+179  3.92387e+179\n";
 
-    assert(display!double(mic.frameIndex, mic.data, 200) == retstr);
+    assert(formatToString!double(mic.frameIndex, mic.data, 200) == retstr);
 }
 
+/// Multi-Indexed Columns with column title
 unittest
 {
     import magpie.frame: DataFrame;
@@ -722,9 +913,10 @@ unittest
     ~ "13        3.92387e+179  3.92387e+179  3.92387e+179  3.92387e+179  3.92387e+179  3.92387e+179  ...  3.92387e+179  3.92387e+179  3.92387e+179  3.92387e+179  3.92387e+179  3.92387e+179  3.92387e+179\n"
     ~ "14        3.92387e+179  3.92387e+179  3.92387e+179  3.92387e+179  3.92387e+179  3.92387e+179  ...  3.92387e+179  3.92387e+179  3.92387e+179  3.92387e+179  3.92387e+179  3.92387e+179  3.92387e+179\n";
 
-    assert(display!double(mict.frameIndex, mict.data, 200) == retstr);
+    assert(formatToString!double(mict.frameIndex, mict.data, 200) == retstr);
 }
 
+/// DataFrame with field larger than maximum column limit
 unittest
 {
     import magpie.frame: DataFrame;
@@ -749,9 +941,10 @@ unittest
     ~ "2                                              3.92387e+179  3.92387e+179  3.92387e+179  3.92387e+179\n"
     ~ "3                                              3.92387e+179  3.92387e+179  3.92387e+179  3.92387e+179\n";
 
-    assert(display!double(simpleEx.frameIndex, simpleEx.data, 200) == retstr);
+    assert(formatToString!double(simpleEx.frameIndex, simpleEx.data, 200) == retstr);
 }
 
+/// Multi-Indexed rows and columns
 unittest
 {
     import magpie.frame: DataFrame;
@@ -779,9 +972,10 @@ unittest
     ~ "jjjjjjjjjj  3        3.92387e+179  3.92387e+179  3.92387e+179        3.92387e+179\n"
     ~ "yo          5555555  3.92387e+179  3.92387e+179  3.92387e+179        3.92387e+179\n";
 
-    assert(display!double(ex1.frameIndex, ex1.data, 200) == retstr);
+    assert(formatToString!double(ex1.frameIndex, ex1.data, 200) == retstr);
 }
 
+/// Multi-Indexed rows and columns with column titles
 unittest
 {
     import magpie.frame: DataFrame;
@@ -810,9 +1004,10 @@ unittest
     ~ "jjjjjjjjjj  3               3.92387e+179  3.92387e+179  3.92387e+179        3.92387e+179\n"
     ~ "yo          5555555         3.92387e+179  3.92387e+179  3.92387e+179        3.92387e+179\n";
 
-    assert(display!double(ex1.frameIndex, ex1.data, 200) == retstr);
+    assert(formatToString!double(ex1.frameIndex, ex1.data, 200) == retstr);
 }
 
+/// Multi-Indexed rows with skipping similar adjacent indices
 unittest
 {
     import magpie.frame: DataFrame;
@@ -841,9 +1036,10 @@ unittest
     ~ "yo     3               3.92387e+179  3.92387e+179  3.92387e+179        3.92387e+179\n"
     ~ "       5555555         3.92387e+179  3.92387e+179  3.92387e+179        3.92387e+179\n";
 
-    assert(display!double(ex1.frameIndex, ex1.data, 200) == retstr);
+    assert(formatToString!double(ex1.frameIndex, ex1.data, 200) == retstr);
 }
 
+/// Multi-Indexed rows and columns skipping adjacent indices
 unittest
 {
     import magpie.frame: DataFrame;
@@ -872,9 +1068,10 @@ unittest
     ~ "yo     3               3.92387e+179  3.92387e+179  3.92387e+179        3.92387e+179\n"
     ~ "       5555555         3.92387e+179  3.92387e+179  3.92387e+179        3.92387e+179\n";
 
-    assert(display!double(ex1.frameIndex, ex1.data, 200) == retstr);
+    assert(formatToString!double(ex1.frameIndex, ex1.data, 200) == retstr);
 }
 
+/// Multi-Indexing on innermost level will not lead to skipping of indices
 unittest
 {
     import magpie.frame: DataFrame;
@@ -903,9 +1100,10 @@ unittest
     ~ "yo     3               3.92387e+179  3.92387e+179  3.92387e+179        3.92387e+179\n"
     ~ "       5555555         3.92387e+179  3.92387e+179  3.92387e+179        3.92387e+179\n";
 
-    assert(display!double(ex1.frameIndex, ex1.data, 200) == retstr);
+    assert(formatToString!double(ex1.frameIndex, ex1.data, 200) == retstr);
 }
 
+/// Tall DataFrame
 unittest
 {
     import magpie.frame: DataFrame;
@@ -978,9 +1176,10 @@ unittest
     ~ "62     3.92387e+179  3.92387e+179  3.92387e+179  3.92387e+179  3.92387e+179  3.92387e+179  ...  3.92387e+179  3.92387e+179  3.92387e+179  3.92387e+179  3.92387e+179  3.92387e+179  3.92387e+179\n"
     ~ "63     3.92387e+179  3.92387e+179  3.92387e+179  3.92387e+179  3.92387e+179  3.92387e+179  ...  3.92387e+179  3.92387e+179  3.92387e+179  3.92387e+179  3.92387e+179  3.92387e+179  3.92387e+179\n";
 
-    assert(display!double(largeEx.frameIndex, largeEx.data, 200) == retstr);
+    assert(formatToString!double(largeEx.frameIndex, largeEx.data, 200) == retstr);
 }
 
+/// DataFrame with unnecessarily long indexing
 unittest
 {
     import magpie.frame: DataFrame;
@@ -1010,5 +1209,5 @@ unittest
     ~ "yo                              3                                     ...  3                                3               3.92387e+179        3.92387e+179\n"
     ~ "                                5555555                               ...  4                                4               3.92387e+179        3.92387e+179\n";
 
-    assert(display!double(ex1.frameIndex, ex1.data, 200) == retstr);
+    assert(formatToString!double(ex1.frameIndex, ex1.data, 200) == retstr);
 }
