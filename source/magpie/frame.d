@@ -246,7 +246,7 @@ public:
                     }
                 }
             }
-            else if(i == columnDepth && (containsColTitles || (columnDepth == 1 && indexDepth == 1)))
+            else if(i == columnDepth && containsColTitles)
             {
                 if(columnDepth == 1 && indexDepth == 1)
                 {
@@ -751,4 +751,20 @@ unittest
     assert(f1.eof() == f2.eof());
     f1.close();
     f2.close();
+}
+
+// Exmaple in readme
+unittest
+{
+    DataFrame!double df;    // This declared a dataframe such that it contains homogeneous data of type double
+    df = [[1.2,2.4],[3.6, 4.8]];
+    assert(df.data == [1.2,2.4, 3.6, 4.8].sliced(2,2).universal);   // Data is stored as a Universal 2D slice
+    // df.display();
+    df.to_csv("./test/readmeex.csv");
+
+    DataFrame!double df2;
+    df2.from_csv("./test/readmeex.csv", 1, 1);
+    // df2.display();
+
+    assert(df == df2);
 }

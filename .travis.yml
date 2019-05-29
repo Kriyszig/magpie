@@ -1,0 +1,13 @@
+language: d
+d:
+ - ldc
+ - dmd-beta
+ - dmd
+branches:
+  only:
+    - master
+env:
+ - ARCH="x86"
+ - ARCH="x86_64"
+script:
+ - travis wait 100 dub test --arch "$ARCH"

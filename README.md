@@ -1,13 +1,15 @@
 # Magpie - Mir Data Analysis and Processing Library
 
-DataFrame project for GSoC 2019. The goal of the project is to deliver a DataFrame that behaves just like Pandas in Python.
+DataFrame project for GSoC 2019.
 
-### Usage
+The goal of the project is to deliver a DataFrame that behaves just like Pandas in Python.
+
+## Usage
 
 ```d
 import magpie.frame: DataFrame;
 
-Dataframe!double df;    // This declared a dataframe such that it contains homogeneous data of type double
+DataFrame!double df;    // This declared a dataframe such that it contains homogeneous data of type double
 df = [[1.2,2.4],[3.6, 4.8]];
 assert(df.data == [1.2,2.4, 3.6, 4.8].sliced(2,2).universal);   // Data is stored as a Universal 2D slice
 df.display();
@@ -16,7 +18,7 @@ df.from_csv("./example.csv", 1, 1);
 df.display();
 ```
 
-### Structure
+## Structure
 
 - The DataFrame structure is defined as:
 
