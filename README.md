@@ -1,5 +1,7 @@
 # Magpie - Mir Data Analysis and Processing Library
 
+[![Build Status](https://travis-ci.org/Kriyszig/magpie.svg?branch=master)](https://travis-ci.org/Kriyszig/magpie)
+
 DataFrame project for GSoC 2019.
 
 The goal of the project is to deliver a DataFrame that behaves just like Pandas in Python.
