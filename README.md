@@ -1,40 +1,52 @@
-### Magpie - Mir Data Analysis and Processing Library
+# Magpie - Mir Data Analysis and Processing Library
 
-Current Specification:
-- <b>Index</b>: Index must be designed to support multi-indexing further on. Right now the structure I have in mind is as follows:
+DataFrame project for GSoC 2019. The goal of the project is to deliver a DataFrame that behaves just like Pandas in Python.
+
+### Usage
 
 ```d
-struct Index
-{
-    bool isMultiIndexed = false;
-    
-    string[] rIndexTitles = [];
-    string[][] rHeaders = [];
-    int[][] rCodes = [];
+import magpie.frame: DataFrame;
 
-    string[] cIndexTitles = [];
-    string[][] cHeaders = [];
-    int[][] cCodes = [];
-}
+Dataframe!double df;    // This declared a dataframe such that it contains homogeneous data of type double
+df = [[1.2,2.4],[3.6, 4.8]];
+assert(df.data == [1.2,2.4, 3.6, 4.8].sliced(2,2).universal);   // Data is stored as a Universal 2D slice
+df.display();
+df.to_csv("./example.csv");
+df.from_csv("./example.csv", 1, 1);
+df.display();
 ```
-* rIndexTitles - Titles for row Indexes.
-* rHeaders - Headers for each row
-* rCodes - Codes to represent multi-indexing
-<br />
-<b>Note</b>:
 
-* In case rHeaders is an empty array, the default indexing will take over - 0 .. $
+### Structure
 
-<br>
-
-- Dataframe:
+- The DataFrame structure is defined as:
 
 ```d
 struct DataFrame(T)
 {
-    Slice!(T*, 2, Universal) data;
     Index frameIndex;
+    Slice!(T*, 2, Universal) data;
 }
 ```
-* data - The data on which numeric coputation is needed
-* frameIndex - Indexes to locate and access DataFrame element.
+
+
+## Functions
+
+#### `display()`
+
+Displays the content of the dataframe on the terminal.
+
+#### `to_csv(string path, bool writeIndex = true, bool writeColumn = true, char sep = ",")`
+
+Writes the DataFrame to CSV format.
+
+* writeIndex - If set true writes row indexes to the file.
+* writeColumn - If set rue writes column indexes to the file
+* sep - Is the data seperator
+
+#### `from_csv(string path, int indexDepth = 1, int columnDepth = 1, char sep = ',')` (Experimental)
+
+Parsing of CSV file into a DataFrame
+
+* indexDepth - How many columns from left do row index span
+* columnDepth - How many rows from top column index span
+* sep - Data Seperator
