@@ -16,61 +16,6 @@ struct DataFrame(T)
     /// Indexing of the DataFrame
     Index frameIndex;
 
-private:
-    class DataFrameExceptions : Exception
-    {
-        this(string msg, string file = __FILE__, size_t line = __LINE__) {
-            super(msg, file, line);
-        }
-    }
-
-    // Given a set of indexes and codes in random order, arranges the indices in ascending order and swaps around the codes
-    // Note: Any changes made should be reflected below in the unit test for this function
-    void arrangeIndex(string[] indices, int[] code)
-    {
-        // If length of indices is 0, codes themself represent indexing which doesn't require sorting
-        if(indices.length == 0)
-        {
-            return;
-        }
-        // Selection sort
-        for(int i = 0; i < indices.length; ++i)
-        {
-            int pos = i;
-            for(int j = i + 1; j < indices.length; ++j)
-            {
-                if(indices[j] < indices[pos])
-                {
-                    pos = j;
-                }
-            }
-
-            // In case the first element is the smallest element
-            if(pos == i)
-            {
-                continue;
-            }
-
-            // Swaping index around
-            immutable string tmp = indices[pos];
-            indices[pos] = indices[i];
-            indices[i] = tmp;
-
-            // Swapping codes around
-            for(int j = 0; j < code.length; ++j)
-            {
-                if(code[j] == i)
-                {
-                    code[j] = pos;
-                }
-                else if(code[j] == pos)
-                {
-                    code[j] = i;
-                }
-            }
-        }
-    }
-
 public:
     /++
     Display: Displays the dataframe on the terminal in a tabular form.
@@ -106,10 +51,8 @@ public:
         frameIndex.cIndices = [[]];
         frameIndex.cCodes = [[]];
         // Setting column indexes
-        for(int i = 0; i < data1d.length; ++i)
-        {
+        foreach(i; 0 .. cast(int)data1d.length)
             frameIndex.cCodes[0] ~= [i];
-        }
     }
 
     /++
@@ -123,14 +66,10 @@ public:
         {
             throw new DataFrameExceptions("Expected data to be entered into the DataFrame bur recieved empty array");
         }
-        ulong len = data2d[0].length;   // Stores the width of the DataFrame
-        for(int i = 0; i < data2d.length; ++i)
-        {
-            if(data2d[i].length > len)
-            {
-                len = data2d[i].length;
-            }
-        }
+
+        import std.algorithm: map, max, reduce;
+        auto len = data2d.map!(e => e.length).reduce!max;
+
         // Checking if data2d is empty - second pass
         // In case data 2d resembles: [[], [], []]
         if(len == 0)
@@ -142,16 +81,14 @@ public:
 
         // Flattening the data into a 1D array
         T[] flattened = [];
-        for(int i = 0; i < data2d.length; ++i)
+        foreach(i; 0 .. data2d.length)
         {
             flattened ~= data2d[i];
             if(data2d[i].length != len)
             {
                 // Padding in case the data is not rectangular
-                for(ulong j = data2d[i].length; j < len; ++j)
-                {
+                foreach(j; data2d[i].length .. len)
                     flattened ~= [T.init];
-                }
             }
         }
 
@@ -165,15 +102,12 @@ public:
         frameIndex.rCodes = [[]];
         frameIndex.cCodes = [[]];
         // Setting default row index
-        for(int i = 0; i < data2d.length; ++i)
-        {
+        foreach(i; 0 .. cast(int)data2d.length)
             frameIndex.rCodes[0] ~= [i];
-        }
+
         // Setting default column index
-        for(int i = 0; i < len; ++i)
-        {
+        foreach(i; 0 .. cast(int)len)
             frameIndex.cCodes[0] ~= [i];
-        }
     }
 
     /++
@@ -190,254 +124,17 @@ public:
     +/
     void from_csv(string path, int indexDepth = 1, int columnDepth = 1, char sep = ',')
     {
-        import std.stdio: File;
-        import std.string: chomp;
-        import std.array: split;
-        import std.algorithm: countUntil;
-        import std.conv: to, ConvException;
+        import magpie.parser: readCSV;
+        auto df = readCSV!T(path, indexDepth, columnDepth, sep);
+        frameIndex = df.frameIndex;
+        data = df.data;
+    }
+}
 
-        File csvfile = File(path, "r");
-        int i = 0, dataIndex = 0;
-        frameIndex = Index();
-        T[][] parseddata = [];
-        bool containsColTitles = false;
-
-        while(!csvfile.eof())
-        {
-            string[] line = chomp(csvfile.readln()).split(sep);
-            if(i < columnDepth)
-            {
-                if(i == columnDepth - 1 && indexDepth > 0 && !containsColTitles && line[0].length != 0)
-                {
-                    frameIndex.rIndexTitles = line[0 .. indexDepth];
-                }
-                else if(!containsColTitles && indexDepth > 0 && line[indexDepth - 1].length != 0)
-                {
-                    containsColTitles = true;
-                }
-
-                if(containsColTitles)
-                {
-                    frameIndex.cIndexTitles ~= [line[indexDepth - 1]];
-                }
-
-                for(int j = indexDepth; j < line.length; ++j)
-                {
-                    if(frameIndex.cCodes.length == i)
-                    {
-                        frameIndex.cCodes ~= [[]];
-                        frameIndex.cIndices ~= [[]];
-                    }
-
-                    immutable int pos = cast(int) countUntil(frameIndex.cIndices[i], line[j]);
-                    if(j > indexDepth && line[j].length == 0)
-                    {
-                        frameIndex.isMultiIndexed = true;
-                        frameIndex.cCodes[i] ~= [frameIndex.cCodes[i][j - indexDepth - 1]];
-                    }
-                    else if(pos < 0)
-                    {
-                        frameIndex.cIndices[i] ~= [line[j]];
-                        frameIndex.cCodes[i] ~= [cast(int) frameIndex.cIndices[i].length - 1];
-                    }
-                    else
-                    {
-                        frameIndex.cCodes[i] ~= [frameIndex.cCodes[i][j - indexDepth - 1]];
-                    }
-                }
-            }
-            else if(i == columnDepth && containsColTitles)
-            {
-                if(columnDepth == 1 && indexDepth == 1)
-                {
-                    if(line.length == 1)
-                    {
-                        frameIndex.cIndexTitles = frameIndex.rIndexTitles;
-                        containsColTitles = true;
-                    }
-                }
-                if(containsColTitles)
-                {
-                    frameIndex.rIndexTitles = line[0 .. indexDepth];
-                }
-            }
-            else if(line.length > 0)
-            {
-                if(dataIndex == 0)
-                {
-                    for(int j = 0; j < indexDepth; ++j)
-                    {
-                        frameIndex.rIndices ~= [[]];
-                        frameIndex.rCodes ~= [[]];
-                    }
-                }
-                parseddata ~= [[]];
-
-                for(int j = 0; j < indexDepth; ++j)
-                {
-                    immutable int pos = cast(int) countUntil(frameIndex.rIndices[j], line[j]);
-                    if(dataIndex > 0 && line[j].length == 0)
-                    {
-                        frameIndex.rCodes[j] ~= [frameIndex.rCodes[j][dataIndex - 1]];
-                    }
-                    else if(pos < 0)
-                    {
-                        frameIndex.rIndices[j] ~= [line[j]];
-                        frameIndex.rCodes[j] ~= [cast(int) frameIndex.rIndices[j].length - 1];
-                    }
-                    else
-                    {
-                        frameIndex.rCodes[j] ~= [frameIndex.rCodes[j][dataIndex - 1]];
-                    }
-
-                }
-
-                for(int j = indexDepth; j < line.length; ++j)
-                {
-                    try
-                    {
-                        parseddata[dataIndex] ~= [to!T(line[j])];
-                    }
-                    catch(ConvException e)
-                    {
-                        parseddata[dataIndex] ~= [T.init];
-                    }
-                }
-
-                ++dataIndex;
-            }
-            ++i;
-        }
-        csvfile.close();
-
-        if(indexDepth == 0)
-        {
-            frameIndex.rIndexTitles = ["Index"];
-            frameIndex.rIndices = [[]];
-            frameIndex.rCodes = [[]];
-            for(int j = 0; j < parseddata.length; ++j)
-            {
-                frameIndex.rCodes[0] ~= [j];
-            }
-        }
-        if(columnDepth == 0)
-        {
-            frameIndex.cIndices = [[]];
-            frameIndex.cCodes = [[]];
-            for(int j = 0; j < parseddata[0].length; ++j)
-            {
-                frameIndex.cCodes[0] ~= [j];
-            }
-            if(indexDepth != 0)
-            {
-                for(int j = 0 ;j < indexDepth; ++j)
-                {
-                    frameIndex.rIndexTitles ~= ["Index" ~ to!string(j+1)];
-                }
-            }
-        }
-
-        if(frameIndex.cCodes.length > 1)
-        {
-            immutable ulong maxindexlen = frameIndex.cCodes[frameIndex.cCodes.length - 1].length;
-            for(int j = 0; j < frameIndex.cCodes.length; ++j)
-            {
-                if(frameIndex.cCodes[j].length > maxindexlen)
-                {
-                    frameIndex.cCodes[j] = frameIndex.cCodes[j][0 .. maxindexlen];
-                }
-                else
-                {
-                    int paddingele = frameIndex.cCodes[j][frameIndex.cCodes[j].length - 1];
-                    for(ulong k = frameIndex.cCodes[j].length; k < maxindexlen; ++k)
-                    {
-                        frameIndex.cCodes[j] ~= paddingele;
-                    }
-                }
-            }
-        }
-
-        if(frameIndex.rCodes.length > 1)
-        {
-            immutable ulong maxindexlen = frameIndex.rCodes[frameIndex.rCodes.length - 1].length;
-            for(int j = 0; j < frameIndex.rCodes.length; ++j)
-            {
-                if(frameIndex.rCodes[j].length > maxindexlen)
-                {
-                    frameIndex.rCodes[j] = frameIndex.rCodes[j][0 .. maxindexlen];
-                }
-                else
-                {
-                    int paddingele = frameIndex.rCodes[j][frameIndex.rCodes[j].length - 1];
-                    for(ulong k = frameIndex.rCodes[j].length; k < maxindexlen; ++k)
-                    {
-                        frameIndex.rCodes[j] ~= paddingele;
-                    }
-                }
-            }
-        }
-
-        for(int j = 0; j < frameIndex.cCodes.length; ++j)
-        {
-            if(frameIndex.cIndices[j].length != 0)
-            {
-                try
-                {
-                    int[] indexInt = [];
-                    for(int k = 0; k < frameIndex.cCodes[j].length; ++k)
-                    {
-                        indexInt ~= [to!int(frameIndex.cIndices[j][frameIndex.cCodes[j][k]])];
-                    }
-                    frameIndex.cIndices[j] = [];
-                    frameIndex.cCodes[j] = indexInt;
-                }
-                catch(ConvException e)
-                {
-                    arrangeIndex(frameIndex.cIndices[j],frameIndex.cCodes[j]);
-                }
-            }
-        }
-
-        for(int j = 0; j < frameIndex.rCodes.length; ++j)
-        {
-            if(frameIndex.rIndices[j].length != 0)
-            {
-                try
-                {
-
-                    int[] indexInt = [];
-                    for(int k = 0; k < frameIndex.rCodes[j].length; ++k)
-                    {
-                        indexInt ~= [to!int(frameIndex.rIndices[j][frameIndex.rCodes[j][k]])];
-                    }
-                    frameIndex.rIndices[j] = [];
-                    frameIndex.rCodes[j] = indexInt;
-                }
-                catch(ConvException e)
-                {
-                    arrangeIndex(frameIndex.rIndices[j],frameIndex.rCodes[j]);
-                }
-            }
-        }
-
-        T[] flatten = [];
-        ulong maxlen = frameIndex.cCodes[frameIndex.cCodes.length - 1].length;
-        for(int j = 0; j < parseddata.length; ++j)
-        {
-            if(parseddata[j].length > maxlen)
-            {
-                flatten ~= parseddata[j][0 .. maxlen];
-            }
-            else
-            {
-                flatten ~= parseddata[j];
-                for(ulong k = parseddata[j].length; k < maxlen; ++k)
-                {
-                    flatten ~= [T.init];
-                }
-            }
-        }
-        data = flatten.sliced(frameIndex.rCodes[0].length, frameIndex.cCodes[0].length).universal;
+class DataFrameExceptions : Exception
+{
+    this(string msg, string file = __FILE__, size_t line = __LINE__) {
+        super(msg, file, line);
     }
 }
 
@@ -467,63 +164,6 @@ unittest
     df = [[1],[3, 4]];
     assert(df.data == [1,0,3,4].sliced(2,2).universal);
     // df.display();
-}
-
-// Unit test for private member function
-unittest
-{
-    // This code is same as arrangeIndex private method of dataframe
-    void arrangeIndex(string[] indices, int[] code)
-    {
-        // If length of indices is 0, codes themself represent indexing which doesn't require sorting
-        if(indices.length == 0)
-        {
-            return;
-        }
-        // Selection sort
-        for(int i = 0; i < indices.length; ++i)
-        {
-            int pos = i;
-            for(int j = i + 1; j < indices.length; ++j)
-            {
-                if(indices[j] < indices[pos])
-                {
-                    pos = j;
-                }
-            }
-
-            // In case the first element is the smallest element
-            if(pos == i)
-            {
-                continue;
-            }
-
-            // Swaping index around
-            immutable string tmp = indices[pos];
-            indices[pos] = indices[i];
-            indices[i] = tmp;
-
-            // Swapping codes around
-            for(int j = 0; j < code.length; ++j)
-            {
-                if(code[j] == i)
-                {
-                    code[j] = pos;
-                }
-                else if(code[j] == pos)
-                {
-                    code[j] = i;
-                }
-            }
-        }
-    }
-
-    string[] index = ["b","a","d","c"];
-    int[] code = [0,1,2,3];
-    // Arranging index in ascending order while changing index so the result will still be ["b","a","d","c"]
-    arrangeIndex(index, code);
-    assert(index == ["a", "b", "c", "d"]);
-    assert(code == [1, 0, 3, 2]);
 }
 
 /// writing dataframe to CSV

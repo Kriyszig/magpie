@@ -23,12 +23,12 @@ string formatToString(T)(Index frameIndex, Slice!(T*, 2, Universal) data, int te
     string returnstr = "";
 
     // Finding max gap for row index columns
-    for(int i = 0; i < rindexDepth; ++i)
+    foreach(i; 0 .. rindexDepth)
     {
         // User will need to specify title to each roww index levels so this won't throw any error
         // Will be taken care of in assignment ops
         ulong maxGap = frameIndex.rIndexTitles[i].length;
-        for(int j = 0; j < frameIndex.rCodes[i].length; ++j)
+        foreach(j; 0 .. frameIndex.rCodes[i].length)
         {
             // If the indexes are of type integer, the rCodes will themself represent indexes
             // In the above case, the particular level in rIndices will be left empty
@@ -67,7 +67,7 @@ string formatToString(T)(Index frameIndex, Slice!(T*, 2, Universal) data, int te
         // Note: Here subtracting from unsigned int won't lead to undefined behavior because of the condition in the above if statement
         ulong maxGap = colSize[colSize.length - 1];
         // Calculating max size
-        for(int i = 0; i < frameIndex.cIndexTitles.length; ++i)
+        foreach(i; 0 .. frameIndex.cIndexTitles.length)
         {
             if(maxGap < frameIndex.cIndexTitles[i].length)
             {
@@ -87,11 +87,11 @@ string formatToString(T)(Index frameIndex, Slice!(T*, 2, Universal) data, int te
     }
 
     // Setting gap for the columns containing the column indexes and the data
-    for(int i = 0; i < data.shape[1]; ++i)
+    foreach(i; 0 .. data.shape[1])
     {
         ulong maxGap = 0;
         // Checking through columnIndexes
-        for(int j = 0; j < cindexDepth; ++j)
+        foreach(j; 0 .. cindexDepth)
         {
             // In case the particular field of cIndices in empty, cCodes will default to the indexes
             if(frameIndex.cIndices[j].length == 0)
@@ -118,7 +118,7 @@ string formatToString(T)(Index frameIndex, Slice!(T*, 2, Universal) data, int te
         }
 
         // Going through the data fields
-        for(int j = 0 ; j < data.shape[0]; ++j)
+        foreach(j; 0 .. data.shape[0])
         {
             if(maxGap < to!string(data[j][i]).length)
             {
@@ -141,7 +141,7 @@ string formatToString(T)(Index frameIndex, Slice!(T*, 2, Universal) data, int te
     int sum = 0;            // Sum of column size
 
     // Checking forward
-    for(int i = 0; i < colSize.length; ++i)
+    foreach(i; 0 .. colSize.length)
     {
         if(sum + colSize[i] + 4 >= terminalWidth / 2)
         {
@@ -153,7 +153,7 @@ string formatToString(T)(Index frameIndex, Slice!(T*, 2, Universal) data, int te
 
     sum = 0;
     // Checking backward
-    for(int i = to!int(colSize.length) - 1; i > -1; --i)
+    foreach_reverse(i; 0 .. cast(int)colSize.length)
     {
         if(sum + colSize[i] + 3 >= terminalWidth / 2)
         {
@@ -180,7 +180,7 @@ string formatToString(T)(Index frameIndex, Slice!(T*, 2, Universal) data, int te
     int top = 0, bottom = 0;
     if(stretch <= 50)
     {
-        top = to!int(stretch);
+        top = cast(int)stretch;
         bottom = 0;
     }
     else
@@ -197,7 +197,7 @@ string formatToString(T)(Index frameIndex, Slice!(T*, 2, Universal) data, int te
         }
 
         // Display Loop
-        for(int i = startstop[0]; i < startstop[1]; ++i)
+        foreach(i; startstop[0] .. startstop[1])
         {
             // Display the column Indexes
             if(i < frameIndex.cCodes.length)
@@ -206,7 +206,7 @@ string formatToString(T)(Index frameIndex, Slice!(T*, 2, Universal) data, int te
                 foreach(size_t inx, int[2] ele;
                 [[0, forward], [to!int(colSize.length - backward), to!int(colSize.length)]])
                 {
-                    for(int j = ele[0]; j < ele[1]; ++j)
+                    foreach(j; ele[0] .. ele[1])
                     {
                         // Adding blank spaces and display row Index Titles
                         // Note: The below subtraction will not give undefined behavior as rCodes will always be > 0
@@ -223,7 +223,7 @@ string formatToString(T)(Index frameIndex, Slice!(T*, 2, Universal) data, int te
                                 else
                                 {
                                     returnstr ~= frameIndex.rIndexTitles[j];
-                                    for(ulong  k = frameIndex.rIndexTitles[j].length; k < colSize[j] + 2; ++k)
+                                    foreach(k; frameIndex.rIndexTitles[j].length .. colSize[j] + 2)
                                     {
                                         returnstr ~= " ";
                                     }
@@ -232,7 +232,7 @@ string formatToString(T)(Index frameIndex, Slice!(T*, 2, Universal) data, int te
                             else
                             {
                                 // Printing blank spaces otherwise
-                                for(int k = 0; k < colSize[j] + 2; ++k)
+                                foreach(k; 0 .. colSize[j] + 2)
                                 {
                                     returnstr ~= " ";
                                 }
@@ -251,7 +251,7 @@ string formatToString(T)(Index frameIndex, Slice!(T*, 2, Universal) data, int te
                                 else
                                 {
                                     returnstr ~= frameIndex.cIndexTitles[i];
-                                    for(ulong k = frameIndex.cIndexTitles[i].length; k < colSize[j] + 2; ++k)
+                                    foreach(k; frameIndex.cIndexTitles[i].length .. colSize[j] + 2)
                                     {
                                         returnstr ~= " ";
                                     }
@@ -270,7 +270,7 @@ string formatToString(T)(Index frameIndex, Slice!(T*, 2, Universal) data, int te
                                     else
                                     {
                                         returnstr ~= frameIndex.rIndexTitles[j];
-                                        for(ulong  k = frameIndex.rIndexTitles[j].length; k < colSize[j] + 2; ++k)
+                                        foreach(k; frameIndex.rIndexTitles[j].length .. colSize[j] + 2)
                                         {
                                             returnstr ~= " ";
                                         }
@@ -278,7 +278,7 @@ string formatToString(T)(Index frameIndex, Slice!(T*, 2, Universal) data, int te
                                 }
                                 else
                                 {
-                                    for(int k = 0; k < colSize[j] + 2; ++k)
+                                    foreach(k; 0 .. colSize[j] + 2)
                                     {
                                         returnstr ~= " ";
                                     }
@@ -312,7 +312,7 @@ string formatToString(T)(Index frameIndex, Slice!(T*, 2, Universal) data, int te
                                 index2disp = index2disp[0 .. colSize[j] - 3] ~ "...";
                             }
                             returnstr ~= index2disp;
-                            for(ulong k = index2disp.length; k < colSize[j] + 2; ++k)
+                            foreach(k; index2disp.length .. colSize[j] + 2)
                             {
                                 returnstr ~= " ";
                             }
@@ -339,7 +339,7 @@ string formatToString(T)(Index frameIndex, Slice!(T*, 2, Universal) data, int te
                 {
                     stop = forward;
                 }
-                for(int j = 0;j < stop; ++j)
+                foreach(j; 0 .. stop)
                 {
                     if(frameIndex.rIndexTitles[j].length > colSize[j])
                     {
@@ -348,7 +348,7 @@ string formatToString(T)(Index frameIndex, Slice!(T*, 2, Universal) data, int te
                     else
                     {
                         returnstr ~= frameIndex.rIndexTitles[j];
-                        for(ulong k = frameIndex.rIndexTitles[j].length; k < colSize[j] + 2; ++k)
+                        foreach(k; frameIndex.rIndexTitles[j].length .. colSize[j] + 2)
                         {
                             returnstr ~= " ";
                         }
@@ -357,7 +357,7 @@ string formatToString(T)(Index frameIndex, Slice!(T*, 2, Universal) data, int te
                 if(stop != frameIndex.rCodes.length)
                 {
                     returnstr ~= "...  ";
-                    for(ulong j = colSize.length - backward; j < frameIndex.rCodes.length; ++j)
+                    foreach(j; colSize.length - backward .. frameIndex.rCodes.length)
                     {
                         if(frameIndex.rIndexTitles[j].length > colSize[j])
                         {
@@ -366,7 +366,7 @@ string formatToString(T)(Index frameIndex, Slice!(T*, 2, Universal) data, int te
                         else
                         {
                             returnstr ~= frameIndex.rIndexTitles[j];
-                            for(ulong k = frameIndex.rIndexTitles[j].length; k < colSize[j] + 2; ++k)
+                            foreach(k; frameIndex.rIndexTitles[j].length .. colSize[j] + 2)
                             {
                                 returnstr ~= " ";
                             }
@@ -381,7 +381,7 @@ string formatToString(T)(Index frameIndex, Slice!(T*, 2, Universal) data, int te
                 foreach(size_t inx, int[2] ele;
                 [[0, forward], [to!int(colSize.length - backward), to!int(colSize.length)]])
                 {
-                    for(int j = ele[0]; j < ele[1]; ++j)
+                    foreach(j;ele[0] .. ele[1])
                     {
                         if(j < frameIndex.rCodes.length)
                         {
@@ -390,7 +390,7 @@ string formatToString(T)(Index frameIndex, Slice!(T*, 2, Universal) data, int te
                             && j < frameIndex.rCodes.length - 1
                             && frameIndex.rCodes[j][dataIndex] == frameIndex.rCodes[j][dataIndex - 1])
                             {
-                                for(int k = 0; k < colSize[j] + 2; ++k)
+                                foreach(k; 0 .. colSize[j] + 2)
                                 {
                                     returnstr ~= " ";
                                 }
@@ -416,7 +416,7 @@ string formatToString(T)(Index frameIndex, Slice!(T*, 2, Universal) data, int te
                                 else
                                 {
                                     returnstr ~= dispstr;
-                                    for(ulong k = dispstr.length; k < colSize[j] + 2; ++k)
+                                    foreach(k; dispstr.length .. colSize[j] + 2)
                                     {
                                         returnstr ~= " ";
                                     }
@@ -435,7 +435,7 @@ string formatToString(T)(Index frameIndex, Slice!(T*, 2, Universal) data, int te
                             else
                             {
                                 returnstr ~= dispstr;
-                                for(ulong k = dispstr.length; k < colSize[j] + 2; ++k)
+                                foreach(k; dispstr.length .. colSize[j] + 2)
                                 {
                                     returnstr ~= " ";
                                 }
@@ -460,9 +460,9 @@ string formatToString(T)(Index frameIndex, Slice!(T*, 2, Universal) data, int te
             foreach(size_t inx, int[2] ele;
             [[0, forward], [to!int(colSize.length - backward), to!int(colSize.length)]])
             {
-                for(int i = ele[0]; i < ele[1]; ++i)
+                foreach(i; ele[0] .. ele[1])
                 {
-                    for(int j = 0; j < colSize[i]; ++j)
+                    foreach(j; 0 .. colSize[i])
                     {
                         returnstr ~= ".";
                     }
@@ -498,12 +498,12 @@ void writeasCSV(T)(Index frameIndex, Slice!(T*, 2, Universal) data, string path,
     {  
         // Printing column indexes
         // Note: The below subtraction from ulong will not lead to undefined behavior as frameIndex.cCodes.length is always > 1
-        for(int i = 0; i < frameIndex.cCodes.length - 1; ++i)
+        foreach(i; 0 .. frameIndex.cCodes.length - 1)
         {
             // Leaving white spaces and printing column index titles in case writeIndex is also enabled
             if(writeIndex)
             {
-                for(int j = 0; j < frameIndex.rCodes.length - 1; ++j)
+                foreach(j; 0 .. frameIndex.rCodes.length - 1)
                 {
                     outputfile.write(sep);
                 }
@@ -519,7 +519,7 @@ void writeasCSV(T)(Index frameIndex, Slice!(T*, 2, Universal) data, string path,
             }
 
             // Writing column titles
-            for(int j = 0; j < frameIndex.cCodes[i].length; ++j)
+            foreach(j; 0 .. frameIndex.cCodes[i].length)
             {
                 // If cIndices for particular level doesn't exist, rCodes will become default indexes
                 if(frameIndex.cIndices[i].length == 0)
@@ -564,7 +564,7 @@ void writeasCSV(T)(Index frameIndex, Slice!(T*, 2, Universal) data, string path,
         }
         
         // Last level of column indexes
-        for(int i = 0; i < frameIndex.rCodes.length - 1; ++i)
+        foreach(i; 0 .. frameIndex.rCodes.length - 1)
         {
             // If writing row index is enabled, eriting row title in last level of column indexes if column index titles doesn't exist
             if(writeIndex && frameIndex.cIndexTitles.length == 0)
@@ -588,7 +588,7 @@ void writeasCSV(T)(Index frameIndex, Slice!(T*, 2, Universal) data, string path,
         
         // Writing last level of column index
         ulong i = frameIndex.cCodes.length - 1;
-        for(int j = 0; j < frameIndex.cCodes[i].length; ++j)
+        foreach(j; 0 .. frameIndex.cCodes[i].length)
         {
             if(frameIndex.cIndices[i].length == 0)
             {
@@ -621,7 +621,7 @@ void writeasCSV(T)(Index frameIndex, Slice!(T*, 2, Universal) data, string path,
     if(writeIndex && writeColumns && frameIndex.cIndexTitles.length != 0)
     {
         outputfile.write(frameIndex.rIndexTitles[0]);
-        for(int i = 1; i < frameIndex.rIndexTitles.length; ++i)
+        foreach(i; 1 .. frameIndex.rIndexTitles.length)
         {
             outputfile.write(sep, frameIndex.rIndexTitles[i]);
         }
@@ -629,12 +629,12 @@ void writeasCSV(T)(Index frameIndex, Slice!(T*, 2, Universal) data, string path,
     }
 
     // Writing row indexes? and data
-    for(int i = 0; i < data.shape[0]; ++i)
+    foreach(i; 0 .. data.shape[0])
     {
         // Checking if user wants indexing to be written to file
         if(writeIndex)
         {
-            for(int j = 0; j < frameIndex.rCodes.length; ++j)
+            foreach(j; 0 .. frameIndex.rCodes.length)
             {
                 if(frameIndex.isMultiIndexed && i > 0 && j < frameIndex.rCodes.length - 1
                 && frameIndex.rCodes[j][i] == frameIndex.rCodes[j][i - 1])
@@ -654,7 +654,7 @@ void writeasCSV(T)(Index frameIndex, Slice!(T*, 2, Universal) data, string path,
 
         // Writing data to file
         outputfile.write(data[i][0]);
-        for(int j = 1; j < data.shape[1]; ++j)
+        foreach(j; 1 .. data.shape[1])
         {
             outputfile.write(sep, data[i][j]);
         }
@@ -698,7 +698,7 @@ unittest
     simpleEx.frameIndex.cCodes = [[0,1,2,3]];
     simpleEx.frameIndex.cIndices = [[]];
     double[] data;
-    for(int i = 0 ; i < 16; ++i)
+    foreach(i; 0 .. 16)
     {
         data ~= [3.92387e+179];
     }
@@ -725,7 +725,7 @@ unittest
     largeEx.frameIndex.cCodes = [[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14]];
     largeEx.frameIndex.cIndices = [[]];
     double[] data;
-    for(int i = 0 ; i < 225; ++i)
+    foreach(i; 0 .. 225)
     {
         data ~= [3.92387e+179];
     }
@@ -780,7 +780,7 @@ unittest
     both.frameIndex.cCodes = [[0,1,2,3]];
     both.frameIndex.cIndices = [[]];
     double[] data;
-    for(int i = 0 ; i < 16; ++i)
+    foreach(i; 0 .. 16)
     {
         data ~= [3.92387e+179];
     }
@@ -808,7 +808,7 @@ unittest
     mirows.frameIndex.cCodes = [[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14]];
     mirows.frameIndex.cIndices = [[]];
     double[] data;
-    for(int i = 0 ; i < 255; ++i)
+    foreach(i; 0 .. 255)
     {
         data ~= [3.92387e+179];
     }
@@ -847,7 +847,7 @@ unittest
     mic.frameIndex.cCodes = [[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14],[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14]];
     mic.frameIndex.cIndices = [[],[]];
     double[] data;
-    for(int i = 0 ; i < 255; ++i)
+    foreach(i; 0 .. 255)
     {
         data ~= [3.92387e+179];
     }
@@ -888,7 +888,7 @@ unittest
     mict.frameIndex.cIndexTitles = ["CIndex1:", "Cindex2:"];
     mict.frameIndex.cIndices = [[],[]];
     double[] data;
-    for(int i = 0 ; i < 255; ++i)
+    foreach(i; 0 .. 255)
     {
         data ~= [3.92387e+179];
     }
@@ -929,7 +929,7 @@ unittest
     simpleEx.frameIndex.cCodes = [[0,1,2,3]];
     simpleEx.frameIndex.cIndices = [[]];
     double[] data;
-    for(int i = 0 ; i < 16; ++i)
+    foreach(i; 0 .. 16)
     {
         data ~= [3.92387e+179];
     }
@@ -959,7 +959,7 @@ unittest
     ex1.frameIndex.cCodes = [[0,1,2,3],[0,1,2,3]];
     ex1.frameIndex.cIndices = [["d","d lang","d programming lang","C+++"],["d","d lang","d programming lang","C+++"]];
     double[] data;
-    for(int i = 0 ; i < 16; ++i)
+    foreach(i; 0 .. 16)
     {
         data ~= [3.92387e+179];
     }
@@ -990,7 +990,7 @@ unittest
     ex1.frameIndex.cCodes = [[0,1,2,3],[0,1,2,3]];
     ex1.frameIndex.cIndices = [["d","d lang","d programming lang","C+++"],["d","d lang","d programming lang","C+++"]];
     double[] data;
-    for(int i = 0 ; i < 16; ++i)
+    foreach(i; 0 .. 16)
     {
         data ~= [3.92387e+179];
     }
@@ -1022,7 +1022,7 @@ unittest
     ex1.frameIndex.cCodes = [[0,1,2,3],[0,1,2,3]];
     ex1.frameIndex.cIndices = [["d","d lang","d programming lang","C+++"],["d","d lang","d programming lang","C+++"]];
     double[] data;
-    for(int i = 0 ; i < 16; ++i)
+    foreach(i; 0 .. 16)
     {
         data ~= [3.92387e+179];
     }
@@ -1054,7 +1054,7 @@ unittest
     ex1.frameIndex.cCodes = [[0,0,2,3],[0,1,2,3]];
     ex1.frameIndex.cIndices = [["d","d lang","d programming lang","C+++"],["d","d lang","d programming lang","C+++"]];
     double[] data;
-    for(int i = 0 ; i < 16; ++i)
+    foreach(i; 0 .. 16)
     {
         data ~= [3.92387e+179];
     }
@@ -1086,7 +1086,7 @@ unittest
     ex1.frameIndex.cCodes = [[0,0,2,3],[0,0,2,3]];
     ex1.frameIndex.cIndices = [["d","d lang","d programming lang","C+++"],["d","d lang","d programming lang","C+++"]];
     double[] data;
-    for(int i = 0 ; i < 16; ++i)
+    foreach(i; 0 .. 16)
     {
         data ~= [3.92387e+179];
     }
@@ -1118,7 +1118,7 @@ unittest
     largeEx.frameIndex.cCodes = [[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14]];
     largeEx.frameIndex.cIndices = [[]];
     double[] data;
-    for(int i = 0 ; i < 960; ++i)
+    foreach(i; 0 .. 960)
     {
         data ~= [3.92387e+179];
     }
@@ -1195,7 +1195,7 @@ unittest
     ex1.frameIndex.cCodes = [[0,0],[0,1]];
     ex1.frameIndex.cIndices = [["d"],["d programming lang","C+++"]];
     double[] data;
-    for(int i = 0 ; i < 8; ++i)
+    foreach(i; 0 .. 8)
     {
         data ~= [3.92387e+179];
     }
