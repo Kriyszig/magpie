@@ -50,9 +50,13 @@ public:
         frameIndex.rIndices = [[]];
         frameIndex.cIndices = [[]];
         frameIndex.cCodes = [[]];
+
+        import std.array: appender;
+        auto dataAppender = appender!(int[]);
         // Setting column indexes
         foreach(i; 0 .. cast(int)data1d.length)
-            frameIndex.cCodes[0] ~= [i];
+            dataAppender.put(i);
+        frameIndex.cCodes[0] = dataAppender.data;
     }
 
     /++
@@ -80,34 +84,40 @@ public:
         }
 
         // Flattening the data into a 1D array
-        T[] flattened = [];
+        import std.array: appender;
+        auto flattner = appender!(T[]);
         foreach(i; 0 .. data2d.length)
         {
-            flattened ~= data2d[i];
+            flattner.put(data2d[i]);
             if(data2d[i].length != len)
             {
                 // Padding in case the data is not rectangular
                 foreach(j; data2d[i].length .. len)
-                    flattened ~= [T.init];
+                    flattner.put([T.init]);
             }
         }
 
         // Resetting index
         frameIndex = Index();
         // Converting data to 2d Slice
-        data = flattened.sliced(data2d.length, len).universal;
+        data = flattner.data.sliced(data2d.length, len).universal;
         frameIndex.rIndexTitles = ["Index"];
         frameIndex.rIndices = [[]];
         frameIndex.cIndices = [[]];
         frameIndex.rCodes = [[]];
         frameIndex.cCodes = [[]];
+
         // Setting default row index
+        auto rCodesAppender = appender!(int[]);
         foreach(i; 0 .. cast(int)data2d.length)
-            frameIndex.rCodes[0] ~= [i];
+            rCodesAppender.put(i);
+        frameIndex.rCodes[0] = rCodesAppender.data;
 
         // Setting default column index
+        auto cCodeAppender = appender!(int[]);
         foreach(i; 0 .. cast(int)len)
-            frameIndex.cCodes[0] ~= [i];
+            cCodeAppender.put(i);
+        frameIndex.cCodes[0] = cCodeAppender.data;
     }
 
     /++
@@ -387,6 +397,34 @@ unittest
     while(!f1.eof())
     {
         assert(f1.readln() == f2.readln());
+    }
+    assert(f1.eof() == f2.eof());
+    f1.close();
+    f2.close();
+}
+
+/// CSV with correct structure but with gaps in data
+unittest
+{
+    import std.stdio: File;
+    import std.string: chomp;
+    import std.array: split;
+
+    DataFrame!double df;
+    df.from_csv("./test/fromcsv/states_all.csv", 2, 1);
+    //df.display();
+    df.to_csv("./test/tocsv/ex6tp1.csv");
+    File f1 = File("./test/fromcsv/states_all.csv", "r");
+    File f2 = File("./test/tocsv/ex6tp1.csv", "r");
+    // Comparing fields that are present completely in botht he files
+    while(!f1.eof())
+    {
+        auto f1line = chomp(f1.readln()).split(",");
+        auto f2line = chomp(f2.readln()).split(",");
+        if(f1line.length > 0)
+        {
+            assert(f1line[0 .. 3] == f2line[0 .. 3]);
+        }
     }
     assert(f1.eof() == f2.eof());
     f1.close();

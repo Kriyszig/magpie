@@ -58,33 +58,44 @@ auto readCSV(T)(string path, int indexDepth = 1, int columnDepth = 1, char sep =
     import magpie.index: Index;
     import mir.ndslice: Slice, Universal, sliced, universal;
 
+    // Opening CSV file
     File csvfile = File(path, "r");
 
+    // Initializing values to default
     int i = 0, dataIndex = 0;
+    bool containsColTitles = false;
+
     Index frameIndex = Index();
     T[][] parseddata = [];
-    bool containsColTitles = false;
     Slice!(T*, 2, Universal) data;
 
+    // Reading the CSV file
     while(!csvfile.eof())
     {
+        // Extracting each line
         string[] line = chomp(csvfile.readln()).split(sep);
+
+        // Parsing the area for column index
         if(i < columnDepth)
         {
+            // If doesn't contain both column and row titles, the row titles are parsed from the last line of column indexes
             if(i == columnDepth - 1 && indexDepth > 0 && !containsColTitles && line[0].length != 0)
             {
                 frameIndex.rIndexTitles = line[0 .. indexDepth];
             }
             else if(!containsColTitles && indexDepth > 0 && line[indexDepth - 1].length != 0)
             {
+                // Checking if column index titles occur
                 containsColTitles = true;
             }
 
+            // Extracting column titles
             if(containsColTitles)
             {
                 frameIndex.cIndexTitles ~= [line[indexDepth - 1]];
             }
-
+            
+            // Getting column indexes
             foreach(j; indexDepth .. line.length)
             {
                 if(frameIndex.cCodes.length == i)
@@ -93,7 +104,10 @@ auto readCSV(T)(string path, int indexDepth = 1, int columnDepth = 1, char sep =
                     frameIndex.cIndices ~= [[]];
                 }
 
+                // Finding if the index is already present in cIndices
                 immutable int pos = cast(int) countUntil(frameIndex.cIndices[i], line[j]);
+                // If the cell is blank, then the dataframe is multi-indexed.
+                // Copying code from the previous cell
                 if(j > indexDepth && line[j].length == 0)
                 {
                     frameIndex.isMultiIndexed = true;
@@ -101,25 +115,20 @@ auto readCSV(T)(string path, int indexDepth = 1, int columnDepth = 1, char sep =
                 }
                 else if(pos < 0)
                 {
+                    // Appending to end in case the index doesn't exist already
                     frameIndex.cIndices[i] ~= [line[j]];
                     frameIndex.cCodes[i] ~= [cast(int) frameIndex.cIndices[i].length - 1];
                 }
                 else
                 {
-                    frameIndex.cCodes[i] ~= [frameIndex.cCodes[i][j - indexDepth - 1]];
+                    // Copying code if the index exists
+                    frameIndex.cCodes[i] ~= [pos];
                 }
             }
         }
         else if(i == columnDepth && containsColTitles)
         {
-            if(columnDepth == 1 && indexDepth == 1)
-            {
-                if(line.length == 1)
-                {
-                    frameIndex.cIndexTitles = frameIndex.rIndexTitles;
-                    containsColTitles = true;
-                }
-            }
+            // If contains column index titles then row indexes will be in seperate line
             if(containsColTitles)
             {
                 frameIndex.rIndexTitles = line[0 .. indexDepth];
@@ -127,6 +136,20 @@ auto readCSV(T)(string path, int indexDepth = 1, int columnDepth = 1, char sep =
         }
         else if(line.length > 0)
         {
+            // In case both row and column index depth is 1, and both rows and column indexes have title then column index titles will be written
+            // to row index titles. If the length of line column depth + 1 is 1, then it conatins the row index titles
+            if(i == columnDepth && columnDepth == 1 && indexDepth == 1)
+            {
+                if(line.length == 1)
+                {
+                    frameIndex.cIndexTitles = frameIndex.rIndexTitles;
+                    frameIndex.rIndexTitles = line;
+                    containsColTitles = true;
+                    continue;
+                }
+            }
+
+            // Initializing array to hold row indexes and their code
             if(dataIndex == 0)
             {
                 foreach(j; 0 .. indexDepth)
@@ -139,23 +162,28 @@ auto readCSV(T)(string path, int indexDepth = 1, int columnDepth = 1, char sep =
 
             foreach(j; 0 .. indexDepth)
             {
+                // Chceking is same index is repeated
                 immutable int pos = cast(int) countUntil(frameIndex.rIndices[j], line[j]);
+                // If a fiels is blank, assuming CSV is multi-indexed
                 if(dataIndex > 0 && line[j].length == 0)
                 {
                     frameIndex.rCodes[j] ~= [frameIndex.rCodes[j][dataIndex - 1]];
                 }
                 else if(pos < 0)
                 {
+                    // Appending new index at end
                     frameIndex.rIndices[j] ~= [line[j]];
                     frameIndex.rCodes[j] ~= [cast(int) frameIndex.rIndices[j].length - 1];
                 }
                 else
                 {
-                    frameIndex.rCodes[j] ~= [frameIndex.rCodes[j][dataIndex - 1]];
+                    // Copying code if index has repeated
+                    frameIndex.rCodes[j] ~= [pos];
                 }
 
             }
 
+            // Parsing the core data
             foreach(j; indexDepth .. line.length)
             {
                 try
@@ -172,8 +200,11 @@ auto readCSV(T)(string path, int indexDepth = 1, int columnDepth = 1, char sep =
         }
         ++i;
     }
+
+    // Closing file like a good boi
     csvfile.close();
 
+    // Assigning default indexes for rows
     if(indexDepth == 0)
     {
         frameIndex.rIndexTitles = ["Index"];
@@ -184,6 +215,8 @@ auto readCSV(T)(string path, int indexDepth = 1, int columnDepth = 1, char sep =
             frameIndex.rCodes[0] ~= [j];
         }
     }
+
+    // Assigning default indexes for columns
     if(columnDepth == 0)
     {
         frameIndex.cIndices = [[]];
@@ -201,6 +234,7 @@ auto readCSV(T)(string path, int indexDepth = 1, int columnDepth = 1, char sep =
         }
     }
 
+    // Checking for correctness of column indexes
     if(frameIndex.cCodes.length > 1)
     {
         immutable ulong maxindexlen = frameIndex.cCodes[frameIndex.cCodes.length - 1].length;
@@ -221,6 +255,7 @@ auto readCSV(T)(string path, int indexDepth = 1, int columnDepth = 1, char sep =
         }
     }
 
+    // Checking for correctness of row indexes
     if(frameIndex.rCodes.length > 1)
     {
         immutable ulong maxindexlen = frameIndex.rCodes[frameIndex.rCodes.length - 1].length;
@@ -241,6 +276,7 @@ auto readCSV(T)(string path, int indexDepth = 1, int columnDepth = 1, char sep =
         }
     }
 
+    // Arranging indexes in ascending to aid searching
     foreach(j; 0 .. frameIndex.cCodes.length)
     {
         if(frameIndex.cIndices[j].length != 0)
@@ -261,7 +297,8 @@ auto readCSV(T)(string path, int indexDepth = 1, int columnDepth = 1, char sep =
             }
         }
     }
-
+    
+    // Ditto
     foreach(j; 0 .. frameIndex.rCodes.length)
     {
         if(frameIndex.rIndices[j].length != 0)
@@ -284,26 +321,29 @@ auto readCSV(T)(string path, int indexDepth = 1, int columnDepth = 1, char sep =
         }
     }
 
-    T[] flatten = [];
+    // Flattening the data before making it into a slice
+    import std.array: appender;
+    auto flattner = appender!(T[]);
     ulong maxlen = frameIndex.cCodes[frameIndex.cCodes.length - 1].length;
     foreach(j; 0 .. parseddata.length)
     {
         if(parseddata[j].length > maxlen)
         {
-            flatten ~= parseddata[j][0 .. maxlen];
+            flattner.put(parseddata[j][0 .. maxlen]);
         }
         else
         {
-            flatten ~= parseddata[j];
+            flattner.put(parseddata[j]);
             foreach(k; parseddata[j].length .. maxlen)
             {
-                flatten ~= [T.init];
+                flattner.put(T.init);
             }
         }
     }
 
-    data = flatten.sliced(frameIndex.rCodes[0].length, frameIndex.cCodes[0].length).universal;
+    data = flattner.data.sliced(frameIndex.rCodes[0].length, frameIndex.cCodes[0].length).universal;
 
+    // Returning parsed contents as a DataFrame
     import magpie.frame: DataFrame;
     DataFrame!T df;
     df.frameIndex = frameIndex;

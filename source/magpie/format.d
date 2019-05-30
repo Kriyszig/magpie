@@ -2,6 +2,7 @@ module magpie.format;
 
 import magpie.index: Index;
 import mir.ndslice: Slice, Universal;
+import std.array: appender;
 
 /++
 display(T)(frameIndex, data, terminalw): Function that formats the data frame data to a termianl friendly formateed string.
@@ -19,7 +20,7 @@ string formatToString(T)(Index frameIndex, Slice!(T*, 2, Universal) data, int te
     immutable int terminalWidth = ((terminalw > 100)?terminalw: 200);                           // Terminal width to display correct form in all cases
     immutable ulong rindexDepth = frameIndex.rCodes.length;                                     // Cells from left, row indexes will occupy
     immutable ulong cindexDepth = frameIndex.cCodes.length;                                     // Cells from top column indexes will occupy
-    ulong[] colSize;                                                                            // An array storing the max size of each column to indent the data properly
+    auto colSizeAppender = appender!(ulong[]);                                                  // An array storing the max size of each column to indent the data properly
     string returnstr = "";
 
     // Finding max gap for row index columns
@@ -56,7 +57,7 @@ string formatToString(T)(Index frameIndex, Slice!(T*, 2, Universal) data, int te
         }
 
         // Adding the size to colSize array
-        colSize ~= [maxGap];
+        colSizeAppender.put(maxGap);
     }
 
     // If the column index titles exist (It's not necessary for them to exist), the innermost row index column will we same
@@ -65,7 +66,7 @@ string formatToString(T)(Index frameIndex, Slice!(T*, 2, Universal) data, int te
     {
         // The max colun size for this particular column will be stored in colSize[-1] at the moment it is calculated
         // Note: Here subtracting from unsigned int won't lead to undefined behavior because of the condition in the above if statement
-        ulong maxGap = colSize[colSize.length - 1];
+        ulong maxGap = colSizeAppender.data[$ - 1];
         // Calculating max size
         foreach(i; 0 .. frameIndex.cIndexTitles.length)
         {
@@ -83,7 +84,7 @@ string formatToString(T)(Index frameIndex, Slice!(T*, 2, Universal) data, int te
         }
 
         // Changing colSize as necessary
-        colSize[colSize.length - 1] = maxGap;
+        colSizeAppender.data[$ - 1] = maxGap;
     }
 
     // Setting gap for the columns containing the column indexes and the data
@@ -133,12 +134,13 @@ string formatToString(T)(Index frameIndex, Slice!(T*, 2, Universal) data, int te
             }
         }
 
-        colSize ~= maxGap;
+        colSizeAppender.put(maxGap);
     }
 
     int forward = 0;        // Number of colums from front that can fit in the terminal
     int backward = 1;       // Number of columns from back that can fit within the terminal
     int sum = 0;            // Sum of column size
+    ulong[] colSize = colSizeAppender.data;
 
     // Checking forward
     foreach(i; 0 .. colSize.length)
