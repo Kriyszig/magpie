@@ -92,7 +92,7 @@ auto readCSV(T)(string path, int indexDepth = 1, int columnDepth = 1, char sep =
             // Extracting column titles
             if(containsColTitles)
             {
-                frameIndex.cIndexTitles ~= [line[indexDepth - 1]];
+                frameIndex.cIndexTitles ~= line[indexDepth - 1];
             }
             
             // Getting column indexes
@@ -111,18 +111,18 @@ auto readCSV(T)(string path, int indexDepth = 1, int columnDepth = 1, char sep =
                 if(j > indexDepth && line[j].length == 0)
                 {
                     frameIndex.isMultiIndexed = true;
-                    frameIndex.cCodes[i] ~= [frameIndex.cCodes[i][j - indexDepth - 1]];
+                    frameIndex.cCodes[i] ~= frameIndex.cCodes[i][j - indexDepth - 1];
                 }
                 else if(pos < 0)
                 {
                     // Appending to end in case the index doesn't exist already
-                    frameIndex.cIndices[i] ~= [line[j]];
-                    frameIndex.cCodes[i] ~= [cast(int) frameIndex.cIndices[i].length - 1];
+                    frameIndex.cIndices[i] ~= line[j];
+                    frameIndex.cCodes[i] ~= cast(int) frameIndex.cIndices[i].length - 1;
                 }
                 else
                 {
                     // Copying code if the index exists
-                    frameIndex.cCodes[i] ~= [pos];
+                    frameIndex.cCodes[i] ~= pos;
                 }
             }
         }
@@ -167,18 +167,18 @@ auto readCSV(T)(string path, int indexDepth = 1, int columnDepth = 1, char sep =
                 // If a fiels is blank, assuming CSV is multi-indexed
                 if(dataIndex > 0 && line[j].length == 0)
                 {
-                    frameIndex.rCodes[j] ~= [frameIndex.rCodes[j][dataIndex - 1]];
+                    frameIndex.rCodes[j] ~= frameIndex.rCodes[j][dataIndex - 1];
                 }
                 else if(pos < 0)
                 {
                     // Appending new index at end
-                    frameIndex.rIndices[j] ~= [line[j]];
-                    frameIndex.rCodes[j] ~= [cast(int) frameIndex.rIndices[j].length - 1];
+                    frameIndex.rIndices[j] ~= line[j];
+                    frameIndex.rCodes[j] ~= cast(int) frameIndex.rIndices[j].length - 1;
                 }
                 else
                 {
                     // Copying code if index has repeated
-                    frameIndex.rCodes[j] ~= [pos];
+                    frameIndex.rCodes[j] ~= pos;
                 }
 
             }
@@ -188,11 +188,11 @@ auto readCSV(T)(string path, int indexDepth = 1, int columnDepth = 1, char sep =
             {
                 try
                 {
-                    parseddata[dataIndex] ~= [to!T(line[j])];
+                    parseddata[dataIndex] ~= to!T(line[j]);
                 }
                 catch(ConvException e)
                 {
-                    parseddata[dataIndex] ~= [T.init];
+                    parseddata[dataIndex] ~= T.init;
                 }
             }
 
@@ -212,7 +212,7 @@ auto readCSV(T)(string path, int indexDepth = 1, int columnDepth = 1, char sep =
         frameIndex.rCodes = [[]];
         foreach(j; 0 .. cast(int)parseddata.length)
         {
-            frameIndex.rCodes[0] ~= [j];
+            frameIndex.rCodes[0] ~= j;
         }
     }
 
@@ -223,13 +223,13 @@ auto readCSV(T)(string path, int indexDepth = 1, int columnDepth = 1, char sep =
         frameIndex.cCodes = [[]];
         foreach(j; 0 .. cast(int)parseddata[0].length)
         {
-            frameIndex.cCodes[0] ~= [j];
+            frameIndex.cCodes[0] ~= j;
         }
         if(indexDepth != 0)
         {
             foreach(j; 0 .. indexDepth)
             {
-                frameIndex.rIndexTitles ~= ["Index" ~ to!string(j+1)];
+                frameIndex.rIndexTitles ~= "Index" ~ to!string(j+1);
             }
         }
     }
@@ -237,7 +237,7 @@ auto readCSV(T)(string path, int indexDepth = 1, int columnDepth = 1, char sep =
     // Checking for correctness of column indexes
     if(frameIndex.cCodes.length > 1)
     {
-        immutable ulong maxindexlen = frameIndex.cCodes[frameIndex.cCodes.length - 1].length;
+        immutable ulong maxindexlen = frameIndex.cCodes[$ - 1].length;
         foreach(j; 0 .. frameIndex.cCodes.length)
         {
             if(frameIndex.cCodes[j].length > maxindexlen)
@@ -246,7 +246,7 @@ auto readCSV(T)(string path, int indexDepth = 1, int columnDepth = 1, char sep =
             }
             else
             {
-                int paddingele = frameIndex.cCodes[j][frameIndex.cCodes[j].length - 1];
+                int paddingele = frameIndex.cCodes[j][$ - 1];
                 foreach(k; frameIndex.cCodes[j].length .. maxindexlen)
                 {
                     frameIndex.cCodes[j] ~= paddingele;
@@ -258,7 +258,7 @@ auto readCSV(T)(string path, int indexDepth = 1, int columnDepth = 1, char sep =
     // Checking for correctness of row indexes
     if(frameIndex.rCodes.length > 1)
     {
-        immutable ulong maxindexlen = frameIndex.rCodes[frameIndex.rCodes.length - 1].length;
+        immutable ulong maxindexlen = frameIndex.rCodes[$ - 1].length;
         foreach(j; 0 .. frameIndex.rCodes.length)
         {
             if(frameIndex.rCodes[j].length > maxindexlen)
@@ -267,7 +267,7 @@ auto readCSV(T)(string path, int indexDepth = 1, int columnDepth = 1, char sep =
             }
             else
             {
-                int paddingele = frameIndex.rCodes[j][frameIndex.rCodes[j].length - 1];
+                int paddingele = frameIndex.rCodes[j][$ - 1];
                 foreach(k; frameIndex.rCodes[j].length .. maxindexlen)
                 {
                     frameIndex.rCodes[j] ~= paddingele;
@@ -286,7 +286,7 @@ auto readCSV(T)(string path, int indexDepth = 1, int columnDepth = 1, char sep =
                 int[] indexInt = [];
                 foreach(k; 0 .. frameIndex.cCodes[j].length)
                 {
-                    indexInt ~= [to!int(frameIndex.cIndices[j][frameIndex.cCodes[j][k]])];
+                    indexInt ~= to!int(frameIndex.cIndices[j][frameIndex.cCodes[j][k]]);
                 }
                 frameIndex.cIndices[j] = [];
                 frameIndex.cCodes[j] = indexInt;
@@ -309,7 +309,7 @@ auto readCSV(T)(string path, int indexDepth = 1, int columnDepth = 1, char sep =
                 int[] indexInt = [];
                 foreach(k; 0 .. frameIndex.rCodes[j].length)
                 {
-                    indexInt ~= [to!int(frameIndex.rIndices[j][frameIndex.rCodes[j][k]])];
+                    indexInt ~= to!int(frameIndex.rIndices[j][frameIndex.rCodes[j][k]]);
                 }
                 frameIndex.rIndices[j] = [];
                 frameIndex.rCodes[j] = indexInt;
@@ -324,7 +324,7 @@ auto readCSV(T)(string path, int indexDepth = 1, int columnDepth = 1, char sep =
     // Flattening the data before making it into a slice
     import std.array: appender;
     auto flattner = appender!(T[]);
-    ulong maxlen = frameIndex.cCodes[frameIndex.cCodes.length - 1].length;
+    ulong maxlen = frameIndex.cCodes[$ - 1].length;
     foreach(j; 0 .. parseddata.length)
     {
         if(parseddata[j].length > maxlen)

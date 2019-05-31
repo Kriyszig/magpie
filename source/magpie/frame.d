@@ -26,7 +26,7 @@ public:
         import magpie.format: formatToString;
         writeln(formatToString!T(frameIndex, data));
         // Displaying DataFrame dimension for user to hanve an understanding of the quantity of data in case the total data was cut-off while displaying
-        ulong rows = (frameIndex.cCodes.length + data.shape[0] + ((frameIndex.cIndexTitles.length > 0)?1: 0));
+        immutable ulong rows = (frameIndex.cCodes.length + data.shape[0] + ((frameIndex.cIndexTitles.length > 0)?1: 0));
         writeln("Dataframe Dimension: [ ", rows, " X ", frameIndex.rCodes.length + data.shape[1] , " ]");
         writeln("Operable Data Dimension: [ ", data.shape[0], " X ", data.shape[1], " ]");
     }
@@ -139,8 +139,19 @@ public:
         frameIndex = df.frameIndex;
         data = df.data;
     }
+
+    /++
+    Accessing DataFrame elements using direct slice index
+    Example: df[0, 0]
+    +/
+    T opIndex(size_t r, size_t c)
+    {
+        assert(r < data.shape[0] && c < data.shape[1], "Index out of bound");
+        return data[r, c];
+    }
 }
 
+/// Calss to raise exceptions within the DataFrame
 class DataFrameExceptions : Exception
 {
     this(string msg, string file = __FILE__, size_t line = __LINE__) {
@@ -429,6 +440,16 @@ unittest
     assert(f1.eof() == f2.eof());
     f1.close();
     f2.close();
+}
+
+unittest
+{
+    DataFrame!double df;
+    df = [[1.2, 3.4], [4.6, 7.8]];
+    assert(df[0, 0] == 1.2);
+    assert(df[0, 1] == 3.4);
+    assert(df[1, 0] == 4.6);
+    assert(df[1, 1] == 7.8);
 }
 
 // Exmaple in readme
