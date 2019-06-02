@@ -6,8 +6,5 @@
 	"authors": [
 		"Norman"
 	],
-	"copyright": "Copyright © 2019, Norman",
-	"dependencies": {
-		"mir-algorithm": "~>3.4.6"
-	}
+	"copyright": "Copyright © 2019, Norman"
 }
