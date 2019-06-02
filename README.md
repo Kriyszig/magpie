@@ -9,15 +9,14 @@ The goal of the project is to deliver a DataFrame that behaves just like Pandas 
 ## Usage
 
 ```d
-import magpie.frame: DataFrame;
+import magpie.dataframe: DataFrame;
 
-DataFrame!double df;    // This declared a dataframe such that it contains homogeneous data of type double
-df = [[1.2,2.4],[3.6, 4.8]];
-assert(df.data == [1.2,2.4, 3.6, 4.8].sliced(2,2).universal);   // Data is stored as a Universal 2D slice
-df.display();
-df.to_csv("./example.csv");
-df.from_csv("./example.csv", 1, 1);
-df.display();
+// Creating a homogeneous DataFrame of 20 integer columns
+DataFrame!(int, 20) homogeneous;
+
+// Creating a heterogeneous DataFrame of 10 integer columns and 10 double columns
+DataFrame!(int, 10, double, 10) homogeneous;
+
 ```
 
 ## Structure
@@ -25,19 +24,28 @@ df.display();
 - The DataFrame structure is defined as:
 
 ```d
-struct DataFrame(T)
+struct DataFrame(Fields)
 {
-    Index frameIndex;
-    Slice!(T*, 2, Universal) data;
+    alias RowType = getArgsList!(Fields);
+    alias FrameType = staticMap!(toArr, RowType);
+
+    // Dimension of data
+    size_t rows = 0;
+    size_t cols = RowType.length;
+
+    Index indx;
+    FrameType data; 
 }
 ```
 
 
 ## Functions
 
-#### `display()`
+#### `display(bool getStr = false)`
 
 Displays the content of the dataframe on the terminal.
+
+* getStr - If set to true, will return the evaluated display string instead of the terminal output
 
 #### `to_csv(string path, bool writeIndex = true, bool writeColumn = true, char sep = ",")`
 
@@ -47,7 +55,7 @@ Writes the DataFrame to CSV format.
 * writeColumn - If set rue writes column indexes to the file
 * sep - Is the data seperator
 
-#### `from_csv(string path, int indexDepth = 1, int columnDepth = 1, char sep = ',')` (Experimental)
+#### `from_csv(string path, int indexDepth = 1, int columnDepth = 1, char sep = ',')` (Development)
 
 Parsing of CSV file into a DataFrame
 
