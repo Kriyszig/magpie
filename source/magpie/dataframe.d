@@ -2,6 +2,7 @@ module magpie.dataframe;
 
 import std.meta: AliasSeq, Repeat, staticMap;
 import std.array: appender;
+import std.traits: isType, isBoolean;
 
 // Template to convert DataFrame template args to RowType
 private template getArgsList(args...)
@@ -16,7 +17,6 @@ private template getArgsList(args...)
         }
         else
         {
-            import std.traits: isType;
             static if(isType!(args[1]))
             {
                 alias getArgsList = AliasSeq!(arg, getArgsList!(args[1 .. $]));
@@ -60,10 +60,16 @@ struct Index
 /++
 The DataFrame Structure
 +/
-struct DataFrame(Fields...)
-    if(Fields.length > 0)
+struct DataFrame(FrameFields...)
+    if(FrameFields.length > 0
+    && ((!isType!(FrameFields[0]) && is(typeof(FrameFields[0]) == bool) && FrameFields[0] == true && FrameFields.length > 1)
+    || isType!(FrameFields[0])))
 {
-    alias RowType = getArgsList!(Fields);
+    static if(!isType!(FrameFields[0]) && is(typeof(FrameFields[0]) == bool) && FrameFields[0] == true)
+        alias RowType = FrameFields[1 .. $];
+    else
+        alias RowType = getArgsList!(FrameFields);
+    
     alias FrameType = staticMap!(toArr, RowType);
 
     ///
@@ -754,11 +760,32 @@ public:
     }
 }
 
-// Testing DataFrame Definition
+// Testing DataFrame Definition - O(n + log(n))
 unittest
 {
     DataFrame!(int, 2) df;
     assert(is(typeof(df.data) == Repeat!(2, int[])));
+}
+
+// O(log(n)) init
+unittest
+{
+    DataFrame!(true, double, double, double) df;
+    assert(is(typeof(df.data) == Repeat!(3, double[])));
+}
+
+// Initialize from struct - O(log(n))
+unittest
+{
+    struct Example
+    {
+        int x;
+        double y;
+    }
+
+    import std.traits: Fields;
+    DataFrame!(true, Fields!Example) df;
+    assert(is(typeof(df.data) == AliasSeq!(int[], double[])));
 }
 
 // Simple Data Frame
@@ -1357,4 +1384,125 @@ unittest
 
     f1.close();
     f2.close();
+}
+
+// Different Types
+unittest
+{
+    DataFrame!(int, long) df;
+    df.from_csv("./test/tocsv/ex1p4.csv", 0, 0);
+    static assert(is(typeof(df.data[1]) == long[]));
+    // df.display();
+    df.to_csv("./test/tocsv/ex2p5.csv", false, false);
+
+    import std.stdio: File;
+    File f1 = File("./test/tocsv/ex1p4.csv", "r");
+    File f2 = File("./test/tocsv/ex2p5.csv", "r");
+
+    while(!f1.eof())
+    {
+        assert(f1.readln() == f2.readln());
+    }
+    assert(f1.eof() && f2.eof());
+
+    f1.close();
+    f2.close();
+}
+
+// Partial Parsing of data
+unittest
+{
+    DataFrame!(int) df;
+    df.from_csv("./test/tocsv/ex1p4.csv", 0, 0, [0]);
+    // df.display();
+    assert(df.data[0] == [1,2]);
+}
+
+// Partial parsing - second column
+unittest
+{
+    DataFrame!(int) df;
+    df.from_csv("./test/tocsv/ex2p6.csv", 0, 0, [1]);
+    // df.display();
+    assert(df.data[0] == [1,24]);
+}
+
+// Parsing by mentioning all the columns
+unittest
+{
+    DataFrame!(int, int) df;
+    df.from_csv("./test/tocsv/ex2p6.csv", 0, 0, [0, 1]);
+    // df.display();
+    df.to_csv("./test/tocsv/ex2p7.csv", false, false);
+
+    import std.stdio: File;
+    File f1 = File("./test/tocsv/ex2p6.csv", "r");
+    File f2 = File("./test/tocsv/ex2p7.csv", "r");
+
+    while(!f1.eof())
+    {
+        assert(f1.readln() == f2.readln());
+    }
+    assert(f1.eof() && f2.eof());
+
+    f1.close();
+    f2.close();
+}
+
+// Partial Parsing with column headers
+unittest
+{
+    DataFrame!(int) df;
+    df.from_csv("./test/tocsv/ex1p1.csv", 3, 3, [0]);
+    assert(df.data[0] == [1,2]);
+    df.to_csv("./test/tocsv/ex2p8.csv");
+    string[] data = [
+        ",,Hey,Hello",
+        ",,Hey,1",
+        ",,Hey,Hello",
+        "Index1,Index2,Index3",
+        "Hello,Hello,1,1",
+        "Hi,Hello,24,2",
+        ""
+    ];
+
+    import std.stdio: File;
+    import std.string: chomp;
+    int line = 0;
+    File csv = File("./test/tocsv/ex2p8.csv");
+    while(!csv.eof())
+    {
+        assert(chomp(csv.readln()) == data[line]);
+        ++line;
+    }
+    csv.close();
+}
+
+// Partial Parsing with column headers - second column
+unittest
+{
+    DataFrame!(int) df;
+    df.from_csv("./test/tocsv/ex1p1.csv", 3, 3, [1]);
+    assert(df.data[0] == [1,2]);
+    df.to_csv("./test/tocsv/ex2p9.csv");
+    string[] data = [
+        ",,Hey,Hi",
+        ",,Hey,2",
+        ",,Hey,Hello",
+        "Index1,Index2,Index3",
+        "Hello,Hello,1,1",
+        "Hi,Hello,24,2",
+        ""
+    ];
+
+    import std.stdio: File;
+    import std.string: chomp;
+    int line = 0;
+    File csv = File("./test/tocsv/ex2p9.csv");
+    while(!csv.eof())
+    {
+        assert(chomp(csv.readln()) == data[line]);
+        ++line;
+    }
+    csv.close();
 }
