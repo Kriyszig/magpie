@@ -82,6 +82,79 @@ struct DataFrame(FrameFields...)
     /// DataFrame Data
     FrameType data;
 
+private:
+    int rowPos(string[] rowindx)
+    {
+        import std.array: appender;
+        import std.algorithm: countUntil;
+        import std.conv: to;
+        auto codes = appender!(int[]);
+
+        foreach(i; 0 .. cast(int)indx.rcodes.length)
+        {
+            if(indx.indexes[i].length == 0)
+                codes.put(to!int(rowindx[i]));
+            else
+            {
+                int indxpos = cast(int)countUntil(indx.indexes[i], rowindx[i]);
+                if(indxpos < 0)
+                    return -1;
+                codes.put(indxpos);
+            }
+        }
+
+        foreach(i; 0 .. cast(int)rows)
+        {
+            bool flag = true;
+            foreach(j; 0 .. indx.rcodes.length)
+            {
+                if(indx.rcodes[j][i] != codes.data[j])
+                    flag = false;
+            }
+
+            if(flag)
+                return i;
+        }
+
+        return -1;
+    }
+
+    int colPos(string[] colindx)
+    {
+        import std.array: appender;
+        import std.algorithm: countUntil;
+        import std.conv: to;
+        auto codes = appender!(int[]);
+
+        foreach(i; 0 .. cast(int)indx.ccodes.length)
+        {
+            if(indx.columns[i].length == 0)
+                codes.put(to!int(colindx[i]));
+            else
+            {
+                int indxpos = cast(int)countUntil(indx.columns[i], colindx[i]);
+                if(indxpos < 0)
+                    return -1;
+                codes.put(indxpos);
+            }
+        }
+
+        foreach(i; 0 .. cast(int)cols)
+        {
+            bool flag = true;
+            foreach(j; 0 .. indx.ccodes.length)
+            {
+                if(indx.ccodes[j][i] != codes.data[j])
+                    flag = false;
+            }
+
+            if(flag)
+                return i;
+        }
+
+        return -1;
+    }
+
 public:
     /++
     DataFrame.display(): Displays the DataFrame on the terminal
@@ -778,6 +851,7 @@ public:
     @param: i2 - Column index
     +/
     void opIndexAssign(Args...)(Args ele, size_t i1, size_t i2)
+        if(Args.length > 0)
     {
         assert(i1 < rows && i2 < cols, "Index out of bound");
         static foreach(i; 0 .. RowType.length)
@@ -787,6 +861,55 @@ public:
                 data[i][i1] = ele[0];
             }
         }
+    }
+
+    /++
+    void opIndexAssign(Args...)(Args ele, string[] rindx, string[] cindx)
+    Description: Setting the element at an index
+    @param: rindx - Row index
+    @param: cindx - Column index
+    +/
+    void opIndexAssign(Args...)(Args ele, string[] rindx, string[] cindx)
+        if(Args.length > 0)
+    {
+        assert(rindx.length == indx.rcodes.length, "Size of indexes don't match the levels of row indexes");
+        assert(cindx.length == indx.rcodes.length, "Size of indexes don't match the levels of column indexes");
+
+        int i1 = rowPos(rindx);
+        int i2 = colPos(cindx);
+
+        assert(i1 > -1 && i2 > -1, "Given headers don't match DataFrame Headers");
+        static foreach(i; 0 .. RowType.length)
+        {
+            if(i == i2)
+            {
+                data[i][i1] = ele[0];
+            }
+        }
+    }
+
+    /++
+    int getRowPos(string[] indexes)
+    Description: Get integer index of the given row headers
+    Defaults to -1 if headers don't match
+    @params: indexes - Array of indexes
+    +/
+    int getRowPosition(string[] indexes)
+    {
+        assert(indexes.length == indx.rcodes.length, "Size of indexes don't match the levels of row indexes");
+        return rowPos(indexes);
+    }
+
+    /++
+    int getColPos(string[] indexes)
+    Description: Get integer index of the given column headers
+    Defaults to -1 if headers don't match
+    @params: indexes - Array of indexes
+    +/
+    int getColumnPosition(string[] indexes)
+    {
+        assert(indexes.length == indx.rcodes.length, "Size of indexes don't match the levels of column indexes");
+        return colPos(indexes);
     }
 }
 
@@ -858,6 +981,78 @@ unittest
 
     df[0, 0] = 42;
     assert(df.data[0] == [42, 2]);
+}
+
+// Assignment based on string headers
+unittest
+{
+    DataFrame!(int, 2) df;
+    assert(is(typeof(df.data) == Repeat!(2, int[])));
+
+    df.indx.rtitles = ["Index1", "Index2", "Index3"];
+    df.indx.indexes = [["Hello", "Hi"],["Hello"], []];
+    df.indx.rcodes = [[0, 1], [0, 0], [1, 24]];
+    df.indx.ctitles = ["Hey","Hey","Hey"];
+    df.indx.columns = [["Hello","Hi"],[],["Hello"]];
+    df.indx.ccodes = [[0,1],[1,2],[0,0]];
+    df.rows = 2;
+    df.data[0] = [1,2];
+    df.data[1] = [1,2];
+
+    df[["Hello", "Hello", "1"], ["Hello", "1", "Hello"]] = 48;
+    assert(df.data[0] == [48, 2]);
+    df[["Hi", "Hello", "24"], ["Hello", "1", "Hello"]] = 29;
+    assert(df.data[0] == [48, 29]);
+    df[["Hello", "Hello", "1"], ["Hi", "2", "Hello"]] = 96;
+    assert(df.data[1] == [96, 2]);
+    df[["Hi", "Hello", "24"], ["Hi", "2", "Hello"]] = 43;
+    assert(df.data[1] == [96, 43]);
+}
+
+
+// getiing integer position of the given row indexes
+unittest
+{
+    DataFrame!(int, 2) df;
+    assert(is(typeof(df.data) == Repeat!(2, int[])));
+
+    df.indx.rtitles = ["Index1", "Index2", "Index3"];
+    df.indx.indexes = [["Hello", "Hi"],["Hello"], []];
+    df.indx.rcodes = [[0, 1], [0, 0], [1,24]];
+    df.indx.ctitles = ["Hey","Hey","Hey"];
+    df.indx.columns = [["Hello","Hi"],[],["Hello"]];
+    df.indx.ccodes = [[],[1,2],[0,0]];
+    df.rows = 2;
+    df.data[0] = [1,2];
+    df.data[1] = [1,2];
+
+    assert(df.getRowPosition(["Hello", "Hello", "1"]) == 0);
+    assert(df.getRowPosition(["Hi", "Hello", "24"]) == 1);
+    assert(df.getRowPosition(["Hi", "Hello", "54"]) == -1);
+    assert(df.getRowPosition(["Hi", "Helo", "24"]) == -1);
+    assert(df.getRowPosition(["H", "Hello", "54"]) == -1);
+}
+
+// getiing integer position of the given column indexes
+unittest
+{
+    DataFrame!(int, 2) df;
+    assert(is(typeof(df.data) == Repeat!(2, int[])));
+
+    df.indx.rtitles = ["Index1", "Index2", "Index3"];
+    df.indx.indexes = [["Hello", "Hi"],["Hello"], []];
+    df.indx.rcodes = [[0, 1], [0, 0], [1,24]];
+    df.indx.ctitles = ["Hey","Hey","Hey"];
+    df.indx.columns = [["Hello","Hi"],[],["Hello"]];
+    df.indx.ccodes = [[0,1],[1,2],[0,0]];
+    df.rows = 2;
+    df.data[0] = [1,2];
+    df.data[1] = [1,2];
+
+    assert(df.getColumnPosition(["Hello", "1", "Hello"]) == 0);
+    assert(df.getColumnPosition(["Hi", "2", "Hello"]) == 1);
+    assert(df.getColumnPosition(["Hello", "1", "Hell"]) == -1);
+    assert(df.getColumnPosition(["Hello", "45", "Hello"]) == -1);
 }
 
 // Simple Data Frame
