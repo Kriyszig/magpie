@@ -758,6 +758,36 @@ public:
                 indx.ccodes[0] ~= i;
         }
     }
+
+    /++
+    RowType[i2] at(size_t i1, size_t i2)()
+    Description: Getting the element directly from its index
+    @param: ii - Row index
+    @param: i2 - Column index
+    +/
+    RowType[i2] at(size_t i1, size_t i2)() @property
+        if(i2 < RowType.length)
+    {
+        return data[i2][i1];
+    }
+
+    /++
+    void opIndexAssign(Args...)(Args ele, size_t i1, size_t i2)
+    Description: Setting the element at an index
+    @param: ii - Row index
+    @param: i2 - Column index
+    +/
+    void opIndexAssign(Args...)(Args ele, size_t i1, size_t i2)
+    {
+        assert(i1 < rows && i2 < cols, "Index out of bound");
+        static foreach(i; 0 .. RowType.length)
+        {
+            if(i == i2)
+            {
+                data[i][i1] = ele[0];
+            }
+        }
+    }
 }
 
 // Testing DataFrame Definition - O(n + log(n))
@@ -786,6 +816,48 @@ unittest
     import std.traits: Fields;
     DataFrame!(true, Fields!Example) df;
     assert(is(typeof(df.data) == AliasSeq!(int[], double[])));
+}
+
+// Getting element from it's index
+unittest
+{
+    DataFrame!(int, 2) df;
+    assert(is(typeof(df.data) == Repeat!(2, int[])));
+
+    df.indx.rtitles = ["Index1"];
+    df.indx.indexes = [["Hello", "Hi"]];
+    df.indx.rcodes = [[]];
+    df.indx.ctitles = [];
+    df.indx.columns = [["Hello","Hi"]];
+    df.indx.ccodes = [[]];
+    df.rows = 2;
+    df.data[0] = [1,2];
+    df.data[1] = [1,2];
+
+    assert(df.at!(0,0) == 1);
+    assert(df.at!(0,1) == 1);
+    assert(df.at!(1,0) == 2);
+    assert(df.at!(1,1) == 2);
+}
+
+// Setting element at an index
+unittest
+{
+    DataFrame!(int, 2) df;
+    assert(is(typeof(df.data) == Repeat!(2, int[])));
+
+    df.indx.rtitles = ["Index1"];
+    df.indx.indexes = [["Hello", "Hi"]];
+    df.indx.rcodes = [[]];
+    df.indx.ctitles = [];
+    df.indx.columns = [["Hello","Hi"]];
+    df.indx.ccodes = [[]];
+    df.rows = 2;
+    df.data[0] = [1,2];
+    df.data[1] = [1,2];
+
+    df[0, 0] = 42;
+    assert(df.data[0] == [42, 2]);
 }
 
 // Simple Data Frame
