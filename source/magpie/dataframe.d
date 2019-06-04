@@ -854,7 +854,7 @@ public:
         if(Args.length > 0)
     {
         assert(rindx.length == indx.rcodes.length, "Size of indexes don't match the levels of row indexes");
-        assert(cindx.length == indx.rcodes.length, "Size of indexes don't match the levels of column indexes");
+        assert(cindx.length == indx.ccodes.length, "Size of indexes don't match the levels of column indexes");
 
         int i1 = rowPos(rindx);
         int i2 = colPos(cindx);
@@ -891,6 +891,66 @@ public:
     {
         assert(indexes.length == indx.rcodes.length, "Size of indexes don't match the levels of column indexes");
         return colPos(indexes);
+    }
+
+    /++
+    void setFrameIndex(Index index)
+    Description: Sets the frame indexes.
+    [Please use setIndex method of Index to set the index]
+    @params: index - Index structure to replace indexing
+    +/
+    void setFrameIndex(Index index)
+    {
+        assert(index.rcodes.length > 0 || index.ccodes.length > 0
+            || index.rtitles.length > 0 || index.ctitles.length > 0,
+            "Cannot set empty index to DataFrame");
+        
+        bool needsPadding = false;
+        if(index.ccodes.length > 0 && index.ccodes[0].length == cols)
+        {
+            indx.ccodes = index.ccodes;
+            indx.columns = index.columns;
+            indx.ctitles = index.ctitles;
+        }
+
+        if(index.ccodes.length == 0 && index.ctitles.length == indx.ccodes.length)
+        {
+            indx.ctitles = index.ctitles;
+        }
+
+        if(index.rcodes.length > 0 && index.rcodes[0].length >= rows)
+        {
+            indx.rcodes = index.rcodes;
+            indx.indexes = index.indexes;
+            indx.rtitles = index.rtitles;
+
+            if(index.rcodes[0].length != rows)
+                needsPadding = true;
+            
+            rows = index.rcodes[0].length;
+        }
+
+        if(index.rcodes.length == 0 && index.rtitles.length == indx.rcodes.length)
+        {
+            indx.rtitles = index.rtitles;
+        }
+
+        if(indx.ccodes.length == 0)
+        {
+            indx.columns = [[]];
+            indx.ccodes = [[]];
+            foreach(i; 0 .. cast(int)cols)
+                indx.ccodes[0] ~= i;
+        }
+
+        if(needsPadding)
+        {
+            static foreach(i; 0 .. RowType.length)
+            {
+                foreach(j; data[i].length .. rows)
+                    data[i] ~= RowType[i].init;
+            }
+        }
     }
 }
 
@@ -1034,6 +1094,56 @@ unittest
     assert(df.getColumnPosition(["Hi", "2", "Hello"]) == 1);
     assert(df.getColumnPosition(["Hello", "1", "Hell"]) == -1);
     assert(df.getColumnPosition(["Hello", "45", "Hello"]) == -1);
+}
+
+// Setting index to DataFrame
+unittest
+{
+    DataFrame!(double, int) df;
+    Index inx;
+    inx.setIndex([1,2,3,4,5], ["Index"]);
+    df.setFrameIndex(inx);
+    string ret = df.display(true);
+    assert(ret == "Index  0    1  \n"
+        ~ "1      nan  0  \n"
+        ~ "2      nan  0  \n"
+        ~ "3      nan  0  \n"
+        ~ "4      nan  0  \n"
+        ~ "5      nan  0  \n"
+    );
+}
+
+// Checking if setting index works as intended when assigning using the set index
+unittest
+{
+    DataFrame!(double, int) df;
+    Index inx;
+    inx.setIndex([1,2,3,4,5], ["Index"], [1, 2], ["Index"]);
+    df.setFrameIndex(inx);
+    df[["1"], ["2"]] = 42;
+    assert(df.data[1] == [42,0,0,0,0]);
+}
+
+// Checking if setting index works as intended when assigning using the set index
+unittest
+{
+    DataFrame!(double, int) df;
+    Index inx;
+    inx.setIndex([["Hello", "Hi"], ["Hi", "Hello"]], ["Index", "Index"], [1, 2], ["Index"]);
+    df.setFrameIndex(inx);
+    df[["Hello", "Hi"], ["2"]] = 42;
+    assert(df.data[1] == [42,0]);
+}
+
+// Checking if setting index works as intended when assigning using the set index
+unittest
+{
+    DataFrame!(double, int) df;
+    Index inx;
+    inx.setIndex([["Hello", "Hi"], ["Hi", "Hello"]], ["Index", "Index"], [["Hello", "Hi"], ["Hi", "Hello"]]);
+    df.setFrameIndex(inx);
+    df[["Hello", "Hi"], ["Hi", "Hello"]] = 42;
+    assert(df.data[1] == [42,0]);
 }
 
 // Simple Data Frame
