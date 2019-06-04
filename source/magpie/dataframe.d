@@ -1,5 +1,7 @@
 module magpie.dataframe;
 
+import magpie.index: Index;
+
 import std.meta: AliasSeq, Repeat, staticMap;
 import std.array: appender;
 import std.traits: isType, isBoolean;
@@ -33,29 +35,6 @@ private template getArgsList(args...)
 
 // Template to get array from type
 private alias toArr(T) = T[];
-
-/++
-Structure for DataFrame Indexing
-+/
-struct Index
-{
-    /// To know if data is multi-indexed
-    bool isMultiIndexed = false;
-
-    /// Stores title to refer to each index level
-    string[] rtitles = [];
-    /// The indexes themselves
-    string[][] indexes = [];
-    /// Codes to map the above index to their positions
-    int[][] rcodes = [];
-
-    /// Titles for each column level
-    string[] ctitles = [];
-    /// The column indexes themself
-    string[][] columns = [];
-    /// Codes to map the index of above column to their position
-    int[][] ccodes = [];
-}
 
 /++
 The DataFrame Structure
@@ -830,6 +809,8 @@ public:
             foreach(i; 0 .. cast(uint)line)
                 indx.ccodes[0] ~= i;
         }
+
+        indx.optimize();
     }
 
     /++
