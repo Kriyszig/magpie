@@ -1864,3 +1864,46 @@ unittest
     }
     csv.close();
 }
+
+unittest
+{
+    DataFrame!(int, 9, double, int, 4) df;
+    df.from_csv("./test/fromcsv/dataset1.csv", 0, 1);
+    // df.display();
+    df.to_csv("./test/tocsv/ex3p1.csv", false);
+
+    import std.stdio: File;
+    File f1 = File("./test/fromcsv/dataset1.csv", "r");
+    File f2 = File("./test/tocsv/ex3p1.csv", "r");
+
+    while(!f1.eof())
+    {
+        assert(f1.readln() == f2.readln());
+    }
+    assert(f1.eof() && f2.eof());
+
+    f1.close();
+    f2.close();
+}
+
+unittest
+{
+    DataFrame!(int, 8, double, int, 4) df;
+    df.from_csv("./test/fromcsv/dataset1.csv", 1, 1);
+    import std.stdio;
+    // df.display();
+    df.to_csv("./test/tocsv/ex3p2.csv");
+
+    import std.stdio: File;
+    File f1 = File("./test/fromcsv/dataset1.csv", "r");
+    File f2 = File("./test/tocsv/ex3p2.csv", "r");
+
+    while(!f1.eof())
+    {
+        assert(f1.readln() == f2.readln());
+    }
+    assert(f1.eof() && f2.eof());
+
+    f1.close();
+    f2.close();
+}

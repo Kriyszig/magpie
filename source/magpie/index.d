@@ -35,7 +35,11 @@ struct Index
             {
                 try
                 {
-                    int[] codes = to!(int[])(indexes[i]);
+                    import std.array: appender;
+                    auto inx = appender!(string[]);
+                    foreach(j; 0 .. rcodes[i].length)
+                        inx.put(indexes[i][rcodes[i][j]]);
+                    int[] codes = to!(int[])(inx.data);
                     rcodes[i] = codes;
                     indexes[i] = [];
                 }
@@ -54,7 +58,11 @@ struct Index
             {
                 try
                 {
-                    int[] codes = to!(int[])(columns[i]);
+                    import std.array: appender;
+                    auto inx = appender!(string[]);
+                    foreach(j; 0 .. ccodes[i].length)
+                        inx.put(columns[i][ccodes[i][j]]);
+                    int[] codes = to!(int[])(inx.data);
                     ccodes[i] = codes;
                     columns[i] = [];
                 }
