@@ -4,7 +4,7 @@ import magpie.index: Index;
 
 import std.meta: AliasSeq, Repeat, staticMap;
 import std.array: appender;
-import std.traits: isType, isBoolean;
+import std.traits: isType, isBoolean, isArray;
 
 // Template to convert DataFrame template args to RowType
 private template getArgsList(args...)
@@ -136,10 +136,12 @@ private:
 
 public:
     /++
-    DataFrame.display(): Displays the DataFrame on the terminal
-    @parm getStr: returns the string generated.
+    auto display(bool getStr = false, int maxwidth = 0)
+    Description: Converts the given DataFrame into a formatted string to display on the terminal
+    @params: getStr - returns the string generated.
+    @params: maxwidth - override the width of the terminal.
     +/
-    auto display(bool getStr = false)
+    auto display(bool getStr = false, int maxwidth = 0)
     {
         if(rows == 0)
         {
@@ -151,7 +153,7 @@ public:
             return "";
         }
 
-        const uint terminalw = 200;
+        const uint terminalw = (maxwidth > 100)? maxwidth: 200;
         const uint maxColSize = 43;
         auto gaps = appender!(size_t[]);
 
@@ -530,14 +532,19 @@ public:
             // writeln(gaps.data);
             // writeln(left,"\t", right);
 
-            writeln("\nDataframe Dimension: [ ", totalHeight," X ", totalWidth, " ]");
+            writeln("Dataframe Dimension: [ ", totalHeight," X ", totalWidth, " ]");
             writeln("Data Dimension: [ ", rows," X ", cols, " ]");
         }
         return ((getStr)? dispstr.data: "");
     }
 
     /++
-    to_csv(): Writes the data from the DataFrame to a CSV file
+    void to_csv(string path, bool writeIndex = true, bool writeColumns = true, char sep = ',')
+    Description: Writes given DataFrame to a CSV file
+    @params: path - path to the output file
+    @params: writeIndex - write row indexes to the file
+    @params: writeColumns - write column indexes to the file
+    @params: sep - data seperator
     +/
     void to_csv(string path, bool writeIndex = true, bool writeColumns = true, char sep = ',')
     {
@@ -654,7 +661,13 @@ public:
     }
 
     /++
-    from_csv(): This function parses a CSV file to a DataFrame
+    void from_csv(string path, size_t indexDepth, size_t columnDepth, size_t[] columns = [], char sep = ',')
+    Description: Parsing of DataFrame from a CSV file
+    @params: path - File path of csv file
+    @params: indexDepth - Number of columns row indexes span
+    @params: columnDepth - Number of rows column indexes span
+    @params: columns - Integer indexes of column to selectively parse
+    @params: sep - Data seperator in the file 
     +/
     void from_csv(string path, size_t indexDepth, size_t columnDepth, size_t[] columns = [], char sep = ',')
     {
@@ -952,6 +965,38 @@ public:
             }
         }
     }
+
+    void opAssign(Args...)(Args args)
+        if(Args.length > 0 && isArray!(Args[0]))
+    {
+        import std.algorithm: map, reduce, max;
+        size_t l1 = args[0].length;
+        size_t l2 = args[0].map!(e => e.length).reduce!max;
+        assert(l1 > 0 && l2 > 0, "Cannot assign empty array to DataFrame");
+        assert(l1 <= rows, "Cannot implicitly assign values of length larger than that of the DataFrame");
+        assert(l2 <= cols, "Cannot implicitly assign values of dimension larger than that of the DataFrame");
+
+        auto input = args[0];
+
+        foreach(i; 0 .. l1)
+        {
+            static foreach(j; 0 .. RowType.length)
+            {
+                if(input[i].length > j)
+                    data[j][i] = cast(RowType[j])input[i][j];
+                else
+                    data[j][i] = RowType[j].init;
+            }
+        }
+
+        foreach(i; l1 .. rows)
+        {
+            static foreach(j; 0 .. RowType.length)
+            {
+                data[j][i] = RowType[j].init;
+            }
+        }
+    }
 }
 
 // Testing DataFrame Definition - O(n + log(n))
@@ -1103,7 +1148,7 @@ unittest
     Index inx;
     inx.setIndex([1,2,3,4,5], ["Index"]);
     df.setFrameIndex(inx);
-    string ret = df.display(true);
+    string ret = df.display(true, 200);
     assert(ret == "Index  0    1  \n"
         ~ "1      nan  0  \n"
         ~ "2      nan  0  \n"
@@ -1146,6 +1191,33 @@ unittest
     assert(df.data[1] == [42,0]);
 }
 
+// Basic Assignment operation
+unittest
+{
+    DataFrame!(double, int) df;
+    Index inx;
+    inx.setIndex([["Hello", "Hi"], ["Hi", "Hello"]], ["Index", "Index"], [["Hello", "Hi"], ["Hi", "Hello"]]);
+    df.setFrameIndex(inx);
+
+    // Assignment
+    df = [[1, 2], [3, 4]];
+    // df.display();
+    assert(df.data[0] == [1,3]);
+    assert(df.data[1] == [2,4]);
+
+    // Assignment that needs apdding
+    df = [[1], [2,3]];
+    // df.display();
+    assert(df.data[0] == [1,2]);
+    assert(df.data[1] == [0,3]);
+
+    // Checking casting
+    df = [[1.2, 1], [4.6, 7]];
+    // df.display();
+    assert(df.data[0] == [1.2, 4.6]);
+    assert(df.data[1] == [1, 7]);
+}
+
 // Simple Data Frame
 unittest
 {
@@ -1161,7 +1233,7 @@ unittest
     df.rows = 2;
     df.data[0] = [1,2];
     df.data[1] = [1,2];
-    string ret = df.display(true);
+    string ret = df.display(true, 200);
     assert(ret == "Index1  Hello  Hi  \n"
         ~ "Hello   1      1   \n"
         ~ "Hi      2      2   \n"
@@ -1183,7 +1255,7 @@ unittest
     df.rows = 2;
     df.data[0] = [1,2];
     df.data[1] = [1,2];
-    string ret = df.display(true);
+    string ret = df.display(true, 200);
 
     assert(ret == "Also Index  Hello  Hi  \n"
         ~ "Index1      \n"
@@ -1207,7 +1279,7 @@ unittest
     df.rows = 2;
     df.data[0] = [1,2];
     df.data[1] = [1,2];
-    string ret = df.display(true);
+    string ret = df.display(true, 200);
     
     assert(ret == "Index1  Index2  Hello  Hi  \n"
         ~ "Hello   Hello   1      1   \n"
@@ -1229,7 +1301,7 @@ unittest
     df.rows = 2;
     df.data[0] = [1,2];
     df.data[1] = [1,2];
-    string ret = df.display(true);
+    string ret = df.display(true, 200);
     
     assert(ret == "        Hello  Hi  \n"
         ~ "Index1  Hello  Hi  \n"
@@ -1253,7 +1325,7 @@ unittest
     df.rows = 2;
     df.data[0] = [1,2];
     df.data[1] = [1,2];
-    string ret = df.display(true);
+    string ret = df.display(true, 200);
     
     assert(ret == "CIndex1  Hello  Hi  \n"
         ~ "CIndex2  Hello  Hi  \n"
@@ -1285,7 +1357,7 @@ unittest
         df.data[i] = arr;
     }
 
-    string ret = df.display(true);
+    string ret = df.display(true, 200);
     assert(ret == "Index1  0         1         2         3         4         5         6         7         ...  11        12        13        14        15        16        17        18        19        \n"
         ~ "Hello   12222222  12222222  12222222  12222222  12222222  12222222  12222222  12222222  ...  12222222  12222222  12222222  12222222  12222222  12222222  12222222  12222222  12222222  \n"
         ~ "Hi      12222222  12222222  12222222  12222222  12222222  12222222  12222222  12222222  ...  12222222  12222222  12222222  12222222  12222222  12222222  12222222  12222222  12222222  \n"
@@ -1314,7 +1386,7 @@ unittest
     }
     df.data[0] = arr;
     df.data[1] = arr;
-    string ret = df.display(true);
+    string ret = df.display(true, 200);
 
     assert(ret == "Index1  Hello  Hi  \n"
         ~ "0       0      0   \n"
@@ -1385,7 +1457,7 @@ unittest
     df.rows = 2;
     df.data[0] = [1,2];
     df.data[1] = [1,2];
-    string ret = df.display(true);
+    string ret = df.display(true, 200);
     assert(ret == "                        Hello  Hi     \n"
         ~ "                        1      2      \n"
         ~ "Index1  Index2  Index3  Hello  Hello  \n"
@@ -1409,7 +1481,7 @@ unittest
     df.rows = 2;
     df.data[0] = [1,2];
     df.data[1] = [1,2];
-    string ret = df.display(true);
+    string ret = df.display(true, 200);
     assert(ret == "                Hey     Hello  Hi     \n"
         ~ "                Hey     1      2      \n"
         ~ "                Hey     Hello  Hello  \n"
@@ -1437,7 +1509,7 @@ unittest
     df.rows = 2;
     df.data[0] = [1,2];
     df.data[1] = [1,2];
-    string ret = df.display(true);
+    string ret = df.display(true, 200);
     assert(ret == "                        Hello  Hi     \n"
         ~ "                        1      2      \n"
         ~ "Index1  Index2  Index3  Hello  Hello  \n"
@@ -1462,7 +1534,7 @@ unittest
     df.rows = 2;
     df.data[0] = [1,2];
     df.data[1] = [1,2];
-    string ret = df.display(true);
+    string ret = df.display(true, 200);
     
     assert(ret == "                        Hello  Hi     \n"
         ~ "                        1      2      \n"
@@ -1865,6 +1937,7 @@ unittest
     csv.close();
 }
 
+// PArsing of dataset 1
 unittest
 {
     DataFrame!(int, 9, double, int, 4) df;
@@ -1886,11 +1959,11 @@ unittest
     f2.close();
 }
 
+// Parsing dataset 1 considering first column as index
 unittest
 {
     DataFrame!(int, 8, double, int, 4) df;
     df.from_csv("./test/fromcsv/dataset1.csv", 1, 1);
-    import std.stdio;
     // df.display();
     df.to_csv("./test/tocsv/ex3p2.csv");
 
@@ -1901,6 +1974,62 @@ unittest
     while(!f1.eof())
     {
         assert(f1.readln() == f2.readln());
+    }
+    assert(f1.eof() && f2.eof());
+
+    f1.close();
+    f2.close();
+}
+
+// Parsing dataset 2 with gaps in data
+unittest
+{
+    DataFrame!(double, 23) df;
+    df.from_csv("./test/fromcsv/dataset2.csv", 2, 1);
+    //df.display();
+    df.to_csv("./test/tocsv/ex4p1.csv");
+
+    import std.stdio: File;
+    import std.string: chomp;
+    import std.array: split;
+
+    File f1 = File("./test/fromcsv/dataset2.csv", "r");
+    File f2 = File("./test/tocsv/ex4p1.csv", "r");
+
+    while(!f1.eof())
+    {
+        auto lf1 = chomp(f1.readln()).split(",");
+        auto lf2 = chomp(f2.readln()).split(",");
+        if(lf1.length > 0)
+            assert(lf1[0 .. 3] == lf2[0 .. 3]);
+    }
+    assert(f1.eof() && f2.eof());
+
+    f1.close();
+    f2.close();
+}
+
+// PArtially parsing the complete columns of dataset2
+unittest
+{
+    DataFrame!(int, 1) df;
+    df.from_csv("./test/fromcsv/dataset2.csv", 2, 1, [0]);
+    // df.display();
+    df.to_csv("./test/tocsv/ex4p2.csv");
+
+    import std.stdio: File;
+    import std.string: chomp;
+    import std.array: split;
+
+    File f1 = File("./test/fromcsv/dataset2.csv", "r");
+    File f2 = File("./test/tocsv/ex4p2.csv", "r");
+
+    while(!f1.eof())
+    {
+        auto lf1 = chomp(f1.readln()).split(",");
+        auto lf2 = chomp(f2.readln()).split(",");
+        if(lf1.length > 0)
+            assert(lf1[0 .. 3] == lf2);
     }
     assert(f1.eof() && f2.eof());
 
