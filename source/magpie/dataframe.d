@@ -994,6 +994,55 @@ public:
             }
         }
     }
+
+    /++
+    void assign(int axis, T, U...)(T index, U values)
+    Description: Assign values to rows or columns
+    @params: axis - 0 for rows, 1 for columns
+    @params: index - string[] or integer index of the location to assign
+    @params: values - values to assign
+    +/
+    void assign(int axis, T, U...)(T index, U values)
+    {
+        static if(axis == 0)
+        {
+            int pos;
+            static if(is(T == int))
+                pos = index;
+            else
+                pos = rowPos(index);
+            
+            assert(pos > -1 && pos < rows, "Index out of bound");
+
+            static foreach(i; 0 .. (RowType.length > U.length)? U.length: RowType.length)
+                data[i][pos] = values[i];
+        }
+        else
+        {
+            static assert(isArray!(U[0]), "Assignable data needs to be a 1D array");
+            int pos;
+            static if(is(T == int))
+                pos = index;
+            else
+                pos = colPos(index);
+
+            import std.stdio;
+            assert(pos > -1 && pos < cols, "Index out of bound");
+            assert(values[0].length <= rows, "Assignable data larger than DataFrame");
+
+            static foreach(i; 0 .. FrameType.length)
+            {
+                if(i == pos)
+                {
+                    static if(is(U[0] == FrameType[i]))
+                    {
+                        foreach(j; 0 .. values[0].length)
+                            data[i][j] = values[0][j];
+                    }
+                }
+            }
+        }
+    }
 }
 
 // Testing DataFrame Definition - O(n + log(n))
@@ -1213,6 +1262,50 @@ unittest
     // df.display();
     assert(df.data[0] == [1.2, 4.6]);
     assert(df.data[1] == [1, 7]);
+}
+
+// Assigning an entire column & row to DataFrame
+unittest
+{
+    DataFrame!(double, int) df;
+    Index inx;
+    inx.setIndex([["Hello", "Hi"], ["Hi", "Hello"]], ["Index", "Index"], [["Hello", "Hi"], ["Hi", "Hello"]]);
+    df.setFrameIndex(inx);
+    df.RowType ele;
+    ele[0] = 1.77;
+    ele[1] = 4;
+
+    // Using RowType alais
+    df.assign!0(["Hi", "Hello"], ele);
+    assert(df.data[0][1] == 1.77);
+    assert(df.data[1][1] == 4);
+
+    // Without RowType
+    df.assign!0(["Hi", "Hello"], 1.688, 6);
+    assert(df.data[0][1] == 1.688);
+    assert(df.data[1][1] == 6);
+    
+    // Assigning usig direct index
+    df.assign!0(1, 1.588, 6);
+    assert(df.data[0][1] == 1.588);
+    assert(df.data[1][1] == 6);
+    
+    // Assigning column
+    df.assign!1(["Hello", "Hi"], [1.2, 3.6]);
+    assert(df.data[0] == [1.2, 3.6]);
+    
+    // Assigning columns using direct index
+    df.assign!1(0, [1.26, 4.6]);
+    assert(df.data[0] == [1.26, 4.6]);
+    
+    // Partial Assignment - rows
+    df.assign!0(1, 3.588);
+    assert(df.data[0][1] == 3.588);
+    assert(df.data[1][1] == 6);
+
+    // Partial Assignment - columns
+    df.assign!1(0, [2.26]);
+    assert(df.data[0] == [2.26, 3.588]);
 }
 
 // Simple Data Frame
@@ -2032,4 +2125,57 @@ unittest
 
     f1.close();
     f2.close();
+}
+
+// Unittest for example in README.md
+unittest
+{
+    DataFrame!(int, 2, double, 1) df;
+    Index index;
+    index.setIndex([0,1,2,3,4,5], ["Row Index"], [0,1,2], ["Column Index"]);
+    df.setFrameIndex(index);
+    // df.display();
+
+    df.assign!1(2, [1.0, 2.0, 3.0, 4.0, 5.0, 6.0]);
+    // df.display();
+
+    df.assign!1(1, [1, 2, 3]);
+    // df.display();
+
+    df.assign!0(0, 4, 5, 1.6);
+    // df.display();
+
+    index.extend!0([6]);
+    df.setFrameIndex(index);
+    // df.display();
+}
+
+unittest
+{
+    Index inx;
+    DataFrame!(int, 2) df;
+    inx.setIndex([["Hello", "Hi"], ["Hi", "Hello"]], ["RL1", "RL2"],
+                [["Hello", "Hi"], ["Hi", "Hello"]], ["CL1", "CL2"]);
+    df.setFrameIndex(inx);
+    // df.display();
+
+    DataFrame!(int, 3) df2;
+    inx.extend!0(["Hey", "Hey"]);
+    inx.extend!1(["Yo", "Yo"]);
+    df2.setFrameIndex(inx);
+    // df2.display();
+}
+
+unittest
+{
+    Index inx;
+    inx.setIndex([1, 2, 3],["rindex"]);
+
+    DataFrame!(int, 2, double) df;
+    df.setFrameIndex(inx);
+    // df.display();
+    df = [[1.0], [1.0, 2.0], [1.0, 2.0, 3.5]];
+    df[0, 0] = 42;
+    df[["2"], ["1"]] = 17;
+    // df.display();
 }

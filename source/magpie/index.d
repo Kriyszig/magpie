@@ -233,7 +233,7 @@ struct Index
                         import std.conv: to, ConvException;
                         import std.algorithm: countUntil;
                         string ele = to!string(next[i]);
-                        int pos = cast(int)countUntil(indexes[i], next[i]);
+                        int pos = cast(int)countUntil(indexes[i], ele);
 
                         if(pos > -1)
                         {
