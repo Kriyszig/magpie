@@ -15,7 +15,7 @@ import magpie.dataframe: DataFrame;
 DataFrame!(int, 20) homogeneous;
 
 // Creating a heterogeneous DataFrame of 10 integer columns and 10 double columns
-DataFrame!(int, 10, double, 10) homogeneous;
+DataFrame!(int, 10, double, 10) heterogeneous;
 
 ```
 
@@ -62,3 +62,8 @@ Parsing of CSV file into a DataFrame
 * indexDepth - How many columns from left do row index span
 * columnDepth - How many rows from top column index span
 * sep - Data Seperator
+
+##### Dataset Sources
+
+* [Dataset1 - UCI Statlog (Heart) Data Set](http://archive.ics.uci.edu/ml/datasets/statlog+(heart))
+* [Dataset2 - U.S. Education Datasets: Unification Project](https://www.kaggle.com/noriuk/us-education-datasets-unification-project)

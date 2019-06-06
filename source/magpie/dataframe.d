@@ -863,8 +863,7 @@ public:
     @param: rindx - Row index
     @param: cindx - Column index
     +/
-    void opIndexAssign(Args...)(Args ele, string[] rindx, string[] cindx)
-        if(Args.length > 0)
+    void opIndexAssign(Ele)(Ele ele, string[] rindx, string[] cindx)
     {
         assert(rindx.length == indx.rcodes.length, "Size of indexes don't match the levels of row indexes");
         assert(cindx.length == indx.ccodes.length, "Size of indexes don't match the levels of column indexes");
@@ -877,7 +876,7 @@ public:
         {
             if(i == i2)
             {
-                data[i][i1] = ele[0];
+                data[i][i1] = ele;
             }
         }
     }
@@ -966,17 +965,15 @@ public:
         }
     }
 
-    void opAssign(Args...)(Args args)
-        if(Args.length > 0 && isArray!(Args[0]))
+    void opAssign(T)(T input)
+        if(isArray!(T))
     {
         import std.algorithm: map, reduce, max;
-        size_t l1 = args[0].length;
-        size_t l2 = args[0].map!(e => e.length).reduce!max;
+        size_t l1 = input.length;
+        size_t l2 = input.map!(e => e.length).reduce!max;
         assert(l1 > 0 && l2 > 0, "Cannot assign empty array to DataFrame");
         assert(l1 <= rows, "Cannot implicitly assign values of length larger than that of the DataFrame");
         assert(l2 <= cols, "Cannot implicitly assign values of dimension larger than that of the DataFrame");
-
-        auto input = args[0];
 
         foreach(i; 0 .. l1)
         {
