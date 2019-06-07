@@ -1,37 +1,13 @@
 module magpie.dataframe;
 
 import magpie.index: Index;
+import magpie.helper: getArgsList;
 
 import std.meta: AliasSeq, Repeat, staticMap;
 import std.array: appender;
 import std.traits: isType, isBoolean, isArray;
 
-// Template to convert DataFrame template args to RowType
-private template getArgsList(args...)
-{
-    static if(args.length)
-    {
-        alias arg = args[0];
-        import std.traits: isType;
-        static if(args.length == 1)
-        {
-            alias getArgsList = AliasSeq!(arg);
-        }
-        else
-        {
-            static if(isType!(args[1]))
-            {
-                alias getArgsList = AliasSeq!(arg, getArgsList!(args[1 .. $]));
-            }
-            else
-            {
-                alias getArgsList = AliasSeq!(Repeat!(args[1],arg), getArgsList!(args[2 .. $]));
-            }
-        }
-    }
-    else
-        alias getArgsList = AliasSeq!();
-}
+/// Template to convert DataFrame template args to RowType
 
 // Template to get array from type
 private alias toArr(T) = T[];
@@ -56,79 +32,43 @@ struct DataFrame(FrameFields...)
     ///
     size_t cols = RowType.length;
 
-    /// DataFrame indexes
+    /// DataFrame indexing[0].index
     Index indx;
     /// DataFrame Data
     FrameType data;
 
 private:
-    int rowPos(string[] rowindx)
+    int getPosition(int axis)(string[] index)
     {
         import std.array: appender;
         import std.algorithm: countUntil;
         import std.conv: to;
         auto codes = appender!(int[]);
 
-        foreach(i; 0 .. cast(int)indx.rcodes.length)
+        foreach(i; 0 .. indx.indexing[axis].codes.length)
         {
-            if(indx.indexes[i].length == 0)
-                codes.put(to!int(rowindx[i]));
+            if(indx.indexing[axis].index[i].length == 0)
+                codes.put(to!int(index[i]));
             else
             {
-                int indxpos = cast(int)countUntil(indx.indexes[i], rowindx[i]);
+                int indxpos = cast(int)countUntil(indx.indexing[axis].index[i], index[i]);
                 if(indxpos < 0)
                     return -1;
                 codes.put(indxpos);
             }
         }
 
-        foreach(i; 0 .. cast(int)rows)
+        foreach(i; 0 .. (axis == 0)? rows: cols)
         {
             bool flag = true;
-            foreach(j; 0 .. indx.rcodes.length)
+            foreach(j; 0 .. indx.indexing[axis].codes.length)
             {
-                if(indx.rcodes[j][i] != codes.data[j])
+                if(indx.indexing[axis].codes[j][i] != codes.data[j])
                     flag = false;
             }
 
             if(flag)
-                return i;
-        }
-
-        return -1;
-    }
-
-    int colPos(string[] colindx)
-    {
-        import std.array: appender;
-        import std.algorithm: countUntil;
-        import std.conv: to;
-        auto codes = appender!(int[]);
-
-        foreach(i; 0 .. cast(int)indx.ccodes.length)
-        {
-            if(indx.columns[i].length == 0)
-                codes.put(to!int(colindx[i]));
-            else
-            {
-                int indxpos = cast(int)countUntil(indx.columns[i], colindx[i]);
-                if(indxpos < 0)
-                    return -1;
-                codes.put(indxpos);
-            }
-        }
-
-        foreach(i; 0 .. cast(int)cols)
-        {
-            bool flag = true;
-            foreach(j; 0 .. indx.ccodes.length)
-            {
-                if(indx.ccodes[j][i] != codes.data[j])
-                    flag = false;
-            }
-
-            if(flag)
-                return i;
+                return cast(int)i;
         }
 
         return -1;
@@ -158,9 +98,9 @@ public:
         auto gaps = appender!(size_t[]);
 
         size_t top, bottom;
-        const size_t totalHeight = rows + indx.columns.length +
-            ((indx.rtitles.length > 0 && indx.ctitles.length > 0)? 1: 0);
-        const size_t totalWidth = cols + indx.indexes.length;
+        const size_t totalHeight = rows + indx.indexing[1].index.length +
+            ((indx.indexing[0].titles.length > 0 && indx.indexing[1].titles.length > 0)? 1: 0);
+        const size_t totalWidth = cols + indx.indexing[0].index.length;
 
         if(totalHeight > 50)
         {
@@ -178,19 +118,19 @@ public:
         size_t dataIndex = 0;
         foreach(i; 0 .. totalWidth)
         {
-            int extra = (indx.rtitles.length > 0 && indx.ctitles.length > 0)? 1: 0;
-            if(i < indx.indexes.length)
+            int extra = (indx.indexing[0].titles.length > 0 && indx.indexing[1].titles.length > 0)? 1: 0;
+            if(i < indx.indexing[0].index.length)
             {
-                size_t thisGap = (i < indx.rtitles.length && top > indx.columns.length + extra)? indx.rtitles[i].length: 0;
-                if(top > indx.columns.length + extra)
+                size_t thisGap = (i < indx.indexing[0].titles.length && top > indx.indexing[1].index.length + extra)? indx.indexing[0].titles[i].length: 0;
+                if(top > indx.indexing[1].index.length + extra)
                 {
                     size_t tmp = 0;
-                    if(indx.rcodes[i].length == 0)
-                        tmp = indx.indexes[i][0 .. top - indx.columns.length - extra].map!(e => e.length).reduce!max;
-                    else if(indx.indexes[i].length == 0)
-                        tmp = indx.rcodes[i][0 .. top - indx.columns.length - extra].map!(e => to!string(e).length).reduce!max;
+                    if(indx.indexing[0].codes[i].length == 0)
+                        tmp = indx.indexing[0].index[i][0 .. top - indx.indexing[1].index.length - extra].map!(e => e.length).reduce!max;
+                    else if(indx.indexing[0].index[i].length == 0)
+                        tmp = indx.indexing[0].codes[i][0 .. top - indx.indexing[1].index.length - extra].map!(e => to!string(e).length).reduce!max;
                     else
-                        tmp = indx.rcodes[i][0 .. top - indx.columns.length - extra].map!(e => indx.indexes[i][e].length).reduce!max;
+                        tmp = indx.indexing[0].codes[i][0 .. top - indx.indexing[1].index.length - extra].map!(e => indx.indexing[0].index[i][e].length).reduce!max;
                     
                     if(tmp > thisGap)
                     {
@@ -200,15 +140,15 @@ public:
 
                 if(bottom > 0)
                 {
-                    if(bottom > indx.indexes[i].length)
+                    if(bottom > indx.indexing[0].index[i].length)
                     {
                         size_t tmp = 0;
-                        if(indx.rcodes[i].length == 0)
-                            tmp = indx.indexes[i].map!(e => e.length).reduce!max;
-                        else if(indx.indexes[i].length == 0)
-                            tmp = indx.rcodes[i].map!(e => to!string(e).length).reduce!max;
+                        if(indx.indexing[0].codes[i].length == 0)
+                            tmp = indx.indexing[0].index[i].map!(e => e.length).reduce!max;
+                        else if(indx.indexing[0].index[i].length == 0)
+                            tmp = indx.indexing[0].codes[i].map!(e => to!string(e).length).reduce!max;
                         else
-                            tmp = indx.rcodes[i].map!(e => indx.indexes[i][e].length).reduce!max;
+                            tmp = indx.indexing[0].codes[i].map!(e => indx.indexing[0].index[i][e].length).reduce!max;
                         
                         if(tmp > thisGap)
                         {
@@ -218,12 +158,12 @@ public:
                     else
                     {
                         size_t tmp = 0;
-                        if(indx.rcodes[i].length == 0)
-                            tmp = indx.indexes[i][$ - bottom .. $].map!(e => e.length).reduce!max;
-                        else if(indx.indexes[i].length == 0)
-                            tmp = indx.rcodes[i][$ - bottom .. $].map!(e => to!string(e).length).reduce!max;
+                        if(indx.indexing[0].codes[i].length == 0)
+                            tmp = indx.indexing[0].index[i][$ - bottom .. $].map!(e => e.length).reduce!max;
+                        else if(indx.indexing[0].index[i].length == 0)
+                            tmp = indx.indexing[0].codes[i][$ - bottom .. $].map!(e => to!string(e).length).reduce!max;
                         else
-                            tmp = indx.rcodes[i][$ - bottom .. $].map!(e => indx.indexes[i][e].length).reduce!max;
+                            tmp = indx.indexing[0].codes[i][$ - bottom .. $].map!(e => indx.indexing[0].index[i][e].length).reduce!max;
                         
                         if(tmp > thisGap)
                         {
@@ -232,11 +172,11 @@ public:
                     }
                 }
 
-                if(i == indx.indexes.length - 1 && indx.ctitles.length > 0)
+                if(i == indx.indexing[0].index.length - 1 && indx.indexing[1].titles.length > 0)
                 {
-                    const auto tmp = (indx.ctitles.length > top)
-                        ? indx.ctitles[0 .. top].map!(e => e.length).reduce!max
-                        : indx.ctitles.map!(e => e.length).reduce!max;
+                    const auto tmp = (indx.indexing[1].titles.length > top)
+                        ? indx.indexing[1].titles[0 .. top].map!(e => e.length).reduce!max
+                        : indx.indexing[1].titles.map!(e => e.length).reduce!max;
                     
                     if(tmp > thisGap)
                     {
@@ -249,28 +189,28 @@ public:
             else
             {
                 size_t maxGap = 0;
-                foreach(j; 0 .. (top > indx.columns.length)? indx.columns.length: top)
+                foreach(j; 0 .. (top > indx.indexing[1].index.length)? indx.indexing[1].index.length: top)
                 {
                     size_t lenCol = 0;
-                    if(indx.ccodes[j].length == 0)
-                        lenCol = indx.columns[j][dataIndex].length;
-                    else if(indx.columns[j].length == 0)
-                        lenCol = to!string(indx.ccodes[j][dataIndex]).length;
+                    if(indx.indexing[1].codes[j].length == 0)
+                        lenCol = indx.indexing[1].index[j][dataIndex].length;
+                    else if(indx.indexing[1].index[j].length == 0)
+                        lenCol = to!string(indx.indexing[1].codes[j][dataIndex]).length;
                     else
-                        lenCol = indx.columns[j][indx.ccodes[j][dataIndex]].length;
+                        lenCol = indx.indexing[1].index[j][indx.indexing[1].codes[j][dataIndex]].length;
                     
                     maxGap = (maxGap > lenCol)? maxGap: lenCol;
                 }
 
-                foreach(j; totalHeight - bottom .. indx.columns.length)
+                foreach(j; totalHeight - bottom .. indx.indexing[1].index.length)
                 {
                     size_t lenCol = 0;
-                    if(indx.ccodes[j].length == 0)
-                        lenCol = indx.columns[j][dataIndex].length;
-                    else if(indx.columns[j].length == 0)
-                        lenCol = to!string(indx.ccodes[j][dataIndex]).length;
+                    if(indx.indexing[1].codes[j].length == 0)
+                        lenCol = indx.indexing[1].index[j][dataIndex].length;
+                    else if(indx.indexing[1].index[j].length == 0)
+                        lenCol = to!string(indx.indexing[1].codes[j][dataIndex]).length;
                     else
-                        lenCol = indx.columns[j][indx.ccodes[j][dataIndex]].length;
+                        lenCol = indx.indexing[1].index[j][indx.indexing[1].codes[j][dataIndex]].length;
                     
                     maxGap = (maxGap > lenCol)? maxGap: lenCol;
                 }
@@ -327,14 +267,14 @@ public:
         auto dispstr = appender!string;
         foreach(ele; [[0, top], [totalHeight - bottom, totalHeight]])
         {
-            const int extra = (indx.rtitles.length > 0 && indx.ctitles.length > 0)? 1: 0; 
-            if(ele[0] < indx.columns.length + extra)
+            const int extra = (indx.indexing[0].titles.length > 0 && indx.indexing[1].titles.length > 0)? 1: 0; 
+            if(ele[0] < indx.indexing[1].index.length + extra)
             {
                 dataIndex = 0;
             }
             else
             {
-                dataIndex = ele[0] - (indx.columns.length + extra);
+                dataIndex = ele[0] - (indx.indexing[1].index.length + extra);
             }
             foreach(i; ele[0] .. ele[1])
             {
@@ -343,39 +283,39 @@ public:
                 {
                     foreach(j; lim[0] .. lim[1])
                     {
-                        if(i < indx.columns.length)
+                        if(i < indx.indexing[1].index.length)
                         {
-                            if(j < indx.indexes.length)
+                            if(j < indx.indexing[0].index.length)
                             {
-                                if(j == indx.indexes.length - 1 
-                                    && indx.ctitles.length != 0)
+                                if(j == indx.indexing[0].index.length - 1 
+                                    && indx.indexing[1].titles.length != 0)
                                 {
-                                    if(indx.ctitles[i].length > maxColSize)
+                                    if(indx.indexing[1].titles[i].length > maxColSize)
                                     {
-                                        dispstr.put(indx.ctitles[i][0 .. maxColSize]);
+                                        dispstr.put(indx.indexing[1].titles[i][0 .. maxColSize]);
                                         dispstr.put("  ");
                                     }
                                     else
                                     {
-                                        dispstr.put(indx.ctitles[i]);
-                                        foreach(k;indx.ctitles[i].length .. cwidth[j] + 2)
+                                        dispstr.put(indx.indexing[1].titles[i]);
+                                        foreach(k;indx.indexing[1].titles[i].length .. cwidth[j] + 2)
                                         {
                                             dispstr.put(" ");
                                         }
                                     }
                                 }
-                                else if(i == indx.columns.length - 1
-                                    && indx.ctitles.length == 0)
+                                else if(i == indx.indexing[1].index.length - 1
+                                    && indx.indexing[1].titles.length == 0)
                                 {
-                                    if(indx.rtitles[j].length > maxColSize)
+                                    if(indx.indexing[0].titles[j].length > maxColSize)
                                     {
-                                        dispstr.put(indx.rtitles[j][0 .. maxColSize]);
+                                        dispstr.put(indx.indexing[0].titles[j][0 .. maxColSize]);
                                         dispstr.put("  ");
                                     }
                                     else
                                     {
-                                        dispstr.put(indx.rtitles[j]);
-                                        foreach(k; indx.rtitles[j].length .. cwidth[j] + 2)
+                                        dispstr.put(indx.indexing[0].titles[j]);
+                                        foreach(k; indx.indexing[0].titles[j].length .. cwidth[j] + 2)
                                         {
                                             dispstr.put(" ");
                                         }
@@ -392,12 +332,12 @@ public:
                             else
                             {
                                 string colindx ="";
-                                if(indx.ccodes[i].length == 0)
-                                    colindx = indx.columns[i][j - indx.indexes.length];
-                                else if(indx.columns[i].length == 0)
-                                    colindx = to!string(indx.ccodes[i][j - indx.indexes.length]);
+                                if(indx.indexing[1].codes[i].length == 0)
+                                    colindx = indx.indexing[1].index[i][j - indx.indexing[0].index.length];
+                                else if(indx.indexing[1].index[i].length == 0)
+                                    colindx = to!string(indx.indexing[1].codes[i][j - indx.indexing[0].index.length]);
                                 else
-                                    colindx = indx.columns[i][indx.ccodes[i][j - indx.indexes.length]];
+                                    colindx = indx.indexing[1].index[i][indx.indexing[1].codes[i][j - indx.indexing[0].index.length]];
 
                                 if(colindx.length > maxColSize)
                                 {
@@ -414,19 +354,19 @@ public:
                                 }
                             }
                         }
-                        else if(i == indx.columns.length && indx.ctitles.length != 0)
+                        else if(i == indx.indexing[1].index.length && indx.indexing[1].titles.length != 0)
                         {
-                            if(j < indx.rtitles.length)
+                            if(j < indx.indexing[0].titles.length)
                             {
-                                if(indx.rtitles[j].length > maxColSize)
+                                if(indx.indexing[0].titles[j].length > maxColSize)
                                 {
-                                    dispstr.put(indx.rtitles[j][0 .. maxColSize]);
+                                    dispstr.put(indx.indexing[0].titles[j][0 .. maxColSize]);
                                     dispstr.put("  ");
                                 }
                                 else
                                 {
-                                    dispstr.put(indx.rtitles[j]);
-                                    foreach(k; indx.rtitles[j].length .. cwidth[j] + 2)
+                                    dispstr.put(indx.indexing[0].titles[j]);
+                                    foreach(k; indx.indexing[0].titles[j].length .. cwidth[j] + 2)
                                     {
                                         dispstr.put(" ");
                                     }
@@ -435,20 +375,20 @@ public:
                         }
                         else
                         {
-                            if(j < indx.indexes.length)
+                            if(j < indx.indexing[0].index.length)
                             {
                                 string idx = "";
-                                if(indx.rcodes[j].length == 0)
-                                    idx = indx.indexes[j][dataIndex];
-                                else if(indx.indexes[j].length == 0)
-                                    idx = to!string(indx.rcodes[j][dataIndex]);
-                                else if(dataIndex > 0 && j < indx.indexes.length
-                                    && indx.rcodes[j][dataIndex] == indx.rcodes[j][dataIndex - 1]
+                                if(indx.indexing[0].codes[j].length == 0)
+                                    idx = indx.indexing[0].index[j][dataIndex];
+                                else if(indx.indexing[0].index[j].length == 0)
+                                    idx = to!string(indx.indexing[0].codes[j][dataIndex]);
+                                else if(dataIndex > 0 && j < indx.indexing[0].index.length
+                                    && indx.indexing[0].codes[j][dataIndex] == indx.indexing[0].codes[j][dataIndex - 1]
                                     && skipIndex && indx.isMultiIndexed)
                                     idx = "";
                                 else
                                 {
-                                    idx = indx.indexes[j][indx.rcodes[j][dataIndex]];
+                                    idx = indx.indexing[0].index[j][indx.indexing[0].codes[j][dataIndex]];
                                     skipIndex = false;
                                 }
 
@@ -471,7 +411,7 @@ public:
                                 string idx = "";
                                 static foreach(k; 0 .. RowType.length)
                                 {
-                                    if(k == j - indx.indexes.length)
+                                    if(k == j - indx.indexing[0].index.length)
                                         idx = to!string(data[k][dataIndex]);
                                 }
 
@@ -497,7 +437,7 @@ public:
                     }
                 }
                 dispstr.put("\n");
-                if(i >= indx.columns.length + extra)
+                if(i >= indx.indexing[1].index.length + extra)
                     ++dataIndex;
             }
             if(bottom > 0 && ele[0] == 0)
@@ -539,47 +479,47 @@ public:
     }
 
     /++
-    void to_csv(string path, bool writeIndex = true, bool writeColumns = true, char sep = ',')
+    void to_csv(string path, bool writeIndex = true, bool writeindexing[1].index = true, char sep = ',')
     Description: Writes given DataFrame to a CSV file
     @params: path - path to the output file
-    @params: writeIndex - write row indexes to the file
-    @params: writeColumns - write column indexes to the file
+    @params: writeIndex - write row indexing[0].index to the file
+    @params: writeindexing[1].index - write column indexing[0].index to the file
     @params: sep - data seperator
     +/
-    void to_csv(string path, bool writeIndex = true, bool writeColumns = true, char sep = ',')
+    void to_csv(string path, bool writeIndex = true, bool writeColumn = true, char sep = ',')
     {
         import std.array: appender;
         import std.conv: to;
 
         auto formatter = appender!(string);
-        const size_t totalHeight = rows + indx.columns.length +
-            ((indx.rtitles.length > 0 && indx.ctitles.length > 0)? 1: 0);
+        const size_t totalHeight = rows + indx.indexing[1].index.length +
+            ((indx.indexing[0].titles.length > 0 && indx.indexing[1].titles.length > 0)? 1: 0);
         
         if(rows == 0)
         {
             return;
         }
         
-        if(writeColumns)
+        if(writeColumn)
         {
-            foreach(i; 0 .. indx.columns.length)
+            foreach(i; 0 .. indx.indexing[1].index.length)
             {
                 if(writeIndex)
                 {
-                    foreach(j; 0 .. indx.indexes.length)
+                    foreach(j; 0 .. indx.indexing[0].index.length)
                     {
-                        if(i != indx.columns.length - 1 && j < indx.indexes.length - 1)
+                        if(i != indx.indexing[1].index.length - 1 && j < indx.indexing[0].index.length - 1)
                         {
                             formatter.put(sep);
                         }
-                        else if(i == indx.columns.length - 1 && indx.ctitles.length == 0)
+                        else if(i == indx.indexing[1].index.length - 1 && indx.indexing[1].titles.length == 0)
                         {
-                            formatter.put(indx.rtitles[j]);
+                            formatter.put(indx.indexing[0].titles[j]);
                             formatter.put(sep);
                         }
-                        else if(j == indx.indexes.length - 1 && indx.ctitles.length != 0)
+                        else if(j == indx.indexing[0].index.length - 1 && indx.indexing[1].titles.length != 0)
                         {
-                            formatter.put(indx.ctitles[i]);
+                            formatter.put(indx.indexing[1].titles[i]);
                             formatter.put(sep);
                         }
                         else
@@ -592,12 +532,12 @@ public:
                 foreach(j; 0 .. cols)
                 {
                     string colindx ="";
-                    if(indx.ccodes[i].length == 0)
-                        colindx = indx.columns[i][j];
-                    else if(indx.columns[i].length == 0)
-                        colindx = to!string(indx.ccodes[i][j]);
+                    if(indx.indexing[1].codes[i].length == 0)
+                        colindx = indx.indexing[1].index[i][j];
+                    else if(indx.indexing[1].index[i].length == 0)
+                        colindx = to!string(indx.indexing[1].codes[i][j]);
                     else
-                        colindx = indx.columns[i][indx.ccodes[i][j]];
+                        colindx = indx.indexing[1].index[i][indx.indexing[1].codes[i][j]];
                     
                     formatter.put(colindx);
                     if(j < cols - 1)
@@ -606,13 +546,13 @@ public:
 
                 formatter.put("\n");
             }
-            if(indx.ctitles.length != 0 && writeIndex)
+            if(indx.indexing[1].titles.length != 0 && writeIndex)
             {
-                formatter.put(indx.rtitles[0]);
-                foreach(j; 1 .. indx.indexes.length)
+                formatter.put(indx.indexing[0].titles[0]);
+                foreach(j; 1 .. indx.indexing[0].index.length)
                 {
                     formatter.put(sep);
-                    formatter.put(indx.rtitles[j]);
+                    formatter.put(indx.indexing[0].titles[j]);
                 }
                 formatter.put("\n");
             }
@@ -623,20 +563,20 @@ public:
             if(writeIndex)
             {
                 bool skipIndex = true;
-                foreach(j; 0 .. indx.indexes.length)
+                foreach(j; 0 .. indx.indexing[0].index.length)
                 {
                     string idx = "";
-                    if(indx.rcodes[j].length == 0)
-                        idx = indx.indexes[j][i];
-                    else if(indx.indexes[j].length == 0)
-                        idx = to!string(indx.rcodes[j][i]);
-                    else if(i > 0 && j < indx.indexes.length
-                        && indx.rcodes[j][i] == indx.rcodes[j][i - 1]
+                    if(indx.indexing[0].codes[j].length == 0)
+                        idx = indx.indexing[0].index[j][i];
+                    else if(indx.indexing[0].index[j].length == 0)
+                        idx = to!string(indx.indexing[0].codes[j][i]);
+                    else if(i > 0 && j < indx.indexing[0].index.length
+                        && indx.indexing[0].codes[j][i] == indx.indexing[0].codes[j][i - 1]
                         && skipIndex && indx.isMultiIndexed)
                         idx = "";
                     else
                     {
-                        idx = indx.indexes[j][indx.rcodes[j][i]];
+                        idx = indx.indexing[0].index[j][indx.indexing[0].codes[j][i]];
                         skipIndex = false;
                     }
 
@@ -661,12 +601,12 @@ public:
     }
 
     /++
-    void from_csv(string path, size_t indexDepth, size_t columnDepth, size_t[] columns = [], char sep = ',')
+    void from_csv(string path, size_t indexDepth, size_t columnDepth, size_t[] indexing[1].index = [], char sep = ',')
     Description: Parsing of DataFrame from a CSV file
     @params: path - File path of csv file
-    @params: indexDepth - Number of columns row indexes span
-    @params: columnDepth - Number of rows column indexes span
-    @params: columns - Integer indexes of column to selectively parse
+    @params: indexDepth - Number of indexing[1].index row indexing[0].index span
+    @params: columnDepth - Number of rows column indexing[0].index span
+    @params: indexing[1].index - Integer indexing[0].index of column to selectively parse
     @params: sep - Data seperator in the file 
     +/
     void from_csv(string path, size_t indexDepth, size_t columnDepth, size_t[] columns = [], char sep = ',')
@@ -683,7 +623,7 @@ public:
             columns = all.data;
         }
         
-        assert(columns.length == cols, "The dimension of columns[ ] must be same as dimension of the DataFrame");
+        assert(columns.length == cols, "The dimension of indexing[1].index[ ] must be same as dimension of the DataFrame");
 
         File csvfile = File(path, "r");
         bool bothTitle = false;
@@ -692,8 +632,8 @@ public:
 
         foreach(i; 0 .. indexDepth)
         {
-            indx.rcodes ~= [[]];
-            indx.indexes ~= [[]];
+            indx.indexing[0].codes ~= [[]];
+            indx.indexing[0].index ~= [[]];
         }
         
         size_t dataIndex = 0;
@@ -705,16 +645,16 @@ public:
             {
                 if(indexDepth > 0 && line == columnDepth - 1 && fields[0].length > 0)
                 {
-                    indx.rtitles = fields[0 .. indexDepth];
+                    indx.indexing[0].titles = fields[0 .. indexDepth];
                 }
                 else if(indexDepth > 0 && fields[indexDepth - 1].length > 0)
                 {
-                    indx.ctitles ~= fields[indexDepth - 1];
+                    indx.indexing[1].titles ~= fields[indexDepth - 1];
                     bothTitle = true;
                 } 
 
-                indx.columns ~= [[]];
-                indx.ccodes ~= [[]];
+                indx.indexing[1].index ~= [[]];
+                indx.indexing[1].codes ~= [[]];
                 foreach(i; 0 .. cols)
                 {
                     size_t pos = columns[i];
@@ -722,54 +662,54 @@ public:
                     
                     if(i > 0 && colindx.length == 0)
                     {
-                        indx.ccodes[line] ~= indx.ccodes[line][$ - 1];
+                        indx.indexing[1].codes[line] ~= indx.indexing[1].codes[line][$ - 1];
                     }
                     else
                     {
                         import std.algorithm: countUntil;
-                        int idxpos = cast(int)countUntil(indx.columns[line], colindx);
+                        int idxpos = cast(int)countUntil(indx.indexing[1].index[line], colindx);
                         
                         if(idxpos > -1)
                         {
-                            indx.ccodes[line] ~= cast(int)idxpos;
+                            indx.indexing[1].codes[line] ~= cast(int)idxpos;
                         }
                         else
                         {
-                            indx.columns[line] ~= colindx;
-                            indx.ccodes[line] ~= cast(uint)indx.columns[line].length - 1;
+                            indx.indexing[1].index[line] ~= colindx;
+                            indx.indexing[1].codes[line] ~= cast(uint)indx.indexing[1].index[line].length - 1;
                         }
                     }
                 }
             }
             else if(line == columnDepth && bothTitle)
             {
-                indx.rtitles = fields[0 .. indexDepth];
+                indx.indexing[0].titles = fields[0 .. indexDepth];
             }
             else
             {
                 if(indexDepth == 1 && columnDepth == 1 && line == columnDepth && fields.length == 1)
                 {
                     bothTitle = true;
-                    indx.rtitles = fields;
+                    indx.indexing[0].titles = fields;
                 }
                 else if(fields.length > 0)
                 {
                     foreach(i; 0 .. indexDepth)
                     {
                         import std.algorithm: countUntil;
-                        int indxpos = cast(int)countUntil(indx.indexes[i], fields[i]);
+                        int indxpos = cast(int)countUntil(indx.indexing[0].index[i], fields[i]);
                         if(fields[i].length == 0 && dataIndex > 0)
                         {
-                            indx.rcodes[i] ~= indx.rcodes[$ - 1];
+                            indx.indexing[0].codes[i] ~= indx.indexing[0].codes[$ - 1];
                         }
                         else if(indxpos > -1)
                         {
-                            indx.rcodes[i] ~= cast(uint)indxpos;
+                            indx.indexing[0].codes[i] ~= cast(uint)indxpos;
                         }
                         else
                         {
-                            indx.indexes[i] ~= fields[i];
-                            indx.rcodes[i] ~= cast(uint)indx.indexes[i].length - 1;
+                            indx.indexing[0].index[i] ~= fields[i];
+                            indx.indexing[0].codes[i] ~= cast(uint)indx.indexing[0].index[i].length - 1;
                         }
                     }
 
@@ -806,21 +746,21 @@ public:
 
         if(indexDepth == 0)
         {
-            indx.rtitles ~= "Index";
-            indx.indexes = [[]];
-            indx.rcodes = [[]];
-            foreach(i; 0 .. cast(uint)rows)
-                indx.rcodes[0] ~= i;
+            indx.indexing[0].titles ~= "Index";
+            indx.indexing[0].index = [[]];
+            indx.indexing[0].codes = [[]];
+            foreach(i; 0 .. rows)
+                indx.indexing[0].codes[0] ~= cast(uint)i;
         }
 
         if(columnDepth == 0)
         {
-            indx.columns = [[]];
-            indx.ccodes = [[]];
+            indx.indexing[1].index = [[]];
+            indx.indexing[1].codes = [[]];
             foreach(i; 0 .. indexDepth)
-                indx.rtitles ~= ["Index"];
-            foreach(i; 0 .. cast(uint)line)
-                indx.ccodes[0] ~= i;
+                indx.indexing[0].titles ~= ["Index"];
+            foreach(i; 0 .. line)
+                indx.indexing[1].codes[0] ~= cast(uint)i;
         }
 
         indx.optimize();
@@ -865,11 +805,11 @@ public:
     +/
     void opIndexAssign(Ele)(Ele ele, string[] rindx, string[] cindx)
     {
-        assert(rindx.length == indx.rcodes.length, "Size of indexes don't match the levels of row indexes");
-        assert(cindx.length == indx.ccodes.length, "Size of indexes don't match the levels of column indexes");
+        assert(rindx.length == indx.indexing[0].codes.length, "Size of indexing[0].index don't match the levels of row indexing[0].index");
+        assert(cindx.length == indx.indexing[1].codes.length, "Size of indexing[0].index don't match the levels of column indexing[0].index");
 
-        int i1 = rowPos(rindx);
-        int i2 = colPos(cindx);
+        int i1 = getPosition!0(rindx);
+        int i2 = getPosition!1(cindx);
 
         assert(i1 > -1 && i2 > -1, "Given headers don't match DataFrame Headers");
         static foreach(i; 0 .. RowType.length)
@@ -882,77 +822,77 @@ public:
     }
 
     /++
-    int getRowPos(string[] indexes)
+    int getRowPos(string[] indexing[0].index)
     Description: Get integer index of the given row headers
     Defaults to -1 if headers don't match
-    @params: indexes - Array of indexes
+    @params: indexing[0].index - Array of indexing[0].index
     +/
     int getRowPosition(string[] indexes)
     {
-        assert(indexes.length == indx.rcodes.length, "Size of indexes don't match the levels of row indexes");
-        return rowPos(indexes);
+        assert(indexes.length == indx.indexing[0].codes.length, "Size of indexing[0].index don't match the levels of row indexing[0].index");
+        return getPosition!0(indexes);
     }
 
     /++
-    int getColPos(string[] indexes)
+    int getColPos(string[] indexing[0].index)
     Description: Get integer index of the given column headers
     Defaults to -1 if headers don't match
-    @params: indexes - Array of indexes
+    @params: indexing[0].index - Array of indexing[0].index
     +/
     int getColumnPosition(string[] indexes)
     {
-        assert(indexes.length == indx.rcodes.length, "Size of indexes don't match the levels of column indexes");
-        return colPos(indexes);
+        assert(indexes.length == indx.indexing[1].codes.length, "Size of indexing[0].index don't match the levels of column indexing[0].index");
+        return getPosition!1(indexes);
     }
 
     /++
     void setFrameIndex(Index index)
-    Description: Sets the frame indexes.
+    Description: Sets the frame indexing[0].index.
     [Please use setIndex method of Index to set the index]
     @params: index - Index structure to replace indexing
     +/
     void setFrameIndex(Index index)
     {
-        assert(index.rcodes.length > 0 || index.ccodes.length > 0
-            || index.rtitles.length > 0 || index.ctitles.length > 0,
+        assert(index.indexing[0].codes.length > 0 || index.indexing[1].codes.length > 0
+            || index.indexing[0].titles.length > 0 || index.indexing[1].titles.length > 0,
             "Cannot set empty index to DataFrame");
         
         bool needsPadding = false;
-        if(index.ccodes.length > 0 && index.ccodes[0].length == cols)
+        if(index.indexing[1].codes.length > 0 && index.indexing[1].codes[0].length == cols)
         {
-            indx.ccodes = index.ccodes;
-            indx.columns = index.columns;
-            indx.ctitles = index.ctitles;
+            indx.indexing[1].codes = index.indexing[1].codes;
+            indx.indexing[1].index = index.indexing[1].index;
+            indx.indexing[1].titles = index.indexing[1].titles;
         }
 
-        if(index.ccodes.length == 0 && index.ctitles.length == indx.ccodes.length)
+        if(index.indexing[1].codes.length == 0 && index.indexing[1].titles.length == indx.indexing[1].codes.length)
         {
-            indx.ctitles = index.ctitles;
+            indx.indexing[1].titles = index.indexing[1].titles;
         }
 
-        if(index.rcodes.length > 0 && index.rcodes[0].length >= rows)
+        if(index.indexing[0].codes.length > 0 && index.indexing[0].codes[0].length >= rows)
         {
-            indx.rcodes = index.rcodes;
-            indx.indexes = index.indexes;
-            indx.rtitles = index.rtitles;
+            indx.indexing[0].codes = index.indexing[0].codes;
+            indx.indexing[0].index = index.indexing[0].index;
+            indx.indexing[0].titles = index.indexing[0].titles;
 
-            if(index.rcodes[0].length != rows)
+            if(index.indexing[0].codes[0].length != rows)
                 needsPadding = true;
             
-            rows = index.rcodes[0].length;
+            rows = index.indexing[0].codes[0].length;
         }
 
-        if(index.rcodes.length == 0 && index.rtitles.length == indx.rcodes.length)
+        if(index.indexing[0].codes.length == 0 && index.indexing[0].titles.length == indx.indexing[0].codes.length)
         {
-            indx.rtitles = index.rtitles;
+            indx.indexing[0].titles = index.indexing[0].titles;
         }
 
-        if(indx.ccodes.length == 0)
+        if(indx.indexing[1].codes.length == 0)
         {
-            indx.columns = [[]];
-            indx.ccodes = [[]];
-            foreach(i; 0 .. cast(int)cols)
-                indx.ccodes[0] ~= i;
+            indx.indexing[1].index = [[]];
+            indx.indexing[1].codes = [[]];
+            foreach(i; 0 .. cols)
+                indx.indexing[1].codes[0] ~= cast(int)i;
         }
 
         if(needsPadding)
@@ -997,8 +937,8 @@ public:
 
     /++
     void assign(int axis, T, U...)(T index, U values)
-    Description: Assign values to rows or columns
-    @params: axis - 0 for rows, 1 for columns
+    Description: Assign values to rows or indexing[1].index
+    @params: axis - 0 for rows, 1 for indexing[1].index
     @params: index - string[] or integer index of the location to assign
     @params: values - values to assign
     +/
@@ -1010,7 +950,7 @@ public:
             static if(is(T == int))
                 pos = index;
             else
-                pos = rowPos(index);
+                pos = getPosition!0(index);
             
             assert(pos > -1 && pos < rows, "Index out of bound");
 
@@ -1024,7 +964,7 @@ public:
             static if(is(T == int))
                 pos = index;
             else
-                pos = colPos(index);
+                pos = getPosition!1(index);
 
             import std.stdio;
             assert(pos > -1 && pos < cols, "Index out of bound");
@@ -1079,12 +1019,12 @@ unittest
     DataFrame!(int, 2) df;
     assert(is(typeof(df.data) == Repeat!(2, int[])));
 
-    df.indx.rtitles = ["Index1"];
-    df.indx.indexes = [["Hello", "Hi"]];
-    df.indx.rcodes = [[]];
-    df.indx.ctitles = [];
-    df.indx.columns = [["Hello","Hi"]];
-    df.indx.ccodes = [[]];
+    df.indx.indexing[0].titles = ["Index1"];
+    df.indx.indexing[0].index = [["Hello", "Hi"]];
+    df.indx.indexing[0].codes = [[]];
+    df.indx.indexing[1].titles = [];
+    df.indx.indexing[1].index = [["Hello","Hi"]];
+    df.indx.indexing[1].codes = [[]];
     df.rows = 2;
     df.data[0] = [1,2];
     df.data[1] = [1,2];
@@ -1101,12 +1041,12 @@ unittest
     DataFrame!(int, 2) df;
     assert(is(typeof(df.data) == Repeat!(2, int[])));
 
-    df.indx.rtitles = ["Index1"];
-    df.indx.indexes = [["Hello", "Hi"]];
-    df.indx.rcodes = [[]];
-    df.indx.ctitles = [];
-    df.indx.columns = [["Hello","Hi"]];
-    df.indx.ccodes = [[]];
+    df.indx.indexing[0].titles = ["Index1"];
+    df.indx.indexing[0].index = [["Hello", "Hi"]];
+    df.indx.indexing[0].codes = [[]];
+    df.indx.indexing[1].titles = [];
+    df.indx.indexing[1].index = [["Hello","Hi"]];
+    df.indx.indexing[1].codes = [[]];
     df.rows = 2;
     df.data[0] = [1,2];
     df.data[1] = [1,2];
@@ -1121,12 +1061,12 @@ unittest
     DataFrame!(int, 2) df;
     assert(is(typeof(df.data) == Repeat!(2, int[])));
 
-    df.indx.rtitles = ["Index1", "Index2", "Index3"];
-    df.indx.indexes = [["Hello", "Hi"],["Hello"], []];
-    df.indx.rcodes = [[0, 1], [0, 0], [1, 24]];
-    df.indx.ctitles = ["Hey","Hey","Hey"];
-    df.indx.columns = [["Hello","Hi"],[],["Hello"]];
-    df.indx.ccodes = [[0,1],[1,2],[0,0]];
+    df.indx.indexing[0].titles = ["Index1", "Index2", "Index3"];
+    df.indx.indexing[0].index = [["Hello", "Hi"],["Hello"], []];
+    df.indx.indexing[0].codes = [[0, 1], [0, 0], [1, 24]];
+    df.indx.indexing[1].titles = ["Hey","Hey","Hey"];
+    df.indx.indexing[1].index = [["Hello","Hi"],[],["Hello"]];
+    df.indx.indexing[1].codes = [[0,1],[1,2],[0,0]];
     df.rows = 2;
     df.data[0] = [1,2];
     df.data[1] = [1,2];
@@ -1142,18 +1082,18 @@ unittest
 }
 
 
-// getiing integer position of the given row indexes
+// getiing integer position of the given row indexing[0].index
 unittest
 {
     DataFrame!(int, 2) df;
     assert(is(typeof(df.data) == Repeat!(2, int[])));
 
-    df.indx.rtitles = ["Index1", "Index2", "Index3"];
-    df.indx.indexes = [["Hello", "Hi"],["Hello"], []];
-    df.indx.rcodes = [[0, 1], [0, 0], [1,24]];
-    df.indx.ctitles = ["Hey","Hey","Hey"];
-    df.indx.columns = [["Hello","Hi"],[],["Hello"]];
-    df.indx.ccodes = [[],[1,2],[0,0]];
+    df.indx.indexing[0].titles = ["Index1", "Index2", "Index3"];
+    df.indx.indexing[0].index = [["Hello", "Hi"],["Hello"], []];
+    df.indx.indexing[0].codes = [[0, 1], [0, 0], [1,24]];
+    df.indx.indexing[1].titles = ["Hey","Hey","Hey"];
+    df.indx.indexing[1].index = [["Hello","Hi"],[],["Hello"]];
+    df.indx.indexing[1].codes = [[],[1,2],[0,0]];
     df.rows = 2;
     df.data[0] = [1,2];
     df.data[1] = [1,2];
@@ -1165,18 +1105,18 @@ unittest
     assert(df.getRowPosition(["H", "Hello", "54"]) == -1);
 }
 
-// getiing integer position of the given column indexes
+// getiing integer position of the given column indexing[0].index
 unittest
 {
     DataFrame!(int, 2) df;
     assert(is(typeof(df.data) == Repeat!(2, int[])));
 
-    df.indx.rtitles = ["Index1", "Index2", "Index3"];
-    df.indx.indexes = [["Hello", "Hi"],["Hello"], []];
-    df.indx.rcodes = [[0, 1], [0, 0], [1,24]];
-    df.indx.ctitles = ["Hey","Hey","Hey"];
-    df.indx.columns = [["Hello","Hi"],[],["Hello"]];
-    df.indx.ccodes = [[0,1],[1,2],[0,0]];
+    df.indx.indexing[0].titles = ["Index1", "Index2", "Index3"];
+    df.indx.indexing[0].index = [["Hello", "Hi"],["Hello"], []];
+    df.indx.indexing[0].codes = [[0, 1], [0, 0], [1,24]];
+    df.indx.indexing[1].titles = ["Hey","Hey","Hey"];
+    df.indx.indexing[1].index = [["Hello","Hi"],[],["Hello"]];
+    df.indx.indexing[1].codes = [[0,1],[1,2],[0,0]];
     df.rows = 2;
     df.data[0] = [1,2];
     df.data[1] = [1,2];
@@ -1294,7 +1234,7 @@ unittest
     df.assign!1(["Hello", "Hi"], [1.2, 3.6]);
     assert(df.data[0] == [1.2, 3.6]);
     
-    // Assigning columns using direct index
+    // Assigning indexing[1].index using direct index
     df.assign!1(0, [1.26, 4.6]);
     assert(df.data[0] == [1.26, 4.6]);
     
@@ -1303,7 +1243,7 @@ unittest
     assert(df.data[0][1] == 3.588);
     assert(df.data[1][1] == 6);
 
-    // Partial Assignment - columns
+    // Partial Assignment - indexing[1].index
     df.assign!1(0, [2.26]);
     assert(df.data[0] == [2.26, 3.588]);
 }
@@ -1314,12 +1254,12 @@ unittest
     DataFrame!(int, 2) df;
     assert(is(typeof(df.data) == Repeat!(2, int[])));
 
-    df.indx.rtitles = ["Index1"];
-    df.indx.indexes = [["Hello", "Hi"]];
-    df.indx.rcodes = [[]];
-    df.indx.ctitles = [];
-    df.indx.columns = [["Hello","Hi"]];
-    df.indx.ccodes = [[]];
+    df.indx.indexing[0].titles = ["Index1"];
+    df.indx.indexing[0].index = [["Hello", "Hi"]];
+    df.indx.indexing[0].codes = [[]];
+    df.indx.indexing[1].titles = [];
+    df.indx.indexing[1].index = [["Hello","Hi"]];
+    df.indx.indexing[1].codes = [[]];
     df.rows = 2;
     df.data[0] = [1,2];
     df.data[1] = [1,2];
@@ -1336,12 +1276,12 @@ unittest
     DataFrame!(int, 2) df;
     assert(is(typeof(df.data) == Repeat!(2, int[])));
 
-    df.indx.rtitles = ["Index1"];
-    df.indx.indexes = [["Hello", "Hi"]];
-    df.indx.rcodes = [[]];
-    df.indx.ctitles = ["Also Index"];
-    df.indx.columns = [["Hello","Hi"]];
-    df.indx.ccodes = [[]];
+    df.indx.indexing[0].titles = ["Index1"];
+    df.indx.indexing[0].index = [["Hello", "Hi"]];
+    df.indx.indexing[0].codes = [[]];
+    df.indx.indexing[1].titles = ["Also Index"];
+    df.indx.indexing[1].index = [["Hello","Hi"]];
+    df.indx.indexing[1].codes = [[]];
     df.rows = 2;
     df.data[0] = [1,2];
     df.data[1] = [1,2];
@@ -1360,12 +1300,12 @@ unittest
     DataFrame!(int, 2) df;
     assert(is(typeof(df.data) == Repeat!(2, int[])));
 
-    df.indx.rtitles = ["Index1", "Index2"];
-    df.indx.indexes = [["Hello", "Hi"], ["Hello", "Hi"]];
-    df.indx.rcodes = [[],[]];
-    df.indx.ctitles = [];
-    df.indx.columns = [["Hello","Hi"]];
-    df.indx.ccodes = [[]];
+    df.indx.indexing[0].titles = ["Index1", "Index2"];
+    df.indx.indexing[0].index = [["Hello", "Hi"], ["Hello", "Hi"]];
+    df.indx.indexing[0].codes = [[],[]];
+    df.indx.indexing[1].titles = [];
+    df.indx.indexing[1].index = [["Hello","Hi"]];
+    df.indx.indexing[1].codes = [[]];
     df.rows = 2;
     df.data[0] = [1,2];
     df.data[1] = [1,2];
@@ -1376,18 +1316,18 @@ unittest
         ~ "Hi      Hi      2      2   \n"
     );
 }
-// Multi Indexed Columns
+// Multi Indexed indexing[1].index
 unittest
 {
     DataFrame!(int, 2) df;
     assert(is(typeof(df.data) == Repeat!(2, int[])));
 
-    df.indx.rtitles = ["Index1"];
-    df.indx.indexes = [["Hello", "Hi"]];
-    df.indx.rcodes = [[]];
-    df.indx.ctitles = [];
-    df.indx.columns = [["Hello","Hi"], ["Hello","Hi"]];
-    df.indx.ccodes = [[],[]];
+    df.indx.indexing[0].titles = ["Index1"];
+    df.indx.indexing[0].index = [["Hello", "Hi"]];
+    df.indx.indexing[0].codes = [[]];
+    df.indx.indexing[1].titles = [];
+    df.indx.indexing[1].index = [["Hello","Hi"], ["Hello","Hi"]];
+    df.indx.indexing[1].codes = [[],[]];
     df.rows = 2;
     df.data[0] = [1,2];
     df.data[1] = [1,2];
@@ -1400,18 +1340,18 @@ unittest
     );
 }
 
-// Multi Indexed Columns with titles
+// Multi Indexed indexing[1].index with titles
 unittest
 {
     DataFrame!(int, 2) df;
     assert(is(typeof(df.data) == Repeat!(2, int[])));
 
-    df.indx.rtitles = ["Index1"];
-    df.indx.indexes = [["Hello", "Hi"]];
-    df.indx.rcodes = [[]];
-    df.indx.ctitles = ["CIndex1", "CIndex2"];
-    df.indx.columns = [["Hello","Hi"], ["Hello","Hi"]];
-    df.indx.ccodes = [[],[]];
+    df.indx.indexing[0].titles = ["Index1"];
+    df.indx.indexing[0].index = [["Hello", "Hi"]];
+    df.indx.indexing[0].codes = [[]];
+    df.indx.indexing[1].titles = ["CIndex1", "CIndex2"];
+    df.indx.indexing[1].index = [["Hello","Hi"], ["Hello","Hi"]];
+    df.indx.indexing[1].codes = [[],[]];
     df.rows = 2;
     df.data[0] = [1,2];
     df.data[1] = [1,2];
@@ -1431,19 +1371,19 @@ unittest
     DataFrame!(int, 20) df;
     assert(is(typeof(df.data) == Repeat!(20, int[])));
 
-    df.indx.rtitles = ["Index1"];
-    df.indx.indexes = [["Hello", "Hi"]];
-    df.indx.rcodes = [[]];
-    df.indx.ctitles = [];
-    df.indx.columns = [[]];
-    df.indx.ccodes = [[]];
+    df.indx.indexing[0].titles = ["Index1"];
+    df.indx.indexing[0].index = [["Hello", "Hi"]];
+    df.indx.indexing[0].codes = [[]];
+    df.indx.indexing[1].titles = [];
+    df.indx.indexing[1].index = [[]];
+    df.indx.indexing[1].codes = [[]];
     df.rows = 2;
     int[] arr = [12_222_222, 12_222_222];
 
     static foreach(i; 0 .. 20)
     {
         import std.conv: to;
-        df.indx.columns[0] ~= to!string(i);
+        df.indx.indexing[1].index[0] ~= to!string(i);
         df.data[i] = arr;
     }
 
@@ -1460,19 +1400,19 @@ unittest
     DataFrame!(int, 2) df;
     assert(is(typeof(df.data) == Repeat!(2, int[])));
 
-    df.indx.rtitles = ["Index1"];
-    df.indx.indexes = [[]];
-    df.indx.rcodes = [[]];
-    df.indx.ctitles = [];
-    df.indx.columns = [["Hello","Hi"]];
-    df.indx.ccodes = [[]];
+    df.indx.indexing[0].titles = ["Index1"];
+    df.indx.indexing[0].index = [[]];
+    df.indx.indexing[0].codes = [[]];
+    df.indx.indexing[1].titles = [];
+    df.indx.indexing[1].index = [["Hello","Hi"]];
+    df.indx.indexing[1].codes = [[]];
     df.rows = 100;
     int[] arr = [];
     foreach(i; 0 .. 100)
     {
         arr ~= i;
         import std.conv: to;
-        df.indx.indexes[0] ~= to!string(i);
+        df.indx.indexing[0].index[0] ~= to!string(i);
     }
     df.data[0] = arr;
     df.data[1] = arr;
@@ -1538,12 +1478,12 @@ unittest
     DataFrame!(int, 2) df;
     assert(is(typeof(df.data) == Repeat!(2, int[])));
 
-    df.indx.rtitles = ["Index1", "Index2", "Index3"];
-    df.indx.indexes = [["Hello", "Hi"],["Hello"], []];
-    df.indx.rcodes = [[0, 1], [0, 0], [1,24]];
-    df.indx.ctitles = [];
-    df.indx.columns = [["Hello","Hi"],[],["Hello"]];
-    df.indx.ccodes = [[],[1,2],[0,0]];
+    df.indx.indexing[0].titles = ["Index1", "Index2", "Index3"];
+    df.indx.indexing[0].index = [["Hello", "Hi"],["Hello"], []];
+    df.indx.indexing[0].codes = [[0, 1], [0, 0], [1,24]];
+    df.indx.indexing[1].titles = [];
+    df.indx.indexing[1].index = [["Hello","Hi"],[],["Hello"]];
+    df.indx.indexing[1].codes = [[],[1,2],[0,0]];
     df.rows = 2;
     df.data[0] = [1,2];
     df.data[1] = [1,2];
@@ -1562,12 +1502,12 @@ unittest
     DataFrame!(int, 2) df;
     assert(is(typeof(df.data) == Repeat!(2, int[])));
 
-    df.indx.rtitles = ["Index1", "Index2", "Index3"];
-    df.indx.indexes = [["Hello", "Hi"],["Hello"], []];
-    df.indx.rcodes = [[0, 1], [0, 0], [1,24]];
-    df.indx.ctitles = ["Hey","Hey","Hey"];
-    df.indx.columns = [["Hello","Hi"],[],["Hello"]];
-    df.indx.ccodes = [[],[1,2],[0,0]];
+    df.indx.indexing[0].titles = ["Index1", "Index2", "Index3"];
+    df.indx.indexing[0].index = [["Hello", "Hi"],["Hello"], []];
+    df.indx.indexing[0].codes = [[0, 1], [0, 0], [1,24]];
+    df.indx.indexing[1].titles = ["Hey","Hey","Hey"];
+    df.indx.indexing[1].index = [["Hello","Hi"],[],["Hello"]];
+    df.indx.indexing[1].codes = [[],[1,2],[0,0]];
     df.rows = 2;
     df.data[0] = [1,2];
     df.data[1] = [1,2];
@@ -1589,12 +1529,12 @@ unittest
     DataFrame!(int, 2) df;
     assert(is(typeof(df.data) == Repeat!(2, int[])));
 
-    df.indx.rtitles = ["Index1", "Index2", "Index3"];
-    df.indx.indexes = [["Hello", "Hi"],["Hello"], []];
-    df.indx.rcodes = [[1, 1], [0, 0], [1,24]];
-    df.indx.ctitles = [];
-    df.indx.columns = [["Hello","Hi"],[],["Hello"]];
-    df.indx.ccodes = [[],[1,2],[0,0]];
+    df.indx.indexing[0].titles = ["Index1", "Index2", "Index3"];
+    df.indx.indexing[0].index = [["Hello", "Hi"],["Hello"], []];
+    df.indx.indexing[0].codes = [[1, 1], [0, 0], [1,24]];
+    df.indx.indexing[1].titles = [];
+    df.indx.indexing[1].index = [["Hello","Hi"],[],["Hello"]];
+    df.indx.indexing[1].codes = [[],[1,2],[0,0]];
     df.indx.isMultiIndexed = true;
     df.rows = 2;
     df.data[0] = [1,2];
@@ -1608,18 +1548,18 @@ unittest
     );
 }
 
-// Middle Indexes won't skip if the outer indexes aren't skipped
+// Middle indexing[0].index won't skip if the outer indexing[0].index aren't skipped
 unittest
 {
     DataFrame!(int, 2) df;
     assert(is(typeof(df.data) == Repeat!(2, int[])));
 
-    df.indx.rtitles = ["Index1", "Index2", "Index3"];
-    df.indx.indexes = [["Hello", "Hi"],["Hello"], []];
-    df.indx.rcodes = [[1, 0], [0, 0], [1,24]];
-    df.indx.ctitles = [];
-    df.indx.columns = [["Hello","Hi"],[],["Hello"]];
-    df.indx.ccodes = [[],[1,2],[0,0]];
+    df.indx.indexing[0].titles = ["Index1", "Index2", "Index3"];
+    df.indx.indexing[0].index = [["Hello", "Hi"],["Hello"], []];
+    df.indx.indexing[0].codes = [[1, 0], [0, 0], [1,24]];
+    df.indx.indexing[1].titles = [];
+    df.indx.indexing[1].index = [["Hello","Hi"],[],["Hello"]];
+    df.indx.indexing[1].codes = [[],[1,2],[0,0]];
     df.indx.isMultiIndexed = true;
     df.rows = 2;
     df.data[0] = [1,2];
@@ -1642,12 +1582,12 @@ unittest
     DataFrame!(int, 2) df;
     assert(is(typeof(df.data) == Repeat!(2, int[])));
 
-    df.indx.rtitles = ["Index1", "Index2", "Index3"];
-    df.indx.indexes = [["Hello", "Hi"],["Hello"], []];
-    df.indx.rcodes = [[0, 1], [0, 0], [1,24]];
-    df.indx.ctitles = ["Hey","Hey","Hey"];
-    df.indx.columns = [["Hello","Hi"],[],["Hello"]];
-    df.indx.ccodes = [[],[1,2],[0,0]];
+    df.indx.indexing[0].titles = ["Index1", "Index2", "Index3"];
+    df.indx.indexing[0].index = [["Hello", "Hi"],["Hello"], []];
+    df.indx.indexing[0].codes = [[0, 1], [0, 0], [1,24]];
+    df.indx.indexing[1].titles = ["Hey","Hey","Hey"];
+    df.indx.indexing[1].index = [["Hello","Hi"],[],["Hello"]];
+    df.indx.indexing[1].codes = [[],[1,2],[0,0]];
     df.rows = 2;
     df.data[0] = [1,2];
     df.data[1] = [1,2];
@@ -1681,12 +1621,12 @@ unittest
     DataFrame!(int, 2) df;
     assert(is(typeof(df.data) == Repeat!(2, int[])));
 
-    df.indx.rtitles = ["Index1", "Index2", "Index3"];
-    df.indx.indexes = [["Hello", "Hi"],["Hello"], []];
-    df.indx.rcodes = [[0, 1], [0, 0], [1,24]];
-    df.indx.ctitles = ["Hey","Hey","Hey"];
-    df.indx.columns = [["Hello","Hi"],[],["Hello"]];
-    df.indx.ccodes = [[],[1,2],[0,0]];
+    df.indx.indexing[0].titles = ["Index1", "Index2", "Index3"];
+    df.indx.indexing[0].index = [["Hello", "Hi"],["Hello"], []];
+    df.indx.indexing[0].codes = [[0, 1], [0, 0], [1,24]];
+    df.indx.indexing[1].titles = ["Hey","Hey","Hey"];
+    df.indx.indexing[1].index = [["Hello","Hi"],[],["Hello"]];
+    df.indx.indexing[1].codes = [[],[1,2],[0,0]];
     df.rows = 2;
     df.data[0] = [1,2];
     df.data[1] = [1,2];
@@ -1716,12 +1656,12 @@ unittest
     DataFrame!(int, 2) df;
     assert(is(typeof(df.data) == Repeat!(2, int[])));
 
-    df.indx.rtitles = ["Index1", "Index2", "Index3"];
-    df.indx.indexes = [["Hello", "Hi"],["Hello"], []];
-    df.indx.rcodes = [[0, 1], [0, 0], [1,24]];
-    df.indx.ctitles = ["Hey","Hey","Hey"];
-    df.indx.columns = [["Hello","Hi"],[],["Hello"]];
-    df.indx.ccodes = [[],[1,2],[0,0]];
+    df.indx.indexing[0].titles = ["Index1", "Index2", "Index3"];
+    df.indx.indexing[0].index = [["Hello", "Hi"],["Hello"], []];
+    df.indx.indexing[0].codes = [[0, 1], [0, 0], [1,24]];
+    df.indx.indexing[1].titles = ["Hey","Hey","Hey"];
+    df.indx.indexing[1].index = [["Hello","Hi"],[],["Hello"]];
+    df.indx.indexing[1].codes = [[],[1,2],[0,0]];
     df.rows = 2;
     df.data[0] = [1,2];
     df.data[1] = [1,2];
@@ -1754,12 +1694,12 @@ unittest
     DataFrame!(int, 2) df;
     assert(is(typeof(df.data) == Repeat!(2, int[])));
 
-    df.indx.rtitles = ["Index1", "Index2", "Index3"];
-    df.indx.indexes = [["Hello", "Hi"],["Hello"], []];
-    df.indx.rcodes = [[0, 1], [0, 0], [1,24]];
-    df.indx.ctitles = ["Hey","Hey","Hey"];
-    df.indx.columns = [["Hello","Hi"],[],["Hello"]];
-    df.indx.ccodes = [[],[1,2],[0,0]];
+    df.indx.indexing[0].titles = ["Index1", "Index2", "Index3"];
+    df.indx.indexing[0].index = [["Hello", "Hi"],["Hello"], []];
+    df.indx.indexing[0].codes = [[0, 1], [0, 0], [1,24]];
+    df.indx.indexing[1].titles = ["Hey","Hey","Hey"];
+    df.indx.indexing[1].index = [["Hello","Hi"],[],["Hello"]];
+    df.indx.indexing[1].codes = [[],[1,2],[0,0]];
     df.rows = 2;
     df.data[0] = [1,2];
     df.data[1] = [1,2];
@@ -1789,12 +1729,12 @@ unittest
     DataFrame!(int, 2) df;
     assert(is(typeof(df.data) == Repeat!(2, int[])));
 
-    df.indx.rtitles = ["Index1", "Index2", "Index3"];
-    df.indx.indexes = [["Hello", "Hi"],["Hello"], []];
-    df.indx.rcodes = [[0, 1], [0, 0], [1,24]];
-    df.indx.ctitles = ["Hey","Hey","Hey"];
-    df.indx.columns = [["Hello","Hi"],[],["Hello"]];
-    df.indx.ccodes = [[],[1,2],[0,0]];
+    df.indx.indexing[0].titles = ["Index1", "Index2", "Index3"];
+    df.indx.indexing[0].index = [["Hello", "Hi"],["Hello"], []];
+    df.indx.indexing[0].codes = [[0, 1], [0, 0], [1,24]];
+    df.indx.indexing[1].titles = ["Hey","Hey","Hey"];
+    df.indx.indexing[1].index = [["Hello","Hi"],[],["Hello"]];
+    df.indx.indexing[1].codes = [[],[1,2],[0,0]];
     df.rows = 2;
     df.data[0] = [1,2];
     df.data[1] = [1,2];
@@ -1862,7 +1802,7 @@ unittest
     f2.close();
 }
 
-// Parsing CSV without row indexes
+// Parsing CSV without row indexing[0].index
 unittest
 {
     DataFrame!(int, 2) df;
@@ -1884,7 +1824,7 @@ unittest
     f2.close();
 }
 
-// Parsing CSV without any indexes
+// Parsing CSV without any indexing[0].index
 unittest
 {
     DataFrame!(int, 2) df;
@@ -1947,7 +1887,7 @@ unittest
     assert(df.data[0] == [1,24]);
 }
 
-// Parsing by mentioning all the columns
+// Parsing by mentioning all the indexing[1].index
 unittest
 {
     DataFrame!(int, int) df;
@@ -2099,7 +2039,7 @@ unittest
     f2.close();
 }
 
-// PArtially parsing the complete columns of dataset2
+// PArtially parsing the complete indexing[1].index of dataset2
 unittest
 {
     DataFrame!(int, 1) df;

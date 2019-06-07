@@ -5,71 +5,69 @@ Structure for DataFrame Indexing
 +/
 struct Index
 {
+private:
+    struct Indexing
+    {
+        string[] titles;
+        string[][] index;
+        int[][] codes;
+    }
+
+public:
     /// To know if data is multi-indexed
     bool isMultiIndexed = false;
 
-    /// Stores title to refer to each index level
-    string[] rtitles = [];
-    /// The indexes themselves
-    string[][] indexes = [];
-    /// Codes to map the above index to their positions
-    int[][] rcodes = [];
-
-    /// Titles for each column level
-    string[] ctitles = [];
-    /// The column indexes themself
-    string[][] columns = [];
-    /// Codes to map the index of above column to their position
-    int[][] ccodes = [];
+    /// Row and Column indexing
+    Indexing[2] indexing;
 
     /++
     void optimize()
-    Description: Optimizes a DataFrame - If indexes can be expressed as integer, converts string indexes to int and stores in the codes
+    Description: Optimizes a DataFrame - If indexing[0].index can be expressed as integer, converts string indexing[0].index to int and stores in the codes
     +/
     void optimize()
     {
-        foreach(i; 0 .. indexes.length)
+        foreach(i; 0 .. indexing[0].index.length)
         {
             import std.conv: to, ConvException;
-            if(indexes[i].length > 0)
+            if(indexing[0].index[i].length > 0)
             {
                 try
                 {
                     import std.array: appender;
                     auto inx = appender!(string[]);
-                    foreach(j; 0 .. rcodes[i].length)
-                        inx.put(indexes[i][rcodes[i][j]]);
+                    foreach(j; 0 .. indexing[0].codes[i].length)
+                        inx.put(indexing[0].index[i][indexing[0].codes[i][j]]);
                     int[] codes = to!(int[])(inx.data);
-                    rcodes[i] = codes;
-                    indexes[i] = [];
+                    indexing[0].codes[i] = codes;
+                    indexing[0].index[i] = [];
                 }
                 catch(ConvException e)
                 {
                     import magpie.helper: sortIndex;
-                    sortIndex(indexes[i], rcodes[i]);
+                    sortIndex(indexing[0].index[i], indexing[0].codes[i]);
                 }
             }
         }
 
-        foreach(i; 0 .. columns.length)
+        foreach(i; 0 .. indexing[1].index.length)
         {
             import std.conv: to, ConvException;
-            if(columns[i].length > 0)
+            if(indexing[1].index[i].length > 0)
             {
                 try
                 {
                     import std.array: appender;
                     auto inx = appender!(string[]);
-                    foreach(j; 0 .. ccodes[i].length)
-                        inx.put(columns[i][ccodes[i][j]]);
+                    foreach(j; 0 .. indexing[1].codes[i].length)
+                        inx.put(indexing[1].index[i][indexing[1].codes[i][j]]);
                     int[] codes = to!(int[])(inx.data);
-                    ccodes[i] = codes;
-                    columns[i] = [];
+                    indexing[1].codes[i] = codes;
+                    indexing[1].index[i] = [];
                 }
                 catch(ConvException e)
                 {
                     import magpie.helper: sortIndex;
-                    sortIndex(columns[i], ccodes[i]);
+                    sortIndex(indexing[1].index[i], indexing[1].codes[i]);
                 }
             }
         }
@@ -77,7 +75,7 @@ struct Index
 
     /++
     void setIndex(Args...)(Args args)
-    Description: Method for etting indexes
+    Description: Method for etting indexing[0].index
     @params: rowindex - Can be a 1D or 2D array of int or string
     @params: rowindexTitles - 1D array of string
     @params?: columnindex - Can be a 1D or 2D array of int or string
@@ -92,59 +90,59 @@ struct Index
         {
             static if(is(Args[0] == string[]))
             {
-                rtitles = args[1];
-                indexes = [args[0]];
-                rcodes = [[]];
+                indexing[0].titles = args[1];
+                indexing[0].index = [args[0]];
+                indexing[0].codes = [[]];
                 foreach(i; 0 .. cast(int)args[0].length)
-                    rcodes[0] ~= i;
+                    indexing[0].codes[0] ~= i;
             }
             else static if(is(Args[0] == int[]))
             {
-                rtitles = args[1];
-                rcodes = [args[0]];
-                indexes = [[]];
+                indexing[0].titles = args[1];
+                indexing[0].codes = [args[0]];
+                indexing[0].index = [[]];
             }
             else static if(is(Args[0] == string[][]))
             {
-                assert(args[0].length > 0, "Can't construct Indexes from empty array");
+                assert(args[0].length > 0, "Can't construct indexing[0].index from empty array");
                 size_t len = args[0][0].length;
                 assert(len > 0, "Inner dimension cannot be 0");
                 foreach(i; 0 .. args[0].length)
-                    assert(args[0][i].length == len && len > 0, "Inner dimension of indexes not equal");
+                    assert(args[0][i].length == len && len > 0, "Inner dimension of indexing[0].index not equal");
                 
                 foreach(i; 0 .. args[0].length)
                 {
-                    indexes ~= [[]];
-                    rcodes ~= [[]];
+                    indexing[0].index ~= [[]];
+                    indexing[0].codes ~= [[]];
                     foreach(j; 0 .. args[0][i].length)
                     {
                         import std.algorithm: countUntil;
-                        int pos = cast(int)countUntil(indexes[i], args[0][i][j]);
+                        int pos = cast(int)countUntil(indexing[0].index[i], args[0][i][j]);
                         if(pos > -1)
                         {
-                            rcodes[i] ~= pos;
+                            indexing[0].codes[i] ~= pos;
                         }
                         else
                         {
-                            indexes[i] ~= args[0][i][j];
-                            rcodes[i] ~= cast(int)indexes[i].length - 1;
+                            indexing[0].index[i] ~= args[0][i][j];
+                            indexing[0].codes[i] ~= cast(int)indexing[0].index[i].length - 1;
                         }
                     }
                 }
 
-                rtitles = args[1];
+                indexing[0].titles = args[1];
             }
             else static if(is(Args[0] == int[][]))
             {
-                assert(args[0].length > 0, "Can't construct Indexes from empty array");
+                assert(args[0].length > 0, "Can't construct indexing[0].index from empty array");
                 size_t len = args[0][0].length;
                 assert(len > 0, "Inner dimension cannot be 0");
                 foreach(i; 0 .. args[0].length)
-                    assert(args[0][i].length == len, "Inner dimension of indexes not equal");
-                rtitles = args[1];
-                rcodes = args[0];
+                    assert(args[0][i].length == len, "Inner dimension of indexing[0].index not equal");
+                indexing[0].titles = args[1];
+                indexing[0].codes = args[0];
                 foreach(i; 0 .. args[0].length)
-                    indexes ~= [[]];
+                    indexing[0].index ~= [[]];
             }
         }
         
@@ -152,60 +150,60 @@ struct Index
         {
             static if(is(Args[2] == string[]))
             {
-                columns = [args[2]];
-                ccodes = [[]];
+                indexing[1].index = [args[2]];
+                indexing[1].codes = [[]];
                 foreach(i; 0 .. cast(int)args[2].length)
-                    ccodes[0] ~= i;
+                    indexing[1].codes[0] ~= i;
             }
             else static if(is(Args[2] == int[]))
             {
-                ccodes = [args[2]];
-                columns = [[]];
+                indexing[1].codes = [args[2]];
+                indexing[1].index = [[]];
             }
             else static if(is(Args[2] == string[][]))
             {
-                assert(args[2].length > 0, "Can't construct Indexes from empty array");
+                assert(args[2].length > 0, "Can't construct indexing[0].index from empty array");
                 size_t ilen = args[2][0].length;
                 assert(ilen > 0, "Inner dimension cannot be 0");
                 foreach(i; 0 .. args[2].length)
-                    assert(args[2][i].length == ilen, "Inner dimension of indexes not equal");
+                    assert(args[2][i].length == ilen, "Inner dimension of indexing[0].index not equal");
                 
                 foreach(i; 0 .. args[2].length)
                 {
-                    columns ~= [[]];
-                    ccodes ~= [[]];
+                    indexing[1].index ~= [[]];
+                    indexing[1].codes ~= [[]];
                     foreach(j; 0 .. args[2][i].length)
                     {
                         import std.algorithm: countUntil;
-                        int pos = cast(int)countUntil(columns[i], args[2][i][j]);
+                        int pos = cast(int)countUntil(indexing[1].index[i], args[2][i][j]);
                         if(pos > -1)
                         {
-                            ccodes[i] ~= pos;
+                            indexing[1].codes[i] ~= pos;
                         }
                         else
                         {
-                            columns[i] ~= args[2][i][j];
-                            ccodes[i] ~= cast(int)columns[i].length - 1;
+                            indexing[1].index[i] ~= args[2][i][j];
+                            indexing[1].codes[i] ~= cast(int)indexing[1].index[i].length - 1;
                         }
                     }
                 }
             }
             else static if(is(Args[2] == int[][]))
             {
-                assert(args[2].length > 0, "Can't construct Indexes from empty array");
+                assert(args[2].length > 0, "Can't construct indexing[0].index from empty array");
                 size_t ilen = args[2][0].length;
                 assert(ilen > 0, "Inner dimension cannot be 0");
                 foreach(i; 0 .. args[2].length)
-                    assert(args[2][i].length == ilen, "Inner dimension of indexes not equal");
-                ccodes = args[2];
+                    assert(args[2][i].length == ilen, "Inner dimension of indexing[0].index not equal");
+                indexing[1].codes = args[2];
                 foreach(i; 0 .. args[2].length)
-                    columns ~= [[]];
+                    indexing[1].index ~= [[]];
             }
         }
 
         static if(Args.length > 3)
         {
-            ctitles = args[3];
+            indexing[1].titles = args[3];
         }
 
         optimize();
@@ -213,8 +211,8 @@ struct Index
 
     /++
     void extend(int axis, T)(T next)
-    Description:Extends indexes
-    @params: axis - 0 for rows, 1 for columns
+    Description:Extends indexing[0].index
+    @params: axis - 0 for rows, 1 for indexing[1].index
     @params: next - The element to extend element
     +/
     void extend(int axis, T)(T next)
@@ -223,52 +221,52 @@ struct Index
         {
             static if(axis == 0)
             {
-                assert(next.length == rcodes.length, "Index depth mismatch");
-                foreach(i; 0 .. rcodes.length)
+                assert(next.length == indexing[0].codes.length, "Index depth mismatch");
+                foreach(i; 0 .. indexing[0].codes.length)
                 {
-                    if(indexes[i].length == 0)
-                        rcodes[i] ~= next[i];
+                    if(indexing[0].index[i].length == 0)
+                        indexing[0].codes[i] ~= next[i];
                     else
                     {
                         import std.conv: to, ConvException;
                         import std.algorithm: countUntil;
                         string ele = to!string(next[i]);
-                        int pos = cast(int)countUntil(indexes[i], ele);
+                        int pos = cast(int)countUntil(indexing[0].index[i], ele);
 
                         if(pos > -1)
                         {
-                            rcodes[i] ~= pos;
+                            indexing[0].codes[i] ~= pos;
                         }
                         else
                         {
-                            indexes[i] ~= ele;
-                            rcodes[i] ~= cast(int)indexes[i].length - 1;
+                            indexing[0].index[i] ~= ele;
+                            indexing[0].codes[i] ~= cast(int)indexing[0].index[i].length - 1;
                         }
                     }
                 }
             }
             else
             {
-                assert(next.length == ccodes.length, "Index depth mismatch");
-                foreach(i; 0 .. ccodes.length)
+                assert(next.length == indexing[1].codes.length, "Index depth mismatch");
+                foreach(i; 0 .. indexing[1].codes.length)
                 {
-                    if(columns[i].length == 0)
-                        ccodes[i] ~= next[i];
+                    if(indexing[1].index[i].length == 0)
+                        indexing[1].codes[i] ~= next[i];
                     else
                     {
                         import std.conv: to, ConvException;
                         import std.algorithm: countUntil;
                         string ele = to!string(next[i]);
-                        int pos = cast(int)countUntil(columns[i], ele);
+                        int pos = cast(int)countUntil(indexing[1].index[i], ele);
 
                         if(pos > -1)
                         {
-                            ccodes[i] ~= pos;
+                            indexing[1].codes[i] ~= pos;
                         }
                         else
                         {
-                            columns[i] ~= ele;
-                            ccodes[i] ~= cast(int)columns[i].length - 1;
+                            indexing[1].index[i] ~= ele;
+                            indexing[1].codes[i] ~= cast(int)indexing[1].index[i].length - 1;
                         }
                     }
                 }
@@ -278,22 +276,22 @@ struct Index
         {
             static if(axis == 0)
             {
-                assert(next.length == rcodes.length, "Index depth mismatch");
-                foreach(i; 0 .. rcodes.length)
+                assert(next.length == indexing[0].codes.length, "Index depth mismatch");
+                foreach(i; 0 .. indexing[0].codes.length)
                 {
-                    if(indexes[i].length > 0)
+                    if(indexing[0].index[i].length > 0)
                     {
                         import std.algorithm: countUntil;
-                        int pos = cast(int)countUntil(indexes[i], next[i]);
+                        int pos = cast(int)countUntil(indexing[0].index[i], next[i]);
 
                         if(pos > -1)
                         {
-                            rcodes[i] ~= pos;
+                            indexing[0].codes[i] ~= pos;
                         }
                         else
                         {
-                            indexes[i] ~= next[i];
-                            rcodes[i] ~= cast(int)indexes[i].length - 1;
+                            indexing[0].index[i] ~= next[i];
+                            indexing[0].codes[i] ~= cast(int)indexing[0].index[i].length - 1;
                         }
                     }
                     else
@@ -302,37 +300,37 @@ struct Index
                         try
                         {
                             int ele = to!int(next[i]);
-                            rcodes[i] ~= ele;
+                            indexing[0].codes[i] ~= ele;
                         }
                         catch(ConvException e)
                         {
-                            indexes[i] = to!(string[])(rcodes[i]);
-                            indexes[i] ~= next[i];
-                            rcodes[i] = [];
-                            foreach(j; 0 .. cast(int)indexes[i].length)
-                                rcodes[i] ~= j;
+                            indexing[0].index[i] = to!(string[])(indexing[0].codes[i]);
+                            indexing[0].index[i] ~= next[i];
+                            indexing[0].codes[i] = [];
+                            foreach(j; 0 .. cast(int)indexing[0].index[i].length)
+                                indexing[0].codes[i] ~= j;
                         }
                     }
                 }
             }
             else
             {
-                assert(next.length == ccodes.length, "Index depth mismatch");
-                foreach(i; 0 .. ccodes.length)
+                assert(next.length == indexing[1].codes.length, "Index depth mismatch");
+                foreach(i; 0 .. indexing[1].codes.length)
                 {
-                    if(columns[i].length > 0)
+                    if(indexing[1].index[i].length > 0)
                     {
                         import std.algorithm: countUntil;
-                        int pos = cast(int)countUntil(columns[i], next[i]);
+                        int pos = cast(int)countUntil(indexing[1].index[i], next[i]);
 
                         if(pos > -1)
                         {
-                            ccodes[i] ~= pos;
+                            indexing[1].codes[i] ~= pos;
                         }
                         else
                         {
-                            columns[i] ~= next[i];
-                            ccodes[i] ~= cast(int)columns[i].length - 1;
+                            indexing[1].index[i] ~= next[i];
+                            indexing[1].codes[i] ~= cast(int)indexing[1].index[i].length - 1;
                         }
                     }
                     else
@@ -341,15 +339,15 @@ struct Index
                         try
                         {
                             int ele = to!int(next[i]);
-                            ccodes[i] ~= ele;
+                            indexing[1].codes[i] ~= ele;
                         }
                         catch(ConvException e)
                         {
-                            columns[i] = to!(string[])(ccodes[i]);
-                            columns[i] ~= next[i];
-                            ccodes[i] = [];
-                            foreach(j; 0 .. cast(int)columns[i].length)
-                                ccodes[i] ~= j;
+                            indexing[1].index[i] = to!(string[])(indexing[1].codes[i]);
+                            indexing[1].index[i] ~= next[i];
+                            indexing[1].codes[i] = [];
+                            foreach(j; 0 .. cast(int)indexing[1].index[i].length)
+                                indexing[1].codes[i] ~= j;
                         }
                     }
                 }
@@ -368,17 +366,17 @@ struct Index
 unittest
 {
     Index inx;
-    inx.indexes = [["B", "A"], ["1", "2"]];
-    inx.rcodes = [[0, 1], [0, 1]];
-    inx.columns = [["B", "A"], ["1", "2"]];
-    inx.ccodes = [[0, 1], [0, 1]];
+    inx.indexing[0].index = [["B", "A"], ["1", "2"]];
+    inx.indexing[0].codes = [[0, 1], [0, 1]];
+    inx.indexing[1].index = [["B", "A"], ["1", "2"]];
+    inx.indexing[1].codes = [[0, 1], [0, 1]];
 
     inx.optimize();
 
-    assert(inx.indexes == [["A", "B"], []]);
-    assert(inx.rcodes == [[1, 0], [1, 2]]);
-    assert(inx.columns == [["A", "B"], []]);
-    assert(inx.ccodes == [[1, 0], [1, 2]]);
+    assert(inx.indexing[0].index == [["A", "B"], []]);
+    assert(inx.indexing[0].codes == [[1, 0], [1, 2]]);
+    assert(inx.indexing[1].index == [["A", "B"], []]);
+    assert(inx.indexing[1].codes == [[1, 0], [1, 2]]);
 }
 
 // Setting integer row index
@@ -386,9 +384,9 @@ unittest
 {
     Index inx;
     inx.setIndex([1,2,3,4,5,6], ["Index"]);
-    assert(inx.indexes == [[]]);
-    assert(inx.rtitles == ["Index"]);
-    assert(inx.rcodes == [[1,2,3,4,5,6]]);
+    assert(inx.indexing[0].index == [[]]);
+    assert(inx.indexing[0].titles == ["Index"]);
+    assert(inx.indexing[0].codes == [[1,2,3,4,5,6]]);
 }
 
 // Setting string row index
@@ -396,9 +394,9 @@ unittest
 {
     Index inx;
     inx.setIndex(["Hello", "Hi"], ["Index"]);
-    assert(inx.indexes == [["Hello", "Hi"]]);
-    assert(inx.rtitles == ["Index"]);
-    assert(inx.rcodes == [[0, 1]]);
+    assert(inx.indexing[0].index == [["Hello", "Hi"]]);
+    assert(inx.indexing[0].titles == ["Index"]);
+    assert(inx.indexing[0].codes == [[0, 1]]);
 }
 
 // Setting 2D integer index for rows
@@ -406,9 +404,9 @@ unittest
 {
     Index inx;
     inx.setIndex([[1,2], [3,4]], ["Index", "Index"]);
-    assert(inx.indexes == [[], []]);
-    assert(inx.rtitles == ["Index", "Index"]);
-    assert(inx.rcodes == [[1,2], [3,4]]);
+    assert(inx.indexing[0].index == [[], []]);
+    assert(inx.indexing[0].titles == ["Index", "Index"]);
+    assert(inx.indexing[0].codes == [[1,2], [3,4]]);
 }
 
 // Setting 2D string index for rows
@@ -416,22 +414,22 @@ unittest
 {
     Index inx;
     inx.setIndex([["Hello", "Hi"], ["Hi", "Hello"]], ["Index", "Index"]);
-    assert(inx.indexes == [["Hello", "Hi"], ["Hello", "Hi"]]);
-    assert(inx.rtitles == ["Index", "Index"]);
-    assert(inx.rcodes == [[0,1], [1,0]]);
+    assert(inx.indexing[0].index == [["Hello", "Hi"], ["Hello", "Hi"]]);
+    assert(inx.indexing[0].titles == ["Index", "Index"]);
+    assert(inx.indexing[0].codes == [[0,1], [1,0]]);
 }
 
-// Setting integer column indexes
+// Setting integer column indexing[0].index
 unittest
 {
     Index inx;
     inx.setIndex([["Hello", "Hi"], ["Hi", "Hello"]], ["Index", "Index"], [1,2,3,4,5]);
-    assert(inx.indexes == [["Hello", "Hi"], ["Hello", "Hi"]]);
-    assert(inx.rtitles == ["Index", "Index"]);
-    assert(inx.rcodes == [[0,1], [1,0]]);
-    assert(inx.columns == [[]]);
-    assert(inx.ccodes == [[1,2,3,4,5]]);
-    assert(inx.ctitles == []);
+    assert(inx.indexing[0].index == [["Hello", "Hi"], ["Hello", "Hi"]]);
+    assert(inx.indexing[0].titles == ["Index", "Index"]);
+    assert(inx.indexing[0].codes == [[0,1], [1,0]]);
+    assert(inx.indexing[1].index == [[]]);
+    assert(inx.indexing[1].codes == [[1,2,3,4,5]]);
+    assert(inx.indexing[1].titles == []);
 }
 
 // Setting string column index
@@ -439,37 +437,37 @@ unittest
 {
     Index inx;
     inx.setIndex([["Hello", "Hi"], ["Hi", "Hello"]], ["Index", "Index"], ["Hello", "Hi"]);
-    assert(inx.indexes == [["Hello", "Hi"], ["Hello", "Hi"]]);
-    assert(inx.rtitles == ["Index", "Index"]);
-    assert(inx.rcodes == [[0,1], [1,0]]);
-    assert(inx.columns == [["Hello", "Hi"]]);
-    assert(inx.ccodes == [[0, 1]]);
-    assert(inx.ctitles == []);
+    assert(inx.indexing[0].index == [["Hello", "Hi"], ["Hello", "Hi"]]);
+    assert(inx.indexing[0].titles == ["Index", "Index"]);
+    assert(inx.indexing[0].codes == [[0,1], [1,0]]);
+    assert(inx.indexing[1].index == [["Hello", "Hi"]]);
+    assert(inx.indexing[1].codes == [[0, 1]]);
+    assert(inx.indexing[1].titles == []);
 }
 
-// Setting 2D string index for columns
+// Setting 2D string index for indexing[1].index
 unittest
 {
     Index inx;
     inx.setIndex([["Hello", "Hi"], ["Hi", "Hello"]], ["Index", "Index"], [["Hello", "Hi"], ["Hi", "Hello"]]);
-    assert(inx.indexes == [["Hello", "Hi"], ["Hello", "Hi"]]);
-    assert(inx.rtitles == ["Index", "Index"]);
-    assert(inx.rcodes == [[0,1], [1,0]]);
-    assert(inx.columns == [["Hello", "Hi"], ["Hello", "Hi"]]);
-    assert(inx.ccodes == [[0,1], [1,0]]);
-    assert(inx.ctitles == []);
+    assert(inx.indexing[0].index == [["Hello", "Hi"], ["Hello", "Hi"]]);
+    assert(inx.indexing[0].titles == ["Index", "Index"]);
+    assert(inx.indexing[0].codes == [[0,1], [1,0]]);
+    assert(inx.indexing[1].index == [["Hello", "Hi"], ["Hello", "Hi"]]);
+    assert(inx.indexing[1].codes == [[0,1], [1,0]]);
+    assert(inx.indexing[1].titles == []);
 }
 
-// Setting 2D integer index for columns
+// Setting 2D integer index for indexing[1].index
 unittest
 {
     Index inx;
     inx.setIndex([["Hello", "Hi"], ["Hi", "Hello"]], ["Index", "Index"],[[1,2], [3,4]]);
-    assert(inx.indexes == [["Hello", "Hi"], ["Hello", "Hi"]]);
-    assert(inx.rtitles == ["Index", "Index"]);
-    assert(inx.rcodes == [[0,1], [1,0]]);
-    assert(inx.columns == [[], []]);
-    assert(inx.ccodes == [[1,2], [3,4]]);
+    assert(inx.indexing[0].index == [["Hello", "Hi"], ["Hello", "Hi"]]);
+    assert(inx.indexing[0].titles == ["Index", "Index"]);
+    assert(inx.indexing[0].codes == [[0,1], [1,0]]);
+    assert(inx.indexing[1].index == [[], []]);
+    assert(inx.indexing[1].codes == [[1,2], [3,4]]);
 }
 
 // Setting column titles
@@ -478,69 +476,69 @@ unittest
     Index inx;
     inx.setIndex([["Hello", "Hi"], ["Hi", "Hello"]], ["Index", "Index"],
         [["Hello", "Hi"], ["Hi", "Hello"]], ["Index", "Index"]);
-    assert(inx.indexes == [["Hello", "Hi"], ["Hello", "Hi"]]);
-    assert(inx.rtitles == ["Index", "Index"]);
-    assert(inx.rcodes == [[0,1], [1,0]]);
-    assert(inx.columns == [["Hello", "Hi"], ["Hello", "Hi"]]);
-    assert(inx.ccodes == [[0,1], [1,0]]);
-    assert(inx.ctitles == ["Index", "Index"]);
+    assert(inx.indexing[0].index == [["Hello", "Hi"], ["Hello", "Hi"]]);
+    assert(inx.indexing[0].titles == ["Index", "Index"]);
+    assert(inx.indexing[0].codes == [[0,1], [1,0]]);
+    assert(inx.indexing[1].index == [["Hello", "Hi"], ["Hello", "Hi"]]);
+    assert(inx.indexing[1].codes == [[0,1], [1,0]]);
+    assert(inx.indexing[1].titles == ["Index", "Index"]);
 }
 
-// Extending indexes 
+// Extending indexing[0].index 
 unittest
 {
     Index inx;
     inx.setIndex([["Hello", "Hi"], ["Hi", "Hello"]], ["Index", "Index"],
         [["Hello", "Hi"], ["Hi", "Hello"]], ["Index", "Index"]);
     inx.extend!0(["Hello", "Hi"]);
-    assert(inx.indexes == [["Hello", "Hi"], ["Hello", "Hi"]]);
-    assert(inx.rcodes == [[0,1,0], [1,0,1]]);
+    assert(inx.indexing[0].index == [["Hello", "Hi"], ["Hello", "Hi"]]);
+    assert(inx.indexing[0].codes == [[0,1,0], [1,0,1]]);
     inx.extend!1(["Hello", "Hi"]);
-    assert(inx.columns == [["Hello", "Hi"], ["Hello", "Hi"]]);
-    assert(inx.ccodes == [[0,1,0], [1,0,1]]);
+    assert(inx.indexing[1].index == [["Hello", "Hi"], ["Hello", "Hi"]]);
+    assert(inx.indexing[1].codes == [[0,1,0], [1,0,1]]);
 }
 
-// Extending indexes that require int to be converted to string
+// Extending indexing[0].index that require int to be converted to string
 unittest
 {
     Index inx;
     inx.setIndex([1,2,3], ["Index"], [1,2,3]);
-    assert(inx.rcodes == [[1,2,3]]);
-    assert(inx.indexes == [[]]);
-    assert(inx.ccodes == [[1,2,3]]);
-    assert(inx.columns == [[]]);
+    assert(inx.indexing[0].codes == [[1,2,3]]);
+    assert(inx.indexing[0].index == [[]]);
+    assert(inx.indexing[1].codes == [[1,2,3]]);
+    assert(inx.indexing[1].index == [[]]);
 
-    // Appending string to integer indexes
+    // Appending string to integer indexing[0].index
     inx.extend!0(["Hello"]);
-    assert(inx.indexes == [["1","2","3","Hello"]]);
-    assert(inx.rcodes == [[0,1,2,3]]);
+    assert(inx.indexing[0].index == [["1","2","3","Hello"]]);
+    assert(inx.indexing[0].codes == [[0,1,2,3]]);
 
-    // Appending integer to integer indexes
+    // Appending integer to integer indexing[0].index
     inx.extend!1([4]);
-    assert(inx.columns == [[]]);
-    assert(inx.ccodes == [[1,2,3,4]]);
+    assert(inx.indexing[1].index == [[]]);
+    assert(inx.indexing[1].codes == [[1,2,3,4]]);
 
-    // Appending string to integer indexes
+    // Appending string to integer indexing[0].index
     inx.extend!1(["Hello"]);
-    assert(inx.columns == [["1","2","3","4","Hello"]]);
-    assert(inx.ccodes == [[0,1,2,3,4]]);
+    assert(inx.indexing[1].index == [["1","2","3","4","Hello"]]);
+    assert(inx.indexing[1].codes == [[0,1,2,3,4]]);
 
     // Checking if optimize() is working
     inx.extend!1(["Arrow"]);
-    assert(inx.columns == [["1","2","3","4","Arrow","Hello"]]);
-    assert(inx.ccodes == [[0,1,2,3,5,4]]);
+    assert(inx.indexing[1].index == [["1","2","3","4","Arrow","Hello"]]);
+    assert(inx.indexing[1].codes == [[0,1,2,3,5,4]]);
 }
 
-// Extending indexes with 2D array
+// Extending indexing[0].index with 2D array
 unittest
 {
     Index inx;
     inx.setIndex([["Hello", "Hi"], ["Hi", "Hello"]], ["Index", "Index"],
         [["Hello", "Hi"], ["Hi", "Hello"]], ["Index", "Index"]);
     inx.extend!0([["Hello", "Hi"], ["Hello", "Hi"]]);
-    assert(inx.indexes == [["Hello", "Hi"], ["Hello", "Hi"]]);
-    assert(inx.rcodes == [[0,1,0,0], [1,0,1,1]]);
+    assert(inx.indexing[0].index == [["Hello", "Hi"], ["Hello", "Hi"]]);
+    assert(inx.indexing[0].codes == [[0,1,0,0], [1,0,1,1]]);
     inx.extend!1([["Hello", "Hi"], ["Hello", "Hi"]]);
-    assert(inx.columns == [["Hello", "Hi"], ["Hello", "Hi"]]);
-    assert(inx.ccodes == [[0,1,0,0], [1,0,1,1]]);
+    assert(inx.indexing[1].index == [["Hello", "Hi"], ["Hello", "Hi"]]);
+    assert(inx.indexing[1].codes == [[0,1,0,0], [1,0,1,1]]);
 }
