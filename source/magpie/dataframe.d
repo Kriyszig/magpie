@@ -858,33 +858,26 @@ public:
             "Cannot set empty index to DataFrame");
         
         bool needsPadding = false;
-        if(index.indexing[1].codes.length > 0 && index.indexing[1].codes[0].length == cols)
+        
+        foreach(i; 0 .. 2)
         {
-            indx.indexing[1].codes = index.indexing[1].codes;
-            indx.indexing[1].index = index.indexing[1].index;
-            indx.indexing[1].titles = index.indexing[1].titles;
-        }
+            if(index.indexing[i].codes.length > 0 && index.indexing[i].codes[0].length >= (i)? cols: rows)
+            {
+                indx.indexing[i].codes = index.indexing[i].codes;
+                indx.indexing[i].index = index.indexing[i].index;
+                indx.indexing[i].titles = index.indexing[i].titles;
+            }
 
-        if(index.indexing[1].codes.length == 0 && index.indexing[1].titles.length == indx.indexing[1].codes.length)
-        {
-            indx.indexing[1].titles = index.indexing[1].titles;
-        }
+            if(index.indexing[i].codes.length == 0 && index.indexing[i].titles.length == indx.indexing[i].codes.length)
+            {
+                indx.indexing[i].titles = index.indexing[i].titles;
+            }
 
-        if(index.indexing[0].codes.length > 0 && index.indexing[0].codes[0].length >= rows)
-        {
-            indx.indexing[0].codes = index.indexing[0].codes;
-            indx.indexing[0].index = index.indexing[0].index;
-            indx.indexing[0].titles = index.indexing[0].titles;
-
-            if(index.indexing[0].codes[0].length != rows)
+            if(i == 0 && index.indexing[0].codes[0].length != rows)
+            {
                 needsPadding = true;
-            
-            rows = index.indexing[0].codes[0].length;
-        }
-
-        if(index.indexing[0].codes.length == 0 && index.indexing[0].titles.length == indx.indexing[0].codes.length)
-        {
-            indx.indexing[0].titles = index.indexing[0].titles;
+                rows = index.indexing[0].codes[0].length;
+            }
         }
 
         if(indx.indexing[1].codes.length == 0)
@@ -943,42 +936,30 @@ public:
     @params: values - values to assign
     +/
     void assign(int axis, T, U...)(T index, U values)
+        if(U.length > 0)
     {
+        int pos;
+        static if(is(T == int))
+            pos = index;
+        else
+            pos = getPosition!(axis)(index);
+
+        assert(pos > -1 && pos < (axis)? rows: cols, "Index out of bound");
+        
         static if(axis == 0)
         {
-            int pos;
-            static if(is(T == int))
-                pos = index;
-            else
-                pos = getPosition!0(index);
-            
-            assert(pos > -1 && pos < rows, "Index out of bound");
-
             static foreach(i; 0 .. (RowType.length > U.length)? U.length: RowType.length)
                 data[i][pos] = values[i];
         }
         else
         {
-            static assert(isArray!(U[0]), "Assignable data needs to be a 1D array");
-            int pos;
-            static if(is(T == int))
-                pos = index;
-            else
-                pos = getPosition!1(index);
-
-            import std.stdio;
-            assert(pos > -1 && pos < cols, "Index out of bound");
-            assert(values[0].length <= rows, "Assignable data larger than DataFrame");
-
-            static foreach(i; 0 .. FrameType.length)
+            static foreach(i; 0 .. RowType.length)
             {
                 if(i == pos)
                 {
-                    static if(is(U[0] == FrameType[i]))
-                    {
-                        foreach(j; 0 .. values[0].length)
+                    static if(is(FrameType[i] == U[0]))
+                        foreach(j; 0 .. (rows > values[0].length)? values[0].length: rows)
                             data[i][j] = values[0][j];
-                    }
                 }
             }
         }
@@ -2078,16 +2059,22 @@ unittest
 
     df.assign!1(2, [1.0, 2.0, 3.0, 4.0, 5.0, 6.0]);
     // df.display();
+    assert(df.data[2] == [1.0, 2.0, 3.0, 4.0, 5.0, 6.0]);
 
     df.assign!1(1, [1, 2, 3]);
     // df.display();
+    assert(df.data[1] == [1, 2, 3, 0, 0, 0]);
 
     df.assign!0(0, 4, 5, 1.6);
     // df.display();
+    assert(df.data[0][0] == 4);
+    assert(df.data[1][0] == 5);
+    assert(df.data[2][0] == 1.6);
 
     index.extend!0([6]);
     df.setFrameIndex(index);
     // df.display();
+    assert(df.rows == 7);
 }
 
 unittest
@@ -2115,7 +2102,13 @@ unittest
     df.setFrameIndex(inx);
     // df.display();
     df = [[1.0], [1.0, 2.0], [1.0, 2.0, 3.5]];
+    assert(df.data[0] == [1,1,1]);
+    assert(df.data[1] == [0,2,2]);
+    assert(df.data[2][2] == 3.5);
+
     df[0, 0] = 42;
     df[["2"], ["1"]] = 17;
     // df.display();
+    assert(df.data[0][0] == 42);
+    assert(df.data[1][1] == 17);
 }

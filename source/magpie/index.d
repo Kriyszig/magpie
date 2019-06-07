@@ -26,48 +26,28 @@ public:
     +/
     void optimize()
     {
-        foreach(i; 0 .. indexing[0].index.length)
+        foreach(k; 0 .. 2)
         {
-            import std.conv: to, ConvException;
-            if(indexing[0].index[i].length > 0)
+            foreach(i; 0 .. indexing[k].index.length)
             {
-                try
+                import std.conv: to, ConvException;
+                if(indexing[k].index[i].length > 0)
                 {
-                    import std.array: appender;
-                    auto inx = appender!(string[]);
-                    foreach(j; 0 .. indexing[0].codes[i].length)
-                        inx.put(indexing[0].index[i][indexing[0].codes[i][j]]);
-                    int[] codes = to!(int[])(inx.data);
-                    indexing[0].codes[i] = codes;
-                    indexing[0].index[i] = [];
-                }
-                catch(ConvException e)
-                {
-                    import magpie.helper: sortIndex;
-                    sortIndex(indexing[0].index[i], indexing[0].codes[i]);
-                }
-            }
-        }
-
-        foreach(i; 0 .. indexing[1].index.length)
-        {
-            import std.conv: to, ConvException;
-            if(indexing[1].index[i].length > 0)
-            {
-                try
-                {
-                    import std.array: appender;
-                    auto inx = appender!(string[]);
-                    foreach(j; 0 .. indexing[1].codes[i].length)
-                        inx.put(indexing[1].index[i][indexing[1].codes[i][j]]);
-                    int[] codes = to!(int[])(inx.data);
-                    indexing[1].codes[i] = codes;
-                    indexing[1].index[i] = [];
-                }
-                catch(ConvException e)
-                {
-                    import magpie.helper: sortIndex;
-                    sortIndex(indexing[1].index[i], indexing[1].codes[i]);
+                    try
+                    {
+                        import std.array: appender;
+                        auto inx = appender!(string[]);
+                        foreach(j; 0 .. indexing[k].codes[i].length)
+                            inx.put(indexing[k].index[i][indexing[k].codes[i][j]]);
+                        int[] codes = to!(int[])(inx.data);
+                        indexing[k].codes[i] = codes;
+                        indexing[k].index[i] = [];
+                    }
+                    catch(ConvException e)
+                    {
+                        import magpie.helper: sortIndex;
+                        sortIndex(indexing[k].index[i], indexing[k].codes[i]);
+                    }
                 }
             }
         }
@@ -86,125 +66,66 @@ public:
     {
         this = Index();
 
-        static if(Args.length > 1)
+        static foreach(j; 0 .. 2)
         {
-            static if(is(Args[0] == string[]))
+            static if(Args.length > 2 * j)
             {
-                indexing[0].titles = args[1];
-                indexing[0].index = [args[0]];
-                indexing[0].codes = [[]];
-                foreach(i; 0 .. cast(int)args[0].length)
-                    indexing[0].codes[0] ~= i;
-            }
-            else static if(is(Args[0] == int[]))
-            {
-                indexing[0].titles = args[1];
-                indexing[0].codes = [args[0]];
-                indexing[0].index = [[]];
-            }
-            else static if(is(Args[0] == string[][]))
-            {
-                assert(args[0].length > 0, "Can't construct indexing[0].index from empty array");
-                size_t len = args[0][0].length;
-                assert(len > 0, "Inner dimension cannot be 0");
-                foreach(i; 0 .. args[0].length)
-                    assert(args[0][i].length == len && len > 0, "Inner dimension of indexing[0].index not equal");
-                
-                foreach(i; 0 .. args[0].length)
+                static if(is(Args[j * 2] == string[]))
                 {
-                    indexing[0].index ~= [[]];
-                    indexing[0].codes ~= [[]];
-                    foreach(j; 0 .. args[0][i].length)
+                    indexing[j].index = [args[j * 2]];
+                    indexing[j].codes = [[]];
+                    foreach(i; 0 .. args[j * 2].length)
+                        indexing[j].codes[0] ~= cast(int)i;
+                }
+                else static if(is(Args[j * 2] == int[]))
+                {
+                    indexing[j].codes = [args[j * 2]];
+                    indexing[j].index = [[]];
+                }
+                else static if(is(Args[j* 2] == string[][]))
+                {
+                    assert(args[j * 2].length > 0, "Can't construct indexing[0].index from empty array");
+                    assert(args[j * 2][0].length > 0, "Inner dimension cannot be 0");
+                    foreach(i; 0 .. args[j * 2].length)
+                        assert(args[j * 2][i].length == args[j * 2][0].length && args[j * 2][0].length > 0, "Inner dimension of indexing[0].index not equal");
+                    
+                    foreach(i; 0 .. args[j * 2].length)
                     {
-                        import std.algorithm: countUntil;
-                        int pos = cast(int)countUntil(indexing[0].index[i], args[0][i][j]);
-                        if(pos > -1)
+                        indexing[j].index ~= [[]];
+                        indexing[j].codes ~= [[]];
+                        foreach(k; 0 .. args[j * 2][i].length)
                         {
-                            indexing[0].codes[i] ~= pos;
-                        }
-                        else
-                        {
-                            indexing[0].index[i] ~= args[0][i][j];
-                            indexing[0].codes[i] ~= cast(int)indexing[0].index[i].length - 1;
+                            import std.algorithm: countUntil;
+                            int pos = cast(int)countUntil(indexing[j].index[i], args[j * 2][i][k]);
+                            if(pos > -1)
+                            {
+                                indexing[j].codes[i] ~= pos;
+                            }
+                            else
+                            {
+                                indexing[j].index[i] ~= args[j * 2][i][k];
+                                indexing[j].codes[i] ~= cast(int)indexing[j].index[i].length - 1;
+                            }
                         }
                     }
                 }
+                else static if(is(Args[j * 2] == int[][]))
+                {
+                    assert(args[j * 2].length > 0, "Can't construct indexing[0].index from empty array");
+                    size_t len = args[j * 2][0].length;
+                    assert(len > 0, "Inner dimension cannot be 0");
+                    foreach(i; 0 .. args[j * 2].length)
+                        assert(args[j * 2][i].length == len, "Inner dimension of indexing[0].index not equal");
+                    indexing[j].codes = args[j * 2];
+                    foreach(i; 0 .. args[j * 2].length)
+                        indexing[j].index ~= [[]];
+                }
+            }
 
-                indexing[0].titles = args[1];
-            }
-            else static if(is(Args[0] == int[][]))
-            {
-                assert(args[0].length > 0, "Can't construct indexing[0].index from empty array");
-                size_t len = args[0][0].length;
-                assert(len > 0, "Inner dimension cannot be 0");
-                foreach(i; 0 .. args[0].length)
-                    assert(args[0][i].length == len, "Inner dimension of indexing[0].index not equal");
-                indexing[0].titles = args[1];
-                indexing[0].codes = args[0];
-                foreach(i; 0 .. args[0].length)
-                    indexing[0].index ~= [[]];
-            }
+            static if(Args.length > j * 2 + 1)
+                indexing[j].titles = args[j*2 + 1];
         }
         
-        static if(Args.length > 2)
-        {
-            static if(is(Args[2] == string[]))
-            {
-                indexing[1].index = [args[2]];
-                indexing[1].codes = [[]];
-                foreach(i; 0 .. cast(int)args[2].length)
-                    indexing[1].codes[0] ~= i;
-            }
-            else static if(is(Args[2] == int[]))
-            {
-                indexing[1].codes = [args[2]];
-                indexing[1].index = [[]];
-            }
-            else static if(is(Args[2] == string[][]))
-            {
-                assert(args[2].length > 0, "Can't construct indexing[0].index from empty array");
-                size_t ilen = args[2][0].length;
-                assert(ilen > 0, "Inner dimension cannot be 0");
-                foreach(i; 0 .. args[2].length)
-                    assert(args[2][i].length == ilen, "Inner dimension of indexing[0].index not equal");
-                
-                foreach(i; 0 .. args[2].length)
-                {
-                    indexing[1].index ~= [[]];
-                    indexing[1].codes ~= [[]];
-                    foreach(j; 0 .. args[2][i].length)
-                    {
-                        import std.algorithm: countUntil;
-                        int pos = cast(int)countUntil(indexing[1].index[i], args[2][i][j]);
-                        if(pos > -1)
-                        {
-                            indexing[1].codes[i] ~= pos;
-                        }
-                        else
-                        {
-                            indexing[1].index[i] ~= args[2][i][j];
-                            indexing[1].codes[i] ~= cast(int)indexing[1].index[i].length - 1;
-                        }
-                    }
-                }
-            }
-            else static if(is(Args[2] == int[][]))
-            {
-                assert(args[2].length > 0, "Can't construct indexing[0].index from empty array");
-                size_t ilen = args[2][0].length;
-                assert(ilen > 0, "Inner dimension cannot be 0");
-                foreach(i; 0 .. args[2].length)
-                    assert(args[2][i].length == ilen, "Inner dimension of indexing[0].index not equal");
-                indexing[1].codes = args[2];
-                foreach(i; 0 .. args[2].length)
-                    indexing[1].index ~= [[]];
-            }
-        }
-
-        static if(Args.length > 3)
-        {
-            indexing[1].titles = args[3];
-        }
 
         optimize();
     }
@@ -219,139 +140,70 @@ public:
     {
         static if(is(T == int[]))
         {
-            static if(axis == 0)
+            
+            assert(next.length == indexing[axis].codes.length, "Index depth mismatch");
+            foreach(i; 0 .. indexing[axis].codes.length)
             {
-                assert(next.length == indexing[0].codes.length, "Index depth mismatch");
-                foreach(i; 0 .. indexing[0].codes.length)
+                if(indexing[axis].index[i].length == 0)
+                    indexing[axis].codes[i] ~= next[i];
+                else
                 {
-                    if(indexing[0].index[i].length == 0)
-                        indexing[0].codes[i] ~= next[i];
-                    else
-                    {
-                        import std.conv: to, ConvException;
-                        import std.algorithm: countUntil;
-                        string ele = to!string(next[i]);
-                        int pos = cast(int)countUntil(indexing[0].index[i], ele);
+                    import std.conv: to, ConvException;
+                    import std.algorithm: countUntil;
+                    string ele = to!string(next[i]);
+                    int pos = cast(int)countUntil(indexing[axis].index[i], ele);
 
-                        if(pos > -1)
-                        {
-                            indexing[0].codes[i] ~= pos;
-                        }
-                        else
-                        {
-                            indexing[0].index[i] ~= ele;
-                            indexing[0].codes[i] ~= cast(int)indexing[0].index[i].length - 1;
-                        }
+                    if(pos > -1)
+                    {
+                        indexing[axis].codes[i] ~= pos;
                     }
-                }
-            }
-            else
-            {
-                assert(next.length == indexing[1].codes.length, "Index depth mismatch");
-                foreach(i; 0 .. indexing[1].codes.length)
-                {
-                    if(indexing[1].index[i].length == 0)
-                        indexing[1].codes[i] ~= next[i];
                     else
                     {
-                        import std.conv: to, ConvException;
-                        import std.algorithm: countUntil;
-                        string ele = to!string(next[i]);
-                        int pos = cast(int)countUntil(indexing[1].index[i], ele);
-
-                        if(pos > -1)
-                        {
-                            indexing[1].codes[i] ~= pos;
-                        }
-                        else
-                        {
-                            indexing[1].index[i] ~= ele;
-                            indexing[1].codes[i] ~= cast(int)indexing[1].index[i].length - 1;
-                        }
+                        indexing[axis].index[i] ~= ele;
+                        indexing[axis].codes[i] ~= cast(int)indexing[axis].index[i].length - 1;
                     }
                 }
             }
         }
         else static if(is(T == string[]))
         {
-            static if(axis == 0)
+            assert(next.length == indexing[axis].codes.length, "Index depth mismatch");
+            foreach(i; 0 .. indexing[axis].codes.length)
             {
-                assert(next.length == indexing[0].codes.length, "Index depth mismatch");
-                foreach(i; 0 .. indexing[0].codes.length)
+                if(indexing[axis].index[i].length > 0)
                 {
-                    if(indexing[0].index[i].length > 0)
-                    {
-                        import std.algorithm: countUntil;
-                        int pos = cast(int)countUntil(indexing[0].index[i], next[i]);
+                    import std.algorithm: countUntil;
+                    int pos = cast(int)countUntil(indexing[axis].index[i], next[i]);
 
-                        if(pos > -1)
-                        {
-                            indexing[0].codes[i] ~= pos;
-                        }
-                        else
-                        {
-                            indexing[0].index[i] ~= next[i];
-                            indexing[0].codes[i] ~= cast(int)indexing[0].index[i].length - 1;
-                        }
+                    if(pos > -1)
+                    {
+                        indexing[axis].codes[i] ~= pos;
                     }
                     else
                     {
-                        import std.conv: to, ConvException;
-                        try
-                        {
-                            int ele = to!int(next[i]);
-                            indexing[0].codes[i] ~= ele;
-                        }
-                        catch(ConvException e)
-                        {
-                            indexing[0].index[i] = to!(string[])(indexing[0].codes[i]);
-                            indexing[0].index[i] ~= next[i];
-                            indexing[0].codes[i] = [];
-                            foreach(j; 0 .. cast(int)indexing[0].index[i].length)
-                                indexing[0].codes[i] ~= j;
-                        }
+                        indexing[axis].index[i] ~= next[i];
+                        indexing[axis].codes[i] ~= cast(int)indexing[axis].index[i].length - 1;
                     }
                 }
-            }
-            else
-            {
-                assert(next.length == indexing[1].codes.length, "Index depth mismatch");
-                foreach(i; 0 .. indexing[1].codes.length)
+                else
                 {
-                    if(indexing[1].index[i].length > 0)
+                    import std.conv: to, ConvException;
+                    try
                     {
-                        import std.algorithm: countUntil;
-                        int pos = cast(int)countUntil(indexing[1].index[i], next[i]);
-
-                        if(pos > -1)
-                        {
-                            indexing[1].codes[i] ~= pos;
-                        }
-                        else
-                        {
-                            indexing[1].index[i] ~= next[i];
-                            indexing[1].codes[i] ~= cast(int)indexing[1].index[i].length - 1;
-                        }
+                        int ele = to!int(next[i]);
+                        indexing[axis].codes[i] ~= ele;
                     }
-                    else
+                    catch(ConvException e)
                     {
-                        import std.conv: to, ConvException;
-                        try
-                        {
-                            int ele = to!int(next[i]);
-                            indexing[1].codes[i] ~= ele;
-                        }
-                        catch(ConvException e)
-                        {
-                            indexing[1].index[i] = to!(string[])(indexing[1].codes[i]);
-                            indexing[1].index[i] ~= next[i];
-                            indexing[1].codes[i] = [];
-                            foreach(j; 0 .. cast(int)indexing[1].index[i].length)
-                                indexing[1].codes[i] ~= j;
-                        }
+                        indexing[axis].index[i] = to!(string[])(indexing[axis].codes[i]);
+                        indexing[axis].index[i] ~= next[i];
+                        indexing[axis].codes[i] = [];
+                        foreach(j; 0 .. cast(int)indexing[axis].index[i].length)
+                            indexing[axis].codes[i] ~= j;
                     }
                 }
             }
+            
         }
         else
         {
