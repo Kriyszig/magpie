@@ -105,10 +105,10 @@ struct DataFrame(Fields)
 
 ## Features
 
-* [Index](###Index)
-* [Access](###Access)
-* [Assignment](###Assignment)
-* [I/O](###I/O)
+* [Index](#Index)
+* [Access](#Access)
+* [Assignment](#Assignment)
+* [I/O](#I/O)
 
 ### Index
 
@@ -471,7 +471,7 @@ import magpie.index: Index;
 
 DataFrame!(double, int, 2, double) df;
 df.from_csv("any.csv", 1, 1);
-/* Thie assumes any.csv has 1 rolumn dedicated to row indexes 
+/* Thie assumes any.csv has 1 column dedicated to row indexes 
  * and 1 row dedicated to column indexes
  */
 ```
