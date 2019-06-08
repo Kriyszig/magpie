@@ -198,8 +198,8 @@ public:
                         indexing[axis].index[i] = to!(string[])(indexing[axis].codes[i]);
                         indexing[axis].index[i] ~= next[i];
                         indexing[axis].codes[i] = [];
-                        foreach(j; 0 .. cast(int)indexing[axis].index[i].length)
-                            indexing[axis].codes[i] ~= j;
+                        foreach(j; 0 .. indexing[axis].index[i].length)
+                            indexing[axis].codes[i] ~= cast(int)j;
                     }
                 }
             }

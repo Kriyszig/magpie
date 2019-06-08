@@ -805,8 +805,8 @@ public:
     +/
     void opIndexAssign(Ele)(Ele ele, string[] rindx, string[] cindx)
     {
-        assert(rindx.length == indx.indexing[0].codes.length, "Size of indexing[0].index don't match the levels of row indexing[0].index");
-        assert(cindx.length == indx.indexing[1].codes.length, "Size of indexing[0].index don't match the levels of column indexing[0].index");
+        assert(rindx.length == indx.indexing[0].codes.length, "Size of row index don't match the index depth");
+        assert(cindx.length == indx.indexing[1].codes.length, "Size of column index don't match the index depth");
 
         int i1 = getPosition!0(rindx);
         int i2 = getPosition!1(cindx);
@@ -898,6 +898,10 @@ public:
         }
     }
 
+    /++
+    Direct assignment of a 2D array to DataFrame
+    Usage: df = [[1,2], [3,4]];
+    +/
     void opAssign(T)(T input)
         if(isArray!(T))
     {
@@ -964,6 +968,43 @@ public:
             }
         }
     }
+
+    /++
+    Element access based on integral index
+    Usage: df[0, 0]
+    +/
+    auto opIndex(size_t i1, size_t i2)
+    {
+        assert(i1 <= rows, "Row index out of bound");
+        assert(i2 <= cols, "Column index out of bound");
+
+        static foreach(i; 0 .. RowType.length)
+            if(i == i2)
+                return data[i][i1];
+        
+        // If the above assertions pass, a value will be definitely returned
+        assert(0);
+    }
+
+    /++
+    Element access based on integral index
+    Usage: df[["Index1"], ["Index2"]]
+    +/
+    auto opIndex(string[] rindx, string[] cindx)
+    {
+        assert(rindx.length == indx.indexing[0].codes.length, "Size of row index don't match the index depth");
+        assert(cindx.length == indx.indexing[1].codes.length, "Size of column index don't match the index depth");
+
+        int i1 = getPosition!0(rindx);
+        int i2 = getPosition!1(cindx);
+
+        assert(i1 > -1 && i2 > -1, "Given headers don't match DataFrame Headers");
+        static foreach(i; 0 .. RowType.length)
+            if(i == i2)
+                return data[i][i1];
+        
+        assert(0);
+    }
 }
 
 // Testing DataFrame Definition - O(n + log(n))
@@ -1014,6 +1055,11 @@ unittest
     assert(df.at!(0,1) == 1);
     assert(df.at!(1,0) == 2);
     assert(df.at!(1,1) == 2);
+
+    assert(df[0, 0] == 1);
+    assert(df[0, 1] == 1);
+    assert(df[1, 0] == 2);
+    assert(df[1, 1] == 2);
 }
 
 // Setting element at an index
@@ -1054,12 +1100,19 @@ unittest
 
     df[["Hello", "Hello", "1"], ["Hello", "1", "Hello"]] = 48;
     assert(df.data[0] == [48, 2]);
+    assert(df[["Hello", "Hello", "1"], ["Hello", "1", "Hello"]] == 48);
+
     df[["Hi", "Hello", "24"], ["Hello", "1", "Hello"]] = 29;
     assert(df.data[0] == [48, 29]);
+    assert(df[["Hi", "Hello", "24"], ["Hello", "1", "Hello"]] == 29);
+
     df[["Hello", "Hello", "1"], ["Hi", "2", "Hello"]] = 96;
     assert(df.data[1] == [96, 2]);
+    assert(df[["Hello", "Hello", "1"], ["Hi", "2", "Hello"]] == 96);
+
     df[["Hi", "Hello", "24"], ["Hi", "2", "Hello"]] = 43;
     assert(df.data[1] == [96, 43]);
+    assert(df[["Hi", "Hello", "24"], ["Hi", "2", "Hello"]] == 43);
 }
 
 
@@ -1171,18 +1224,30 @@ unittest
     // df.display();
     assert(df.data[0] == [1,3]);
     assert(df.data[1] == [2,4]);
+    assert(df[["Hello", "Hi"], ["Hello", "Hi"]] == 1);
+    assert(df[["Hello", "Hi"], ["Hi", "Hello"]] == 2);
+    assert(df[["Hi", "Hello"], ["Hello", "Hi"]] == 3);
+    assert(df[["Hi", "Hello"], ["Hi", "Hello"]] == 4);
 
     // Assignment that needs apdding
     df = [[1], [2,3]];
     // df.display();
     assert(df.data[0] == [1,2]);
     assert(df.data[1] == [0,3]);
+    assert(df[["Hello", "Hi"], ["Hello", "Hi"]] == 1);
+    assert(df[["Hello", "Hi"], ["Hi", "Hello"]] == 0);
+    assert(df[["Hi", "Hello"], ["Hello", "Hi"]] == 2);
+    assert(df[["Hi", "Hello"], ["Hi", "Hello"]] == 3);
 
     // Checking casting
     df = [[1.2, 1], [4.6, 7]];
     // df.display();
     assert(df.data[0] == [1.2, 4.6]);
     assert(df.data[1] == [1, 7]);
+    assert(df[["Hello", "Hi"], ["Hello", "Hi"]] == 1.2);
+    assert(df[["Hello", "Hi"], ["Hi", "Hello"]] == 1);
+    assert(df[["Hi", "Hello"], ["Hello", "Hi"]] == 4.6);
+    assert(df[["Hi", "Hello"], ["Hi", "Hello"]] == 7);
 }
 
 // Assigning an entire column & row to DataFrame
