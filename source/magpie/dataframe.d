@@ -623,7 +623,7 @@ public:
             columns = all.data;
         }
         
-        assert(columns.length == cols, "The dimension of indexing[1].index[ ] must be same as dimension of the DataFrame");
+        assert(columns.length == cols, "The dimension of columns must be same as dimension of the DataFrame");
 
         File csvfile = File(path, "r");
         bool bothTitle = false;
@@ -829,7 +829,7 @@ public:
     +/
     int getRowPosition(string[] indexes)
     {
-        assert(indexes.length == indx.indexing[0].codes.length, "Size of indexing[0].index don't match the levels of row indexing[0].index");
+        assert(indexes.length == indx.indexing[0].codes.length, "Size of row index don't match the indexing depth");
         return getPosition!0(indexes);
     }
 
@@ -841,7 +841,7 @@ public:
     +/
     int getColumnPosition(string[] indexes)
     {
-        assert(indexes.length == indx.indexing[1].codes.length, "Size of indexing[0].index don't match the levels of column indexing[0].index");
+        assert(indexes.length == indx.indexing[1].codes.length, "Size of column index doesn't match indexing depth");
         return getPosition!1(indexes);
     }
 

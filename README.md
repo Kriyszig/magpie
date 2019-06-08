@@ -101,7 +101,26 @@ struct DataFrame(Fields)
     FrameType data; 
 }
 ```
+- Index is defined as folows:
 
+```d
+struct Index
+{
+
+    struct Indexing
+    {
+        string[] titles;
+        string[][] index;
+        int[][] codes;
+    }
+
+    /// To know if data is multi-indexed
+    bool isMultiIndexed = false;
+
+    /// Row and Column indexing
+    Indexing[2] indexing;
+}
+```
 
 ## Features
 
@@ -205,6 +224,8 @@ inx.extend!1(["Yo", "Yo"]);
 ```
 ### Access
 
+In addition to array like access to elements, some of the other ways to access elements are:
+
 #### `at!(row, column)`
 
 Direct access to element using integral indexes
@@ -223,7 +244,9 @@ inx.setIndex([1, 2, 3],["rindex"]);
 
 DataFrame!(int, 2) df;
 df.setFrameIndex(inx);
-df.at!(0,0) // Will return 0
+df.at!(0,0);        // Will return 0
+df[0, 0];           // Same as above, returns 0
+df[["1"], ["0"]];   // Same as above - usig string indexes - returns 0
 ```
 #### Getting row and column position from string indexes
 

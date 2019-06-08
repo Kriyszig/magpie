@@ -84,10 +84,10 @@ public:
                 }
                 else static if(is(Args[j* 2] == string[][]))
                 {
-                    assert(args[j * 2].length > 0, "Can't construct indexing[0].index from empty array");
+                    assert(args[j * 2].length > 0, "Can't construct index from empty array");
                     assert(args[j * 2][0].length > 0, "Inner dimension cannot be 0");
                     foreach(i; 0 .. args[j * 2].length)
-                        assert(args[j * 2][i].length == args[j * 2][0].length && args[j * 2][0].length > 0, "Inner dimension of indexing[0].index not equal");
+                        assert(args[j * 2][i].length == args[j * 2][0].length && args[j * 2][0].length > 0, "Inner dimension of indexes are unequal");
                     
                     foreach(i; 0 .. args[j * 2].length)
                     {
@@ -111,11 +111,11 @@ public:
                 }
                 else static if(is(Args[j * 2] == int[][]))
                 {
-                    assert(args[j * 2].length > 0, "Can't construct indexing[0].index from empty array");
+                    assert(args[j * 2].length > 0, "Can't construct index from empty array");
                     size_t len = args[j * 2][0].length;
                     assert(len > 0, "Inner dimension cannot be 0");
                     foreach(i; 0 .. args[j * 2].length)
-                        assert(args[j * 2][i].length == len, "Inner dimension of indexing[0].index not equal");
+                        assert(args[j * 2][i].length == len, "Inner dimension of index not equal");
                     indexing[j].codes = args[j * 2];
                     foreach(i; 0 .. args[j * 2].length)
                         indexing[j].index ~= [[]];
