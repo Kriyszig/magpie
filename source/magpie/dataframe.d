@@ -1034,9 +1034,19 @@ public:
 
         static if(axis == 1)
         {
+            import magpie.axis: Axis;
             static foreach(i; 0 .. RowType.length)
                 if(i == pos)
-                    return data[i];
+                    return Axis!(FrameType[i])(data[i]);
+        }
+        else
+        {
+            import magpie.axis: Axis;
+            Axis!(RowType) retrow;
+            static foreach(i; 0 .. RowType.length)
+                retrow.data[i] = data[i][pos];
+
+            return retrow;
         }
 
         assert(0);
@@ -1330,6 +1340,7 @@ unittest
     assert(df.data[0] == [2.26, 3.588]);
 }
 
+// Getting an entire row/column from the DataFrame
 unittest
 {
     DataFrame!(int, 2) df;
@@ -1345,8 +1356,12 @@ unittest
     df.data[0] = [1,2];
     df.data[1] = [1,2];
 
-    assert(df[["Hello", "1", "Hello"]] == [1, 2]);
-    assert(df[["Hi", "2", "Hello"]] == [1, 2]);
+    assert(df[["Hello", "1", "Hello"]].data == [1, 2]);
+    assert(df[["Hi", "2", "Hello"]].data == [1, 2]);
+    assert(df[["Hello", "Hello", "1"], 0].data[0] == 1);
+    assert(df[["Hi", "Hello", "24"], 0].data[0] == 2);
+    assert(df[["Hello", "Hello", "1"], 0].data[1] == 1);
+    assert(df[["Hi", "Hello", "24"], 0].data[1] == 2);
 }
 
 // Simple Data Frame
