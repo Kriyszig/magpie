@@ -990,19 +990,55 @@ public:
     Element access based on integral index
     Usage: df[["Index1"], ["Index2"]]
     +/
-    auto opIndex(string[] rindx, string[] cindx)
+    auto opIndex(T, U)(T rindx, U cindx)
+        if((is(T == string) || is(T == string[]))
+        && (is(U == string) || is(U == string[])))
     {
-        assert(rindx.length == indx.indexing[0].codes.length, "Size of row index don't match the index depth");
-        assert(cindx.length == indx.indexing[1].codes.length, "Size of column index don't match the index depth");
+        int i1 = -1;// getPosition!0(rindx);
+        int i2 = -1;//getPosition!1(cindx);
 
-        int i1 = getPosition!0(rindx);
-        int i2 = getPosition!1(cindx);
+        static if(is(T == string))
+            i1 = getPosition!0([rindx]);
+        else
+            i1 = getPosition!0(rindx);
+
+        static if(is(U == string))
+            i2 = getPosition!1([cindx]);
+        else
+            i2 = getPosition!1(cindx);
 
         assert(i1 > -1 && i2 > -1, "Given headers don't match DataFrame Headers");
         static foreach(i; 0 .. RowType.length)
             if(i == i2)
                 return data[i][i1];
         
+        assert(0);
+    }
+
+    /++
+    Get an entire row or column using index
+    For column: df[["Index"]]
+    For row: df[["Index"], 0]
+    +/
+    auto opIndex(Args...)(Args args)
+        if(Args.length > 0 && Args.length < 3)
+    {
+        const int axis = (Args.length == 1)? 1: 0;
+        int pos = -1;
+        if(axis == 0)
+            pos = getPosition!0(args[0]);
+        else
+            pos = getPosition!1(args[0]);
+
+        assert(pos > -1, "Index not found");
+
+        static if(axis == 1)
+        {
+            static foreach(i; 0 .. RowType.length)
+                if(i == pos)
+                    return data[i];
+        }
+
         assert(0);
     }
 }
@@ -1292,6 +1328,25 @@ unittest
     // Partial Assignment - indexing[1].index
     df.assign!1(0, [2.26]);
     assert(df.data[0] == [2.26, 3.588]);
+}
+
+unittest
+{
+    DataFrame!(int, 2) df;
+    assert(is(typeof(df.data) == Repeat!(2, int[])));
+
+    df.indx.indexing[0].titles = ["Index1", "Index2", "Index3"];
+    df.indx.indexing[0].index = [["Hello", "Hi"],["Hello"], []];
+    df.indx.indexing[0].codes = [[0, 1], [0, 0], [1,24]];
+    df.indx.indexing[1].titles = ["Hey","Hey","Hey"];
+    df.indx.indexing[1].index = [["Hello","Hi"],[],["Hello"]];
+    df.indx.indexing[1].codes = [[0,1],[1,2],[0,0]];
+    df.rows = 2;
+    df.data[0] = [1,2];
+    df.data[1] = [1,2];
+
+    assert(df[["Hello", "1", "Hello"]] == [1, 2]);
+    assert(df[["Hi", "2", "Hello"]] == [1, 2]);
 }
 
 // Simple Data Frame
