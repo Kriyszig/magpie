@@ -64,6 +64,25 @@ struct Axis(T...)
                 return ret;
             }
         }
+        else static if(op == "-")
+        {
+            static if(U.length == 1)
+            {
+                assert(data.length == rhs.data.length, "Size mismatch");
+
+                foreach(i; 0 .. data.length)
+                    ret.data ~= data[i] - rhs.data[i];
+
+                return ret;                
+            }
+            else
+            {
+                static foreach(i; 0 .. U.length)
+                    ret.data[i] = data[i] - rhs.data[i];
+
+                return ret;
+            }
+        }
 
         assert(0);
     }
@@ -137,4 +156,55 @@ unittest
     auto res2 = a1 + a2 + a3 + a4;
     assert(res2.data[0] == 4);
     assert(approxEqual(res2.data[1], 5.572, 1e-3));
+}
+
+// Subtraction operation on multiple column
+unittest
+{
+    Axis!(double[]) a1;
+    a1.data = [1,2,3.765,4];
+    Axis!(int[]) a2;
+    a2.data = [1,2,3,4];
+    Axis!(double[]) a3;
+    a3.data = [1,2,3.765,4];
+    Axis!(double[]) a4;
+    a4.data = [1,2,3,4];
+
+    import std.math: approxEqual;
+    static foreach(i; 0 .. 4)
+    {
+        assert(approxEqual((a1 - a2).data[i], a1.data[i] - a2.data[i], 1e-3));
+        assert(approxEqual((a1 - a2 - a3 - a4).data[i], a1.data[i] - a2.data[i] - a3.data[i] - a4.data[i], 1e-3));
+    }
+
+}
+
+// Addition operation on multiple rows
+unittest
+{
+    Axis!(int, double) a1;
+    a1.data[0] = 1;
+    a1.data[1] = 1.786;
+
+    Axis!(int, int) a2;
+    a2.data[0] = 1;
+    a2.data[1] = 1;
+
+    Axis!(int, double) a3;
+    a3.data[0] = 1;
+    a3.data[1] = 1.786;
+
+    Axis!(int, double) a4;
+    a4.data[0] = 1;
+    a4.data[1] = 1;
+
+    auto res = a1 - a2;
+    auto res2 = a1 - a2 - a3 - a4;
+    
+    import std.math: approxEqual;
+    static foreach(i; 0 .. 2)
+    {
+        assert(approxEqual(res.data[i], a1.data[i] - a2.data[i], 1e-3));
+        assert(approxEqual(res2.data[i], a1.data[i] - a2.data[i] - a3.data[i] - a4.data[i], 1e-3));
+    }
 }
