@@ -14,6 +14,11 @@ struct Axis(T...)
     /// Data being returned by the DataFrame
     AxisType data;
 
+    /++
+    auto convertTo(U...)()
+    Description: Change the type of Axis.data
+    @params: u - The type to which data needs to be converted to.
+    +/
     auto convertTo(U...)() @property
         if(U.length == T.length)
     {

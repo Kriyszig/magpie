@@ -20,9 +20,21 @@ public:
     /// Row and Column indexing
     Indexing[2] indexing;
 
+    /// Referring Index.indexing[0] as Index.row
+    ref row()
+    {
+        return indexing[0];
+    }
+
+    /// Referring Index.indexing[1] as Index.column
+    ref column()
+    {
+        return indexing[1];
+    }
+
     /++
     void optimize()
-    Description: Optimizes a DataFrame - If indexing[0].index can be expressed as integer, converts string indexing[0].index to int and stores in the codes
+    Description: Optimizes a DataFrame - If row.index can be expressed as integer, converts string row.index to int and stores in the codes
     +/
     void optimize()
     {
@@ -55,7 +67,7 @@ public:
 
     /++
     void setIndex(Args...)(Args args)
-    Description: Method for etting indexing[0].index
+    Description: Method for etting row.index
     @params: rowindex - Can be a 1D or 2D array of int or string
     @params: rowindexTitles - 1D array of string
     @params?: columnindex - Can be a 1D or 2D array of int or string
@@ -132,8 +144,8 @@ public:
 
     /++
     void extend(int axis, T)(T next)
-    Description:Extends indexing[0].index
-    @params: axis - 0 for rows, 1 for indexing[1].index
+    Description:Extends row.index
+    @params: axis - 0 for rows, 1 for column.index
     @params: next - The element to extend element
     +/
     void extend(int axis, T)(T next)
@@ -218,17 +230,17 @@ public:
 unittest
 {
     Index inx;
-    inx.indexing[0].index = [["B", "A"], ["1", "2"]];
-    inx.indexing[0].codes = [[0, 1], [0, 1]];
-    inx.indexing[1].index = [["B", "A"], ["1", "2"]];
-    inx.indexing[1].codes = [[0, 1], [0, 1]];
+    inx.row.index = [["B", "A"], ["1", "2"]];
+    inx.row.codes = [[0, 1], [0, 1]];
+    inx.column.index = [["B", "A"], ["1", "2"]];
+    inx.column.codes = [[0, 1], [0, 1]];
 
     inx.optimize();
 
-    assert(inx.indexing[0].index == [["A", "B"], []]);
-    assert(inx.indexing[0].codes == [[1, 0], [1, 2]]);
-    assert(inx.indexing[1].index == [["A", "B"], []]);
-    assert(inx.indexing[1].codes == [[1, 0], [1, 2]]);
+    assert(inx.row.index == [["A", "B"], []]);
+    assert(inx.row.codes == [[1, 0], [1, 2]]);
+    assert(inx.column.index == [["A", "B"], []]);
+    assert(inx.column.codes == [[1, 0], [1, 2]]);
 }
 
 // Setting integer row index
@@ -236,9 +248,9 @@ unittest
 {
     Index inx;
     inx.setIndex([1,2,3,4,5,6], ["Index"]);
-    assert(inx.indexing[0].index == [[]]);
-    assert(inx.indexing[0].titles == ["Index"]);
-    assert(inx.indexing[0].codes == [[1,2,3,4,5,6]]);
+    assert(inx.row.index == [[]]);
+    assert(inx.row.titles == ["Index"]);
+    assert(inx.row.codes == [[1,2,3,4,5,6]]);
 }
 
 // Setting string row index
@@ -246,9 +258,9 @@ unittest
 {
     Index inx;
     inx.setIndex(["Hello", "Hi"], ["Index"]);
-    assert(inx.indexing[0].index == [["Hello", "Hi"]]);
-    assert(inx.indexing[0].titles == ["Index"]);
-    assert(inx.indexing[0].codes == [[0, 1]]);
+    assert(inx.row.index == [["Hello", "Hi"]]);
+    assert(inx.row.titles == ["Index"]);
+    assert(inx.row.codes == [[0, 1]]);
 }
 
 // Setting 2D integer index for rows
@@ -256,9 +268,9 @@ unittest
 {
     Index inx;
     inx.setIndex([[1,2], [3,4]], ["Index", "Index"]);
-    assert(inx.indexing[0].index == [[], []]);
-    assert(inx.indexing[0].titles == ["Index", "Index"]);
-    assert(inx.indexing[0].codes == [[1,2], [3,4]]);
+    assert(inx.row.index == [[], []]);
+    assert(inx.row.titles == ["Index", "Index"]);
+    assert(inx.row.codes == [[1,2], [3,4]]);
 }
 
 // Setting 2D string index for rows
@@ -266,22 +278,22 @@ unittest
 {
     Index inx;
     inx.setIndex([["Hello", "Hi"], ["Hi", "Hello"]], ["Index", "Index"]);
-    assert(inx.indexing[0].index == [["Hello", "Hi"], ["Hello", "Hi"]]);
-    assert(inx.indexing[0].titles == ["Index", "Index"]);
-    assert(inx.indexing[0].codes == [[0,1], [1,0]]);
+    assert(inx.row.index == [["Hello", "Hi"], ["Hello", "Hi"]]);
+    assert(inx.row.titles == ["Index", "Index"]);
+    assert(inx.row.codes == [[0,1], [1,0]]);
 }
 
-// Setting integer column indexing[0].index
+// Setting integer column row.index
 unittest
 {
     Index inx;
     inx.setIndex([["Hello", "Hi"], ["Hi", "Hello"]], ["Index", "Index"], [1,2,3,4,5]);
-    assert(inx.indexing[0].index == [["Hello", "Hi"], ["Hello", "Hi"]]);
-    assert(inx.indexing[0].titles == ["Index", "Index"]);
-    assert(inx.indexing[0].codes == [[0,1], [1,0]]);
-    assert(inx.indexing[1].index == [[]]);
-    assert(inx.indexing[1].codes == [[1,2,3,4,5]]);
-    assert(inx.indexing[1].titles == []);
+    assert(inx.row.index == [["Hello", "Hi"], ["Hello", "Hi"]]);
+    assert(inx.row.titles == ["Index", "Index"]);
+    assert(inx.row.codes == [[0,1], [1,0]]);
+    assert(inx.column.index == [[]]);
+    assert(inx.column.codes == [[1,2,3,4,5]]);
+    assert(inx.column.titles == []);
 }
 
 // Setting string column index
@@ -289,37 +301,37 @@ unittest
 {
     Index inx;
     inx.setIndex([["Hello", "Hi"], ["Hi", "Hello"]], ["Index", "Index"], ["Hello", "Hi"]);
-    assert(inx.indexing[0].index == [["Hello", "Hi"], ["Hello", "Hi"]]);
-    assert(inx.indexing[0].titles == ["Index", "Index"]);
-    assert(inx.indexing[0].codes == [[0,1], [1,0]]);
-    assert(inx.indexing[1].index == [["Hello", "Hi"]]);
-    assert(inx.indexing[1].codes == [[0, 1]]);
-    assert(inx.indexing[1].titles == []);
+    assert(inx.row.index == [["Hello", "Hi"], ["Hello", "Hi"]]);
+    assert(inx.row.titles == ["Index", "Index"]);
+    assert(inx.row.codes == [[0,1], [1,0]]);
+    assert(inx.column.index == [["Hello", "Hi"]]);
+    assert(inx.column.codes == [[0, 1]]);
+    assert(inx.column.titles == []);
 }
 
-// Setting 2D string index for indexing[1].index
+// Setting 2D string index for column.index
 unittest
 {
     Index inx;
     inx.setIndex([["Hello", "Hi"], ["Hi", "Hello"]], ["Index", "Index"], [["Hello", "Hi"], ["Hi", "Hello"]]);
-    assert(inx.indexing[0].index == [["Hello", "Hi"], ["Hello", "Hi"]]);
-    assert(inx.indexing[0].titles == ["Index", "Index"]);
-    assert(inx.indexing[0].codes == [[0,1], [1,0]]);
-    assert(inx.indexing[1].index == [["Hello", "Hi"], ["Hello", "Hi"]]);
-    assert(inx.indexing[1].codes == [[0,1], [1,0]]);
-    assert(inx.indexing[1].titles == []);
+    assert(inx.row.index == [["Hello", "Hi"], ["Hello", "Hi"]]);
+    assert(inx.row.titles == ["Index", "Index"]);
+    assert(inx.row.codes == [[0,1], [1,0]]);
+    assert(inx.column.index == [["Hello", "Hi"], ["Hello", "Hi"]]);
+    assert(inx.column.codes == [[0,1], [1,0]]);
+    assert(inx.column.titles == []);
 }
 
-// Setting 2D integer index for indexing[1].index
+// Setting 2D integer index for column.index
 unittest
 {
     Index inx;
     inx.setIndex([["Hello", "Hi"], ["Hi", "Hello"]], ["Index", "Index"],[[1,2], [3,4]]);
-    assert(inx.indexing[0].index == [["Hello", "Hi"], ["Hello", "Hi"]]);
-    assert(inx.indexing[0].titles == ["Index", "Index"]);
-    assert(inx.indexing[0].codes == [[0,1], [1,0]]);
-    assert(inx.indexing[1].index == [[], []]);
-    assert(inx.indexing[1].codes == [[1,2], [3,4]]);
+    assert(inx.row.index == [["Hello", "Hi"], ["Hello", "Hi"]]);
+    assert(inx.row.titles == ["Index", "Index"]);
+    assert(inx.row.codes == [[0,1], [1,0]]);
+    assert(inx.column.index == [[], []]);
+    assert(inx.column.codes == [[1,2], [3,4]]);
 }
 
 // Setting column titles
@@ -328,69 +340,69 @@ unittest
     Index inx;
     inx.setIndex([["Hello", "Hi"], ["Hi", "Hello"]], ["Index", "Index"],
         [["Hello", "Hi"], ["Hi", "Hello"]], ["Index", "Index"]);
-    assert(inx.indexing[0].index == [["Hello", "Hi"], ["Hello", "Hi"]]);
-    assert(inx.indexing[0].titles == ["Index", "Index"]);
-    assert(inx.indexing[0].codes == [[0,1], [1,0]]);
-    assert(inx.indexing[1].index == [["Hello", "Hi"], ["Hello", "Hi"]]);
-    assert(inx.indexing[1].codes == [[0,1], [1,0]]);
-    assert(inx.indexing[1].titles == ["Index", "Index"]);
+    assert(inx.row.index == [["Hello", "Hi"], ["Hello", "Hi"]]);
+    assert(inx.row.titles == ["Index", "Index"]);
+    assert(inx.row.codes == [[0,1], [1,0]]);
+    assert(inx.column.index == [["Hello", "Hi"], ["Hello", "Hi"]]);
+    assert(inx.column.codes == [[0,1], [1,0]]);
+    assert(inx.column.titles == ["Index", "Index"]);
 }
 
-// Extending indexing[0].index 
+// Extending row.index 
 unittest
 {
     Index inx;
     inx.setIndex([["Hello", "Hi"], ["Hi", "Hello"]], ["Index", "Index"],
         [["Hello", "Hi"], ["Hi", "Hello"]], ["Index", "Index"]);
     inx.extend!0(["Hello", "Hi"]);
-    assert(inx.indexing[0].index == [["Hello", "Hi"], ["Hello", "Hi"]]);
-    assert(inx.indexing[0].codes == [[0,1,0], [1,0,1]]);
+    assert(inx.row.index == [["Hello", "Hi"], ["Hello", "Hi"]]);
+    assert(inx.row.codes == [[0,1,0], [1,0,1]]);
     inx.extend!1(["Hello", "Hi"]);
-    assert(inx.indexing[1].index == [["Hello", "Hi"], ["Hello", "Hi"]]);
-    assert(inx.indexing[1].codes == [[0,1,0], [1,0,1]]);
+    assert(inx.column.index == [["Hello", "Hi"], ["Hello", "Hi"]]);
+    assert(inx.column.codes == [[0,1,0], [1,0,1]]);
 }
 
-// Extending indexing[0].index that require int to be converted to string
+// Extending row.index that require int to be converted to string
 unittest
 {
     Index inx;
     inx.setIndex([1,2,3], ["Index"], [1,2,3]);
-    assert(inx.indexing[0].codes == [[1,2,3]]);
-    assert(inx.indexing[0].index == [[]]);
-    assert(inx.indexing[1].codes == [[1,2,3]]);
-    assert(inx.indexing[1].index == [[]]);
+    assert(inx.row.codes == [[1,2,3]]);
+    assert(inx.row.index == [[]]);
+    assert(inx.column.codes == [[1,2,3]]);
+    assert(inx.column.index == [[]]);
 
-    // Appending string to integer indexing[0].index
+    // Appending string to integer row.index
     inx.extend!0(["Hello"]);
-    assert(inx.indexing[0].index == [["1","2","3","Hello"]]);
-    assert(inx.indexing[0].codes == [[0,1,2,3]]);
+    assert(inx.row.index == [["1","2","3","Hello"]]);
+    assert(inx.row.codes == [[0,1,2,3]]);
 
-    // Appending integer to integer indexing[0].index
+    // Appending integer to integer row.index
     inx.extend!1([4]);
-    assert(inx.indexing[1].index == [[]]);
-    assert(inx.indexing[1].codes == [[1,2,3,4]]);
+    assert(inx.column.index == [[]]);
+    assert(inx.column.codes == [[1,2,3,4]]);
 
-    // Appending string to integer indexing[0].index
+    // Appending string to integer row.index
     inx.extend!1(["Hello"]);
-    assert(inx.indexing[1].index == [["1","2","3","4","Hello"]]);
-    assert(inx.indexing[1].codes == [[0,1,2,3,4]]);
+    assert(inx.column.index == [["1","2","3","4","Hello"]]);
+    assert(inx.column.codes == [[0,1,2,3,4]]);
 
     // Checking if optimize() is working
     inx.extend!1(["Arrow"]);
-    assert(inx.indexing[1].index == [["1","2","3","4","Arrow","Hello"]]);
-    assert(inx.indexing[1].codes == [[0,1,2,3,5,4]]);
+    assert(inx.column.index == [["1","2","3","4","Arrow","Hello"]]);
+    assert(inx.column.codes == [[0,1,2,3,5,4]]);
 }
 
-// Extending indexing[0].index with 2D array
+// Extending row.index with 2D array
 unittest
 {
     Index inx;
     inx.setIndex([["Hello", "Hi"], ["Hi", "Hello"]], ["Index", "Index"],
         [["Hello", "Hi"], ["Hi", "Hello"]], ["Index", "Index"]);
     inx.extend!0([["Hello", "Hi"], ["Hello", "Hi"]]);
-    assert(inx.indexing[0].index == [["Hello", "Hi"], ["Hello", "Hi"]]);
-    assert(inx.indexing[0].codes == [[0,1,0,0], [1,0,1,1]]);
+    assert(inx.row.index == [["Hello", "Hi"], ["Hello", "Hi"]]);
+    assert(inx.row.codes == [[0,1,0,0], [1,0,1,1]]);
     inx.extend!1([["Hello", "Hi"], ["Hello", "Hi"]]);
-    assert(inx.indexing[1].index == [["Hello", "Hi"], ["Hello", "Hi"]]);
-    assert(inx.indexing[1].codes == [[0,1,0,0], [1,0,1,1]]);
+    assert(inx.column.index == [["Hello", "Hi"], ["Hello", "Hi"]]);
+    assert(inx.column.codes == [[0,1,0,0], [1,0,1,1]]);
 }
