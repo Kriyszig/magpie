@@ -1,5 +1,6 @@
 module magpie.dataframe;
 
+import magpie.axis: Axis;
 import magpie.index: Index;
 import magpie.helper: getArgsList;
 
@@ -1023,6 +1024,9 @@ public:
     auto opIndex(Args...)(Args args)
         if(Args.length > 0 && Args.length < 3)
     {
+        static assert(is(Args[0] == string[]), "Indexes must be an array of string");
+        static if(Args.length > 1)
+            static assert(is(Args[1] == int), "Mention axis as 0 if you want to fetch a row");
         const int axis = (Args.length == 1)? 1: 0;
         int pos = -1;
         if(axis == 0)
@@ -1048,8 +1052,31 @@ public:
 
             return retrow;
         }
-
+        
         assert(0);
+    }
+
+    auto opIndexAssign(T...)(Axis!T elements, string[] index, int axis = 1)
+        if(T.length == RowType.length || T.length == 1)
+    {
+        if(axis == 1 && T.length == 1)
+        {
+            assert(elements.data.length == rows, "Length of Axis.data is not equal to number of rows");
+            int pos = getPosition!1(index);
+            assert(pos > -1, "Index not found");
+            static foreach(i; 0 .. RowType.length)
+                if(i == pos)
+                    static if(is(T[0] == FrameType[i]))
+                        data[i] = elements.data;
+        }
+        else
+        {
+            assert(elements.data.length == RowType.length, "Length of Axis.data is less than the number of columns");
+            int pos = getPosition!0(index);
+            assert(pos > -1, "Index not found");
+            static foreach(i; 0 .. RowType.length)
+                data[i][pos] = elements.data[i];
+        }
     }
 }
 
@@ -1364,6 +1391,69 @@ unittest
     assert(df[["Hi", "Hello", "24"], 0].data[1] == 2);
 }
 
+// Column binary Operation
+unittest
+{
+    DataFrame!(int, 3) df;
+    Index inx;
+    inx.setIndex([["Hello", "Hi"], ["Hi", "Hello"]], ["Index", "Index"]);
+    df.setFrameIndex(inx);
+    // df.display();
+
+    df.assign!1(0, [1, 4]);
+    df.assign!1(1, [1, 6]);
+    df.assign!1(2, [1, 8]);
+    // df.display();
+
+    df[["0"]] = df[["1"]] + df[["2"]];  
+    assert(df.data[0] == [2, 14]);
+    df[["Hello", "Hi"], 0] = df[["Hi", "Hello"], 0];
+    assert(df.data[0][0] == 14 && df.data[1][0] == 6 && df.data[2][0] == 8);
+    // df.display();
+
+    df[["0"]] = df[["1"]] - df[["2"]];  
+    assert(df.data[0] == [-2, -2]);
+    // df.display();
+
+    df[["0"]] = df[["1"]] * df[["2"]];  
+    assert(df.data[0] == [48, 48]);
+    // df.display();
+
+    df[["0"]] = df[["1"]] / df[["2"]];  
+    assert(df.data[0] == [0, 0]);
+    // df.display();
+
+    df[["0"]] = df[["1"]];
+    assert(df.data[0] == [6, 6]);
+}
+
+// Row binary operations
+unittest
+{
+    DataFrame!(int, 3) df;
+    Index inx;
+    inx.setIndex([["Hello", "Hi", "Hey"], ["Hi", "Hello", "Hey"]], ["Index", "Index", "Index"]);
+    df.setFrameIndex(inx);
+    // df.display();
+
+    df.assign!1(0, [1, 4, 8]);
+    df.assign!1(1, [1, 6, 9]);
+    df.assign!1(2, [1, 8, 17]);
+    
+    df[["Hello", "Hi"], 0] = df[["Hi", "Hello"], 0] + df[["Hey", "Hey"], 0];
+    assert(df.data[0][0] == 12 && df.data[1][0] == 15 && df.data[2][0] == 25);
+    
+    df[["Hello", "Hi"], 0] = df[["Hi", "Hello"], 0] - df[["Hey", "Hey"], 0];
+    assert(df.data[0][0] == -4 && df.data[1][0] == -3 && df.data[2][0] == -9);
+
+    df[["Hello", "Hi"], 0] = df[["Hi", "Hello"], 0] * df[["Hey", "Hey"], 0];
+    assert(df.data[0][0] == 32 && df.data[1][0] == 54 && df.data[2][0] == 136);
+
+    df[["Hello", "Hi"], 0] = df[["Hi", "Hello"], 0] / df[["Hey", "Hey"], 0];
+    assert(df.data[0][0] == 0 && df.data[1][0] == 0 && df.data[2][0] == 0);
+    
+    // df.display();
+}
 // Simple Data Frame
 unittest
 {
