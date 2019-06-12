@@ -1,12 +1,20 @@
 module magpie.axis;
 
+import std.datetime: DateTime;
+import std.traits: isArray;
+import std.variant: Algebraic;
+
+alias DataType = Algebraic!(int, long, float, double, string, DateTime);
+
 /++
 Structure to return an entire row or column of DataFrame.
 The operations on this structure enables column/row binary operations.
 +/
 struct Axis(T...)
 {
-    static if(T.length == 1)
+    static if(T.length == 1 && is(T[0] == void))
+        alias AxisType = DataType[];
+    else static if(T.length == 1 && isArray!(T[0]))
         alias AxisType = T[0];
     else
         alias AxisType = T;
@@ -50,10 +58,13 @@ struct Axis(T...)
             static if(U.length == 1)
             {
                 assert(data.length == rhs.data.length, "Size mismatch");
-
                 foreach(i; 0 .. data.length)
-                    ret.data ~= data[i] + rhs.data[i];
-
+                {  
+                    static if(is(T[0] == void))
+                        ret.data ~= DataType(data[i] + rhs.data[i]);
+                    else
+                        ret.data ~= data[i] + rhs.data[i];
+                }
                 return ret;                
             }
             else
@@ -71,8 +82,12 @@ struct Axis(T...)
                 assert(data.length == rhs.data.length, "Size mismatch");
 
                 foreach(i; 0 .. data.length)
-                    ret.data ~= data[i] - rhs.data[i];
-
+                {  
+                    static if(is(T[0] == void))
+                        ret.data ~= DataType(data[i] - rhs.data[i]);
+                    else
+                        ret.data ~= data[i] - rhs.data[i];
+                }
                 return ret;                
             }
             else
@@ -90,8 +105,12 @@ struct Axis(T...)
                 assert(data.length == rhs.data.length, "Size mismatch");
 
                 foreach(i; 0 .. data.length)
-                    ret.data ~= data[i] * rhs.data[i];
-
+                {  
+                    static if(is(T[0] == void))
+                        ret.data ~= DataType(data[i] * rhs.data[i]);
+                    else
+                        ret.data ~= data[i] * rhs.data[i];
+                }
                 return ret;                
             }
             else
@@ -109,8 +128,12 @@ struct Axis(T...)
                 assert(data.length == rhs.data.length, "Size mismatch");
 
                 foreach(i; 0 .. data.length)
-                    ret.data ~= data[i] / rhs.data[i];
-
+                {  
+                    static if(is(T[0] == void))
+                        ret.data ~= DataType(data[i] / rhs.data[i]);
+                    else
+                        ret.data ~= data[i] / rhs.data[i];
+                }
                 return ret;                
             }
             else
@@ -347,4 +370,68 @@ unittest
         assert(approxEqual(res.data[i], a1.data[i] / a2.data[i], 1e-3));
         assert(approxEqual(res2.data[i], a1.data[i] / a2.data[i] / a3.data[i] / a4.data[i], 1e-3));
     }
+}
+
+// Axis with data of type Variant
+unittest
+{
+    Axis!(void) a;
+    foreach(i; 0 .. 5)
+        a.data ~= DataType(i + 1.7);
+    assert(a.data == [1.7, 2.7, 3.7, 4.7, 5.7]);
+}
+
+// Bianry Ops on Variant Axis
+unittest
+{
+    Axis!(void) a;
+    Axis!(void) b;
+    foreach(i; 0 .. 5)
+    {
+        a.data ~= DataType(i + 1.7);
+        b.data ~= DataType(i);
+    }
+
+    auto c = a + b;
+    assert(c.data == [1.7, 3.7, 5.7, 7.7, 9.7]);
+    assert(typeid(a) == typeid(c));
+
+    c = a - b;
+    import std.math: approxEqual;
+    foreach(i; c.data)
+        assert(approxEqual(i.get!double, 1.7, 1e-1));
+
+    c = a * b;
+    foreach(i; 0 .. 5)
+        assert(approxEqual(c.data[i].get!double, ((i + 1.7) * i), 1e-2));
+
+    c = b / a;
+    foreach(i; 0 .. 5)
+        assert(approxEqual(c.data[i].get!double, (i / (i + 1.7)), 1e-4));
+}
+
+// Binary Ops on Variant + Other DataType
+unittest
+{
+    Axis!(void) a;
+    Axis!(int[]) b;
+
+    foreach(i; 0 .. 5)
+    {
+        a.data ~= DataType(i + 1.7);
+        b.data ~= i;
+    }
+
+    auto c = a + b;
+    assert(c.data == [1.7, 3.7, 5.7, 7.7, 9.7]);
+    assert(typeid(a) == typeid(c));
+
+    c = a - b;
+    import std.math: approxEqual;
+    foreach(i; c.data)
+        assert(approxEqual(i.get!double, 1.7, 1e-1));
+
+    c = a * b;
+    foreach(i; 0 .. 5)
+        assert(approxEqual(c.data[i].get!double, ((i + 1.7) * i), 1e-2));
 }
