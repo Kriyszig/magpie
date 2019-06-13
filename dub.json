@@ -2,12 +2,8 @@
 	"name": "magpie",
 	"targetType": "library",
 	"description": "Data analysis / manipulation library for D",
-	"license": "proprietary",
+	"license": "BSL-1.0",
 	"authors": [
-		"Norman"
-	],
-	"copyright": "Copyright © 2019, Norman",
-	"dependencies": {
-		"mir-algorithm": "~>3.4.6"
-	}
+		"Prateek Nayak"
+	]
 }
