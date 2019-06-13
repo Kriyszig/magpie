@@ -1038,10 +1038,14 @@ public:
 
         static if(axis == 1)
         {
-            import magpie.axis: Axis;
+            import magpie.axis: Axis, DataType;
+            Axis!void retcol;
             static foreach(i; 0 .. RowType.length)
                 if(i == pos)
-                    return Axis!(FrameType[i])(data[i]);
+                    foreach(j; data[i])
+                        retcol.data ~= DataType(j);
+            
+            return retcol;
         }
         else
         {
@@ -1056,18 +1060,33 @@ public:
         assert(0);
     }
 
+    /++
+    Column/Row binary operations
+    df[["CIndex1"]] = df[["CIndex2"]] + df[["CIndex3"]];
+    df[["RIndex1"], 0] = df[["RIndex2"], 0] + df[["RIndex3"], 0]; 
+    +/
     auto opIndexAssign(T...)(Axis!T elements, string[] index, int axis = 1)
         if(T.length == RowType.length || T.length == 1)
     {
-        if(axis == 1 && T.length == 1)
+        static if(is(T[0] == void))
         {
             assert(elements.data.length == rows, "Length of Axis.data is not equal to number of rows");
             int pos = getPosition!1(index);
             assert(pos > -1, "Index not found");
             static foreach(i; 0 .. RowType.length)
                 if(i == pos)
-                    static if(is(T[0] == FrameType[i]))
-                        data[i] = elements.data;
+                    foreach(j; 0 .. elements.data.length)
+                    {
+                        import std.variant: VariantException;
+                        try
+                        {
+                            data[i][j] = elements.data[j].get!(RowType[i]);
+                        }
+                        catch(VariantException e)
+                        {
+                            data[i][j] = cast(RowType[i])elements.data[j].get!(double);
+                        }
+                    }
         }
         else
         {
@@ -1454,6 +1473,57 @@ unittest
     
     // df.display();
 }
+
+// Column Binary Operation - Heterogeneous DataFrame
+unittest
+{
+    DataFrame!(int, 2, double, 2) df;
+    Index inx;
+    inx.setIndex([["Hello", "Hi"], ["Hi", "Hello"]], ["Index", "Index"]);
+    df.setFrameIndex(inx);
+    // df.display();
+
+    df.assign!1(0, [1, 4]);
+    df.assign!1(1, [1, 6]);
+    df.assign!1(2, [1.9, 8.4]);
+    df.assign!1(3, [9.2, 4.6]);
+    // df.display();
+
+    df[["0"]] = df[["1"]];
+    assert(df.data[0] == [1, 6]);
+
+    // If for some reason float is assigned to int, it gets explicitly converted
+    // Supported only for floating point -> Integral kind
+    df[["0"]] = df[["2"]];
+    assert(df.data[0] == [1, 8]);
+
+    df[["1"]] = df[["2"]] + df[["3"]];
+    assert(df.data[1] == [11, 13]);
+
+    df[["0"]] = df[["1"]] + df[["2"]] + df[["3"]];
+    assert(df.data[0] == [22, 26]);
+
+    df[["3"]] = df[["0"]];
+    assert(df.data[3] == [22, 26]);
+
+    df[["0"]] = df[["1"]] + df[["2"]] * df[["3"]];
+    foreach(i; 0 .. 2)
+        assert(df.data[0][i] == cast(int)(df.data[1][i] + df.data[2][i] * df.data[3][i]));
+
+    df[["0"]] = df[["1"]] - df[["2"]] / df[["3"]];
+    foreach(i; 0 .. 2)
+        assert(df.data[0][i] == cast(int)(df.data[1][i] - df.data[2][i] / df.data[3][i]));
+
+    import std.math: approxEqual;
+    df[["2"]] = df[["0"]] * df[["1"]] / df[["3"]];
+    foreach(i; 0 .. 2)
+        assert(approxEqual(df.data[2][i], df.data[0][i] * df.data[1][i] / df.data[3][i], 1e-3));
+
+    df[["3"]] = df[["2"]] / df[["1"]] / df[["0"]];
+    foreach(i; 0 .. 2)
+        assert(approxEqual(df.data[3][i], df.data[2][i] / df.data[1][i] / df.data[0][i], 1e-3));
+}
+
 // Simple Data Frame
 unittest
 {
