@@ -4,7 +4,7 @@ import std.datetime: DateTime;
 import std.traits: isArray;
 import std.variant: Algebraic;
 
-alias DataType = Algebraic!(int, long, float, double, string, DateTime);
+alias DataType = Algebraic!(bool, int, long, float, double, string, DateTime);
 
 /++
 Structure to return an entire row or column of DataFrame.
@@ -33,9 +33,30 @@ struct Axis(T...)
         import std.conv: to;
         static if(U.length == 1)
         {
-            Axis!U ret;
-            ret.data = to!(U[0])(data);
-            return ret;
+            static if(is(T[0] == void))
+            {
+                Axis!U ret;
+                foreach(i; data)
+                {
+                    import std.variant: VariantException;
+                    try
+                    {
+                        ret.data ~= i.get!(U[0]);
+                    }
+                    catch(VariantException e)
+                    {
+                        ret.data ~= to!(U[0])([i.get!(double)]);
+                    }
+                }
+
+                return ret;
+            }
+            else
+            {
+                Axis!U ret;
+                ret.data = to!(U[0])(data);
+                return ret;
+            }
         }
         else
         {
@@ -49,10 +70,14 @@ struct Axis(T...)
     /++
     Binary Operations on DataFrame row/column
     +/
-    Axis!T opBinary(string op, U...)(Axis!U rhs)
+    auto opBinary(string op, U...)(Axis!U rhs)
         if(U.length == T.length)
     {
-        Axis!T ret;
+        static if(is(T[0] == void) || is(U[0] == void))
+            Axis!void ret;
+        else
+            Axis!T ret;
+        
         static if(op == "+")
         {
             static if(U.length == 1)
@@ -129,8 +154,8 @@ struct Axis(T...)
 
                 foreach(i; 0 .. data.length)
                 {  
-                    static if(is(T[0] == void))
-                        ret.data ~= DataType(data[i] / rhs.data[i]);
+                    static if(is(T[0] == void) || is(U[0] == void))
+                        ret.data ~= DataType(DataType(data[i]) / DataType(rhs.data[i]));
                     else
                         ret.data ~= data[i] / rhs.data[i];
                 }
@@ -434,4 +459,23 @@ unittest
     c = a * b;
     foreach(i; 0 .. 5)
         assert(approxEqual(c.data[i].get!double, ((i + 1.7) * i), 1e-2));
+
+    c = b / a;
+    foreach(i; 0 .. 5)
+        assert(approxEqual(c.data[i].get!double, (i / (i + 1.7)), 1e-4));
+}
+
+// Converting Variant Axis to other types
+unittest
+{
+    Axis!(void) a;
+
+    foreach(i; 0 .. 5)
+    {
+        a.data ~= DataType(i + 1.7);
+    }
+
+    auto b = a.convertTo!(int[]);
+    assert(is(typeof(b.data) == int[]));
+    assert(b.data == [1, 2, 3, 4, 5]);
 }

@@ -1522,6 +1522,10 @@ unittest
     df[["3"]] = df[["2"]] / df[["1"]] / df[["0"]];
     foreach(i; 0 .. 2)
         assert(approxEqual(df.data[3][i], df.data[2][i] / df.data[1][i] / df.data[0][i], 1e-3));
+
+    df[["Hello", "Hi"], 0] = df[["Hi", "Hello"], 0];
+    static foreach(i; 0 .. 4)
+        assert(approxEqual(df.data[i][0], df.data[i][1], 1e-3));
 }
 
 // Simple Data Frame

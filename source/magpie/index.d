@@ -48,11 +48,9 @@ public:
                     try
                     {
                         import std.array: appender;
-                        auto inx = appender!(string[]);
+                        auto inx = to!(int[])(indexing[k].index[i]);
                         foreach(j; 0 .. indexing[k].codes[i].length)
-                            inx.put(indexing[k].index[i][indexing[k].codes[i][j]]);
-                        int[] codes = to!(int[])(inx.data);
-                        indexing[k].codes[i] = codes;
+                            indexing[k].codes[i][j] = inx[indexing[k].codes[i][j]];
                         indexing[k].index[i] = [];
                     }
                     catch(ConvException e)
@@ -63,6 +61,51 @@ public:
                 }
             }
         }
+    }
+
+    /++
+    void generateCodes()
+    Description: Function to generate index codes for given index array
+    (Removes repetition)
+    +/
+    void generateCodes()
+    {
+        foreach(i; 0 .. 2)
+        {
+            foreach(j; 0 .. indexing[i].index.length)
+            {
+                if(indexing[i].index[j].length > 0 && indexing[i].codes[j].length == 0)
+                {
+                    int[string] pos;
+                    string[] index;
+                    int[] codes;
+
+                    int current = 0;
+                    foreach(k; 0 .. indexing[i].index[j].length)
+                    {
+                        import core.exception: RangeError;
+                        try
+                        {
+                            int p = pos[indexing[i].index[j][k]];
+                            codes ~= [p];
+                        }
+                        catch(RangeError e)
+                        {
+                            index ~= indexing[i].index[j][k];
+                            pos[indexing[i].index[j][k]] = current;
+                            codes ~= current;
+
+                            ++current;
+                        }
+                    }
+
+                    indexing[i].index[j] = index;
+                    indexing[i].codes[j] = codes;
+                }
+            }
+        }
+
+        optimize();
     }
 
     /++
@@ -101,25 +144,10 @@ public:
                     foreach(i; 0 .. args[j * 2].length)
                         assert(args[j * 2][i].length == args[j * 2][0].length && args[j * 2][0].length > 0, "Inner dimension of indexes are unequal");
                     
+                    indexing[j].index = args[j * 2];
                     foreach(i; 0 .. args[j * 2].length)
-                    {
-                        indexing[j].index ~= [[]];
                         indexing[j].codes ~= [[]];
-                        foreach(k; 0 .. args[j * 2][i].length)
-                        {
-                            import std.algorithm: countUntil;
-                            int pos = cast(int)countUntil(indexing[j].index[i], args[j * 2][i][k]);
-                            if(pos > -1)
-                            {
-                                indexing[j].codes[i] ~= pos;
-                            }
-                            else
-                            {
-                                indexing[j].index[i] ~= args[j * 2][i][k];
-                                indexing[j].codes[i] ~= cast(int)indexing[j].index[i].length - 1;
-                            }
-                        }
-                    }
+
                 }
                 else static if(is(Args[j * 2] == int[][]))
                 {
@@ -138,7 +166,7 @@ public:
                 indexing[j].titles = args[j*2 + 1];
         }
         
-
+        generateCodes();
         optimize();
     }
 
@@ -405,4 +433,41 @@ unittest
     inx.extend!1([["Hello", "Hi"], ["Hello", "Hi"]]);
     assert(inx.column.index == [["Hello", "Hi"], ["Hello", "Hi"]]);
     assert(inx.column.codes == [[0,1,0,0], [1,0,1,1]]);
+}
+
+
+// Test for code generation
+unittest
+{
+    Index inx;
+    inx.indexing[0].index = [[]];
+    inx.indexing[0].codes = [[]];
+    foreach(i; 0 .. 100)
+        inx.indexing[0].index[0] ~= "Hello";
+    
+    inx.generateCodes();
+    assert(inx.indexing[0].index[0].length == 1);
+    assert(inx.indexing[0].codes[0].length == 100);
+    foreach(i; 0 .. 100)
+        assert(inx.indexing[0].codes[0][i] == 0);
+}
+
+// Test for code generation
+unittest
+{
+    Index inx;
+    inx.indexing[0].index = [[]];
+    inx.indexing[0].codes = [[]];
+    foreach(i; 0 .. 100)
+        inx.indexing[0].index[0] ~= "Hello";
+    foreach(i; 0 .. 100)
+        inx.indexing[0].index[0] ~= "Allo";
+    
+    inx.generateCodes();
+    assert(inx.indexing[0].index[0].length == 2);
+    assert(inx.indexing[0].codes[0].length == 200);
+    foreach(i; 0 .. 100)
+        assert(inx.indexing[0].codes[0][i] == 1);
+    foreach(i; 100 .. 200)
+        assert(inx.indexing[0].codes[0][i] == 0);
 }
