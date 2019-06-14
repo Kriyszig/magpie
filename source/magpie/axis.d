@@ -1,6 +1,7 @@
 module magpie.axis;
 
 import std.datetime: DateTime;
+import std.range.primitives: ElementType;
 import std.traits: isArray;
 import std.variant: Algebraic;
 
@@ -41,11 +42,11 @@ struct Axis(T...)
                     import std.variant: VariantException;
                     try
                     {
-                        ret.data ~= i.get!(U[0]);
+                        ret.data ~= i.get!(ElementType!(U[0]));
                     }
                     catch(VariantException e)
                     {
-                        ret.data ~= to!(U[0])([i.get!(double)]);
+                        ret.data ~= to!(ElementType!(U[0]))(i.get!(double));
                     }
                 }
 
@@ -478,4 +479,11 @@ unittest
     auto b = a.convertTo!(int[]);
     assert(is(typeof(b.data) == int[]));
     assert(b.data == [1, 2, 3, 4, 5]);
+
+    auto c = a.convertTo!(double[]);
+    assert(is(typeof(c.data) == double[]));
+
+    import std.math: approxEqual;
+    foreach(i; 0 .. 5)
+        assert(approxEqual(c.data[i], (i + 1.7), 1e-1));
 }
