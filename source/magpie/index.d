@@ -170,6 +170,63 @@ public:
         optimize();
     }
 
+    void constructFromPairs(Args...)(Args args)
+        if(Args.length > 1 && Args.length < 5)
+    {
+        this = Index();
+
+        static foreach(j; 0 .. 2)
+        {
+            static if(Args.length > 2 * j)
+            {
+                static if(is(Args[j* 2] == string[][]))
+                {
+                    assert(args[j * 2].length > 0, "Can't construct index from empty array");
+                    assert(args[j * 2][0].length > 0, "Inner dimension cannot be 0");
+                    foreach(i; 0 .. args[j * 2].length)
+                        assert(args[j * 2][i].length == args[j * 2][0].length, "Inner dimension of indexes are unequal");
+                    
+                    // indexing[j].index = args[j * 2];
+                    foreach(i; 0 .. args[j * 2][0].length)
+                    {
+                        indexing[j].index ~= [[]];
+                        indexing[j].codes ~= [[]];
+                    }
+                    foreach(i; 0 .. args[j * 2].length)
+                        foreach(k; 0 .. args[j * 2][0].length)
+                            indexing[j].index[k] ~= args[j * 2][i][k];
+
+                }
+                else static if(is(Args[j * 2] == int[][]))
+                {
+                    assert(args[j * 2].length > 0, "Can't construct index from empty array");
+                    size_t len = args[j * 2][0].length;
+                    assert(len > 0, "Inner dimension cannot be 0");
+                    foreach(i; 0 .. args[j * 2].length)
+                        assert(args[j * 2][i].length == len, "Inner dimension of index not equal");
+                    
+                    foreach(i; 0 .. args[j * 2][0].length)
+                    {
+                        indexing[j].index ~= [[]];
+                        indexing[j].codes ~= [[]];
+                    }
+                    foreach(i; 0 .. args[j * 2].length)
+                        foreach(k; 0 .. args[j * 2][0].length)
+                            indexing[j].codes[k] ~= args[j * 2][i][k];
+                }
+            }
+
+            static if(Args.length > j * 2 + 1)
+            {
+                assert(args[j * 2 + 1].length == indexing[j].index.length);
+                indexing[j].titles = args[j*2 + 1];
+            }
+        }
+        
+        generateCodes();
+        optimize();
+    }
+
     /++
     void extend(int axis, T)(T next)
     Description:Extends row.index
@@ -470,4 +527,75 @@ unittest
         assert(inx.indexing[0].codes[0][i] == 1);
     foreach(i; 100 .. 200)
         assert(inx.indexing[0].codes[0][i] == 0);
+}
+
+// Constructing from pairs
+unittest
+{
+    Index inx;
+    inx.constructFromPairs([["Hi", "Hello"], ["Yo", "Ahoy"], ["Yx", "Azoy"]], ["Index1", "Index2"]);
+    assert(inx.row.index == [["Hi", "Yo", "Yx"], ["Ahoy", "Azoy", "Hello"]]);
+    assert(inx.row.codes == [[0, 1, 2], [2, 0, 1]]);
+    assert(inx.row.titles == ["Index1", "Index2"]);
+}
+
+// Constructing from pairs
+unittest
+{
+    Index inx;
+    inx.constructFromPairs([["Hi", "Hello"], ["Yo", "Ahoy"], ["Yx", "Azoy"]], ["Index1", "Index2"],
+        [["Hi", "Hello"], ["Yo", "Ahoy"], ["Yx", "Azoy"]]);
+    assert(inx.row.index == [["Hi", "Yo", "Yx"], ["Ahoy", "Azoy", "Hello"]]);
+    assert(inx.row.codes == [[0, 1, 2], [2, 0, 1]]);
+    assert(inx.row.titles == ["Index1", "Index2"]);
+
+    assert(inx.column.index == [["Hi", "Yo", "Yx"], ["Ahoy", "Azoy", "Hello"]]);
+    assert(inx.column.codes == [[0, 1, 2], [2, 0, 1]]);
+
+    inx.constructFromPairs([["Hi", "Hello"], ["Yo", "Ahoy"], ["Yx", "Azoy"]], ["Index1", "Index2"],
+        [["Hi", "Hello"], ["Yo", "Ahoy"], ["Yx", "Azoy"]],["Index1", "Index2"]);
+    assert(inx.column.index == [["Hi", "Yo", "Yx"], ["Ahoy", "Azoy", "Hello"]]);
+    assert(inx.column.codes == [[0, 1, 2], [2, 0, 1]]);
+    assert(inx.column.titles == ["Index1", "Index2"]);
+}
+
+// Constructing from pairs
+unittest
+{
+    Index inx;
+    inx.constructFromPairs([[1, 2], [2, 3], [3, 4]], ["Index1", "Index2"],
+        [["Hi", "Hello"], ["Yo", "Ahoy"], ["Yx", "Azoy"]]);
+    assert(inx.row.index == [[], []]);
+    assert(inx.row.codes == [[1, 2, 3], [2, 3, 4]]);
+    assert(inx.row.titles == ["Index1", "Index2"]);
+
+    assert(inx.column.index == [["Hi", "Yo", "Yx"], ["Ahoy", "Azoy", "Hello"]]);
+    assert(inx.column.codes == [[0, 1, 2], [2, 0, 1]]);
+
+    inx.constructFromPairs([["Hi", "Hello"], ["Yo", "Ahoy"], ["Yx", "Azoy"]], ["Index1", "Index2"],
+        [[1, 2], [2, 3], [3, 4]], ["Index1", "Index2"]);
+    assert(inx.row.index == [["Hi", "Yo", "Yx"], ["Ahoy", "Azoy", "Hello"]]);
+    assert(inx.row.codes == [[0, 1, 2], [2, 0, 1]]);
+    assert(inx.row.titles == ["Index1", "Index2"]);
+
+    assert(inx.column.index == [[], []]);
+    assert(inx.column.codes == [[1, 2, 3], [2, 3, 4]]);
+    assert(inx.column.titles == ["Index1", "Index2"]);
+
+    // Checking if extend still works
+    inx.extend!0(["Zing", "Zang"]);
+    assert(inx.row.index == [["Hi", "Yo", "Yx", "Zing"], ["Ahoy", "Azoy", "Hello", "Zang"]]);
+    assert(inx.row.codes == [[0, 1, 2, 3], [2, 0, 1, 3]]);
+    assert(inx.row.titles == ["Index1", "Index2"]);
+
+    inx.extend!1([4, 5]);
+    assert(inx.column.index == [[], []]);
+    assert(inx.column.codes == [[1, 2, 3, 4], [2, 3, 4, 5]]);
+    assert(inx.column.titles == ["Index1", "Index2"]);
+
+    // Checking if extend still converts
+    inx.extend!1(["Zing", "Zang"]);
+    assert(inx.column.index == [["1", "2", "3", "4", "Zing"], ["2", "3", "4", "5", "Zang"]]);
+    assert(inx.column.codes == [[0, 1, 2, 3, 4], [0, 1, 2, 3, 4]]);
+    assert(inx.column.titles == ["Index1", "Index2"]);
 }

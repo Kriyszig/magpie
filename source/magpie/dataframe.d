@@ -862,7 +862,7 @@ public:
         
         foreach(i; 0 .. 2)
         {
-            if(index.indexing[i].codes.length > 0 && index.indexing[i].codes[0].length >= (i)? cols: rows)
+            if(index.indexing[i].codes.length > 0 && index.indexing[i].codes[0].length >= ((i)? cols: rows))
             {
                 indx.indexing[i].codes = index.indexing[i].codes;
                 indx.indexing[i].index = index.indexing[i].index;
@@ -1125,6 +1125,27 @@ unittest
     import std.traits: Fields;
     DataFrame!(true, Fields!Example) df;
     assert(is(typeof(df.data) == AliasSeq!(int[], double[])));
+}
+
+// Community suggested way to declare a DataFrame
+unittest
+{
+    DataFrame!(int[3], double) df;
+    assert(is(df.RowType == AliasSeq!(int, int, int, double)));
+}
+
+// Community suggested way to declare a DataFrame - from struct
+unittest
+{
+    struct Example
+    {
+        int[2] x;
+        double[2] y;
+    }
+
+    import std.traits: Fields;
+    DataFrame!(Fields!Example) df;
+    assert(is(df.RowType == AliasSeq!(int, int, double, double)));
 }
 
 // Getting element from it's index
@@ -1526,6 +1547,65 @@ unittest
     df[["Hello", "Hi"], 0] = df[["Hi", "Hello"], 0];
     static foreach(i; 0 .. 4)
         assert(approxEqual(df.data[i][0], df.data[i][1], 1e-3));
+}
+
+// Row binary Operation on Heterogeneous DataFrame
+unittest
+{
+    DataFrame!(int, 2, double, 2) df;
+    Index inx;
+    inx.setIndex([["Hello", "Hi", "Hey", "Ahoy"], ["Hi", "Hello", "Ahoy", "Hey"]], ["Index", "Index"]);
+    df.setFrameIndex(inx);
+    // df.display();
+
+    df.assign!1(0, [1, 4, 7, 8]);
+    df.assign!1(1, [1, 6, 13, 45]);
+    df.assign!1(2, [1.9, 8.4, 17.2, 34.3]);
+    df.assign!1(3, [9.2, 4.6, 19.6, 44.3]);
+    // df.display();
+
+    import std.math: approxEqual;
+    df[["Hello", "Hi"], 0] = df[["Hi", "Hello"], 0] + df[["Hey", "Ahoy"], 0] * df[["Ahoy", "Hey"], 0];
+    static foreach(i; 0 .. 4)
+        assert(approxEqual(df.data[i][0], df.data[i][1] + df.data[i][2] * df.data[i][3], 1e-1));
+
+    df[["Hello", "Hi"], 0] = df[["Hi", "Hello"], 0] * df[["Hey", "Ahoy"], 0] / df[["Ahoy", "Hey"], 0];
+    static foreach(i; 0 .. 4)
+        assert(approxEqual(df.data[i][0], df.data[i][1] * df.data[i][2] / df.data[i][3], 1e-1));
+    
+    df[["Hello", "Hi"], 0] = df[["Hi", "Hello"], 0] * df[["Hey", "Ahoy"], 0] * df[["Ahoy", "Hey"], 0];
+    static foreach(i; 0 .. 4)
+        assert(approxEqual(df.data[i][0], df.data[i][1] * df.data[i][2] * df.data[i][3], 1e-1));
+
+    df[["Hello", "Hi"], 0] = df[["Hi", "Hello"], 0] / df[["Hey", "Ahoy"], 0] / df[["Ahoy", "Hey"], 0];
+    static foreach(i; 0 .. 4)
+        assert(approxEqual(df.data[i][0], df.data[i][1] / df.data[i][2] / df.data[i][3], 1e-1));
+
+    df[["Hello", "Hi"], 0] = (df[["Hi", "Hello"], 0] + df[["Hey", "Ahoy"], 0]) * df[["Ahoy", "Hey"], 0];
+    static foreach(i; 0 .. 4)
+        assert(approxEqual(df.data[i][0], (df.data[i][1] + df.data[i][2]) * df.data[i][3], 1e-1));
+
+    df[["Hi", "Hello"], 0] = (df[["Hello", "Hi"], 0] + df[["Hey", "Ahoy"], 0]) * df[["Ahoy", "Hey"], 0];
+    static foreach(i; 0 .. 4)
+        assert(approxEqual(df.data[i][1], (df.data[i][0] + df.data[i][2]) * df.data[i][3], 1e-1));
+
+    df[["Hi", "Hello"], 0] = (df[["Hello", "Hi"], 0] - df[["Hey", "Ahoy"], 0]) / df[["Ahoy", "Hey"], 0];
+    static foreach(i; 0 .. 4)
+        assert(approxEqual(df.data[i][1], (df.data[i][0] - df.data[i][2]) / df.data[i][3], 1e-1));
+}
+
+// Checking if pattern matching for steIndex works - If an index isn't assignable, it's overlooked
+unittest
+{
+    DataFrame!(double, 2, int) df;
+    Index inx;
+    inx.setIndex([["Hello", "Hi"], ["Hi", "Hello"]], ["Index", "Index"], [["Hello", "Hi"], ["Hi", "Hello"]]);
+    df.setFrameIndex(inx);
+    
+    assert(df.indx.column.index == [[]]);
+    assert(df.indx.column.codes == [[0, 1, 2]]);
+    assert(df.indx.row.index == [["Hello", "Hi"], ["Hello", "Hi"]]);
+    assert(df.indx.row.codes == [[0, 1], [1, 0]]);
 }
 
 // Simple Data Frame
