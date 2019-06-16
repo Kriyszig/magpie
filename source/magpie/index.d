@@ -1,5 +1,7 @@
 module magpie.index;
 
+import std.range: Zip, zip;
+
 /++
 Structure for DataFrame Indexing
 +/
@@ -170,6 +172,18 @@ public:
         optimize();
     }
 
+    /++
+    void constructFromPairs(Args...)(Args args)
+    Description: Constructing index row wise
+    [["Hello", "Hi"], ["Hello", "Hi"], ["Hello", "Hi"]] will generate
+    Hello  Hi
+    Hello  Hi
+    Hello  Hi
+    @params: rowindex - Can be a 1D or 2D array of int or string
+    @params: rowindexTitles - 1D array of string
+    @params?: columnindex - Can be a 1D or 2D array of int or string
+    @params?: columnIndexTitles - 1D array of string
+    +/
     void constructFromPairs(Args...)(Args args)
         if(Args.length > 1 && Args.length < 5)
     {
@@ -225,6 +239,94 @@ public:
         
         generateCodes();
         optimize();
+    }
+
+    /++
+    void constructFromZip(int axis, T...)(Zip!T index, string[] titles = [])
+    Description: Constructing Index from a Zip range
+    @params: axis - 0 for Row and 1 for Column
+    @params: index - Zip from which index will be constructed
+    @params?: titles - titles for index levels
+    +/
+    void constructFromZip(int axis, T...)(Zip!T index, string[] titles = [])
+    {
+        assert(index.length > 0, "Cannot construct index out of empty zip");
+        if(titles.length > 0 || axis == 0)
+            assert(titles.length == index[0].length);
+
+        indexing[axis] = Indexing();
+
+        static foreach(i; 0 .. T.length)
+        {
+            indexing[axis].index ~= [[]];
+            indexing[axis].codes ~= [[]];
+        }
+
+        foreach(i; 0 .. index.length)
+        {
+            import std.conv: to;
+            static foreach(j; 0 .. T.length)
+                indexing[axis].index[j] ~= to!string(index[i][j]);
+        }
+
+        if(titles.length > 0)
+            indexing[axis].titles = titles;     
+               
+        generateCodes();
+        optimize();
+    }
+
+    /++
+    void constructFromLevels(int axis)(string[][] index, string[] titles = [])
+    Description: Construct multi - index based on levels
+    [["Owl", "Kiwi"], ["Wild", "Domestic"]] will generate:
+    OWl   Wild
+    Owl   Domestic
+    Kiwi  Wild
+    Kiwi Domestic
+    @params: axis - 0 for rows, 1 for columns
+    @params: index - 2D array of string with each unique level index
+    @params?: titles - Titles for each index level
+    +/
+    void constructFromLevels(int axis)(string[][] index, string[] titles = [])
+    {
+        assert(index.length > 0, "Cannot construct indexes with empty levels");
+        import std.algorithm: map, reduce, min;
+        assert(index.map!(e => e.length).reduce!min > 0, "Index cannot have empty level");
+        assert(axis || titles.length == index.length, "Size of titles don't match level od indexing");
+        
+        indexing[axis] = Indexing();
+        indexing[axis].index = index;
+        foreach(i; 0 .. index.length)
+            indexing[axis].codes ~= [[]];
+        
+        // Generating codes and optimizing first because constructing levels is just repeating code [Index remains untouched]
+        generateCodes();
+        optimize();
+        
+        foreach(i; 1 .. indexing[axis].index.length)
+        {
+            size_t r1 = indexing[axis].codes[i].length;
+            size_t r2 = indexing[axis].codes[i - 1].length;
+            
+            foreach(j; 0 .. i)
+            {
+                int[] u = indexing[axis].codes[j];
+                int[] newIndex = [];
+                foreach(k; 0 .. indexing[axis].codes[j].length)
+                    foreach(l; 0 .. r1)
+                        newIndex ~= indexing[axis].codes[j][k];
+                
+                indexing[axis].codes[j] = newIndex;
+            }
+
+            int[] u = indexing[axis].codes[i];
+            foreach(j; 1 .. r2)
+                indexing[axis].codes[i] ~= u;
+        }
+
+        if(titles.length > 0)
+            indexing[axis].titles = titles;
     }
 
     /++
@@ -598,4 +700,83 @@ unittest
     assert(inx.column.index == [["1", "2", "3", "4", "Zing"], ["2", "3", "4", "5", "Zang"]]);
     assert(inx.column.codes == [[0, 1, 2, 3, 4], [0, 1, 2, 3, 4]]);
     assert(inx.column.titles == ["Index1", "Index2"]);
+}
+
+// Generate index from Zip
+unittest
+{
+    Index inx;
+    auto z = zip([1, 2, 3, 4], ["Hello", "Hi", "Hello", "Hi"]);
+    inx.constructFromZip!0(z, ["Index1", "Index2"]);
+    assert(inx.row.index == [[], ["Hello", "Hi"]]);
+    assert(inx.row.codes == [[1, 2, 3, 4], [0, 1, 0 ,1]]);
+    assert(inx.row.titles == ["Index1", "Index2"]);
+
+    // Column without titles
+    auto zc = zip([1, 2, 3, 4], ["Hello", "Ho", "Hello", "Ho"]);
+    inx.constructFromZip!1(zc);
+    assert(inx.column.index == [[], ["Hello", "Ho"]]);
+    assert(inx.column.codes == [[1, 2, 3, 4], [0, 1, 0 ,1]]);
+    assert(inx.column.titles == []);
+
+    // Columns with titles
+    inx.constructFromZip!1(zc, ["Index1", "Index2"]);
+    assert(inx.column.index == [[], ["Hello", "Ho"]]);
+    assert(inx.column.codes == [[1, 2, 3, 4], [0, 1, 0 ,1]]);
+    assert(inx.column.titles == ["Index1", "Index2"]);
+
+    // Checking if row indexing remains un touched
+    assert(inx.row.index == [[], ["Hello", "Hi"]]);
+    assert(inx.row.codes == [[1, 2, 3, 4], [0, 1, 0 ,1]]);
+    assert(inx.row.titles == ["Index1", "Index2"]);
+
+    // Checking if extend works
+    inx.extend!0(["Zing", "Zang"]);
+    assert(inx.row.index == [["1", "2", "3", "4", "Zing"], ["Hello", "Hi", "Zang"]]);
+    assert(inx.row.codes == [[0, 1, 2, 3, 4], [0, 1, 0, 1, 2]]);
+    assert(inx.row.titles == ["Index1", "Index2"]);
+
+    // Checking if extend works
+    inx.extend!1(["Zing", "Zang"]);
+    assert(inx.column.index == [["1", "2", "3", "4", "Zing"], ["Hello", "Ho", "Zang"]]);
+    assert(inx.column.codes == [[0, 1, 2, 3, 4], [0, 1, 0, 1, 2]]);
+    assert(inx.column.titles == ["Index1", "Index2"]);
+}
+
+// Generate index from levels
+unittest
+{
+    Index inx;
+    inx.constructFromLevels!0([["Air", "Water"], ["Transportation"], ["Net Income", "Gross Income"]], ["Index1", "Index2", "Index3"]);
+    assert(inx.row.index == [["Air", "Water"], ["Transportation"], ["Gross Income", "Net Income"]]);
+    assert(inx.row.codes == [[0, 0, 1, 1], [0, 0, 0, 0], [1, 0, 1, 0]]);
+    assert(inx.row.titles == ["Index1", "Index2", "Index3"]);
+
+    inx.constructFromLevels!0([["Air", "Water"], ["Transportation", "Something"], ["Net Income", "Gross Income"]], ["Index1", "Index2", "Index3"]);
+    assert(inx.row.index == [["Air", "Water"], ["Something", "Transportation"], ["Gross Income", "Net Income"]]);
+    assert(inx.row.codes == [[0, 0, 0, 0, 1, 1, 1, 1], [1, 1, 0, 0, 1, 1, 0, 0], [1, 0, 1, 0, 1, 0, 1, 0]]);
+    assert(inx.row.titles == ["Index1", "Index2", "Index3"]);
+
+    inx.constructFromLevels!1([["Air", "Water"], ["Transportation", "Something"], ["Net Income", "Gross Income"]]);
+    assert(inx.column.index == [["Air", "Water"], ["Something", "Transportation"], ["Gross Income", "Net Income"]]);
+    assert(inx.column.codes == [[0, 0, 0, 0, 1, 1, 1, 1], [1, 1, 0, 0, 1, 1, 0, 0], [1, 0, 1, 0, 1, 0, 1, 0]]);
+
+    assert(inx.row.index == [["Air", "Water"], ["Something", "Transportation"], ["Gross Income", "Net Income"]]);
+    assert(inx.row.codes == [[0, 0, 0, 0, 1, 1, 1, 1], [1, 1, 0, 0, 1, 1, 0, 0], [1, 0, 1, 0, 1, 0, 1, 0]]);
+    assert(inx.row.titles == ["Index1", "Index2", "Index3"]);
+
+    inx.constructFromLevels!1([["Air", "Water"], ["Transportation", "Something"], ["Net Income", "Gross Income"]], ["Index1", "Index2", "Index3"]);
+    assert(inx.column.index == [["Air", "Water"], ["Something", "Transportation"], ["Gross Income", "Net Income"]]);
+    assert(inx.column.codes == [[0, 0, 0, 0, 1, 1, 1, 1], [1, 1, 0, 0, 1, 1, 0, 0], [1, 0, 1, 0, 1, 0, 1, 0]]);
+    assert(inx.column.titles == ["Index1", "Index2", "Index3"]);
+
+    inx.extend!0(["Zing", "Zang", "Zong"]);
+    assert(inx.row.index == [["Air", "Water", "Zing"], ["Something", "Transportation", "Zang"], ["Gross Income", "Net Income", "Zong"]]);
+    assert(inx.row.codes == [[0, 0, 0, 0, 1, 1, 1, 1, 2], [1, 1, 0, 0, 1, 1, 0, 0, 2], [1, 0, 1, 0, 1, 0, 1, 0, 2]]);
+    assert(inx.row.titles == ["Index1", "Index2", "Index3"]);
+
+    inx.extend!1(["Zing", "Zang", "Zong"]);
+    assert(inx.column.index == [["Air", "Water", "Zing"], ["Something", "Transportation", "Zang"], ["Gross Income", "Net Income", "Zong"]]);
+    assert(inx.column.codes == [[0, 0, 0, 0, 1, 1, 1, 1, 2], [1, 1, 0, 0, 1, 1, 0, 0, 2], [1, 0, 1, 0, 1, 0, 1, 0, 2]]);
+    assert(inx.column.titles == ["Index1", "Index2", "Index3"]);
 }
