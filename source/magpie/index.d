@@ -1,6 +1,6 @@
 module magpie.index;
 
-import std.range: Zip, zip;
+import std.range: zip;
 
 /++
 Structure for DataFrame Indexing
@@ -248,7 +248,7 @@ public:
     @params: index - Zip from which index will be constructed
     @params?: titles - titles for index levels
     +/
-    void constructFromZip(int axis, T...)(Zip!T index, string[] titles = [])
+    void constructFromZip(int axis, int levels, T)(T index, string[] titles = [])
     {
         assert(index.length > 0, "Cannot construct index out of empty zip");
         if(titles.length > 0 || axis == 0)
@@ -256,7 +256,7 @@ public:
 
         indexing[axis] = Indexing();
 
-        static foreach(i; 0 .. T.length)
+        foreach(i; 0 .. levels)
         {
             indexing[axis].index ~= [[]];
             indexing[axis].codes ~= [[]];
@@ -265,7 +265,7 @@ public:
         foreach(i; 0 .. index.length)
         {
             import std.conv: to;
-            static foreach(j; 0 .. T.length)
+            static foreach(j; 0 .. levels)
                 indexing[axis].index[j] ~= to!string(index[i][j]);
         }
 
@@ -707,20 +707,21 @@ unittest
 {
     Index inx;
     auto z = zip([1, 2, 3, 4], ["Hello", "Hi", "Hello", "Hi"]);
-    inx.constructFromZip!0(z, ["Index1", "Index2"]);
+
+    inx.constructFromZip!(0, 2)(z, ["Index1", "Index2"]);
     assert(inx.row.index == [[], ["Hello", "Hi"]]);
     assert(inx.row.codes == [[1, 2, 3, 4], [0, 1, 0 ,1]]);
     assert(inx.row.titles == ["Index1", "Index2"]);
 
     // Column without titles
     auto zc = zip([1, 2, 3, 4], ["Hello", "Ho", "Hello", "Ho"]);
-    inx.constructFromZip!1(zc);
+    inx.constructFromZip!(1, 2)(zc);
     assert(inx.column.index == [[], ["Hello", "Ho"]]);
     assert(inx.column.codes == [[1, 2, 3, 4], [0, 1, 0 ,1]]);
     assert(inx.column.titles == []);
 
     // Columns with titles
-    inx.constructFromZip!1(zc, ["Index1", "Index2"]);
+    inx.constructFromZip!(1, 2)(zc, ["Index1", "Index2"]);
     assert(inx.column.index == [[], ["Hello", "Ho"]]);
     assert(inx.column.codes == [[1, 2, 3, 4], [0, 1, 0 ,1]]);
     assert(inx.column.titles == ["Index1", "Index2"]);
