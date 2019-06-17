@@ -83,6 +83,41 @@ df.display();
  */
 ```
 
+## Different ways of creating a DataFrame
+
+```d
+import magpie.dataframe: DataFrame;
+
+DataFrame!(int, 10) df;
+DataFrame!(int, 10, double, 10) df;
+DataFrame!(int[10], double[10]) df;
+DataFrame!(int, 10, double[10]) df;
+
+// DataFrame from Structure
+struct S
+{
+    int[10] a;
+    double[10] b;
+}
+
+import std.traits: Fields;
+DataFrame!(Fields!S) df;
+
+// In case all the fields are of primitive types, you can add
+// true in the beginning to reduce compile time
+DataFrame!(true, int, int, double, double) df;
+
+struct RS
+{
+    int a;
+    int b;
+    double c;
+    double d;
+}
+
+DataFrame!(Fields!(RS)) df;
+```
+
 ## Structure
 
 - The DataFrame structure is defined as:
@@ -127,6 +162,7 @@ struct Index
 * [Index](#Index)
 * [Access](#Access)
 * [Assignment](#Assignment)
+* [Binary Operations](#BinaryOps)
 * [I/O](#I/O)
 
 ### Index
@@ -182,6 +218,117 @@ inx.setIndex([["Hello", "Hi"], ["Hi", "Hello"]], ["RL1", "RL2"],
 ```
 
 Note: In case the dimension of columnIndex don't match the dimension of DataFrame, the default indexing will be applied.
+
+#### `constructFromPairs(rowIndex, rowIndexTitles, columnIndex?, columnIndexTitles?)`
+
+Setting row indexes row wise and column indexes column wise
+
+* rowIndex - Two dimensional array of string or integer
+* rowIndexTitles - Single Dimensional array of strings
+* columnIndex[Optional] - Two dimensional array of string or integers
+* columnIndexTitles[Optional] - Single Dimensional array of strings
+
+```d
+import magpie.index: Index;
+
+Index inx;
+inx.constructFromPairs([["Hello", "Hi"], ["Hi", "Hello"], ["Hey", "Hey"]],
+                        ["RL1", "RL2"],
+                        [["Hello", "Hi"], ["Hi", "Hello"], ["Hey", "Hey"]],
+                        ["CL1", "CL2"]);
+/*
+ *  The basic skeleton:
+ *  
+ *         CL1    Hello  Hi     Hey
+ *         CL2    Hi     Hello  Hey
+ *  RL1    Rl2
+ *  Hello  Hi
+ *  Hi     Hello
+ *  Hey    Hey
+ */
+```
+
+#### `constructFromZip(axis, levels)(index, titles)`
+
+Constructing Index from a Zip range
+
+* axis - 0 to construct row index, 1 for constructing column index
+* levels - depth of indexing
+* index - Zip containing the indexes
+* titles - Index titles [Mandatory for axis = 0]
+
+```d
+import magpie.index: Index;
+import std.range: zip;
+
+Index inx;
+auto z = zip([1, 2, 3, 4], ["Hello", "Hi", "Hello", "Hi"]);
+inx.constructFromZip!(0, 2)(z, ["Index1", "Index2"]);
+/*
+ *  The basic skeleton:
+ * 
+ *  Index1  Index2
+ *  1       Hello
+ *  2       Hi
+ *  3       Hello
+ *  4       Hi
+ */
+
+auto zc = zip([1, 2, 3, 4], ["Hello", "Ho", "Hello", "Ho"]);
+inx.constructFromZip!(1, 2)(zc);
+/*
+ *  The basic skeleton:
+ *  
+                    1      2   3      4
+ *                  Hello  Hi  Hello  Hi
+ *  Index1  Index2
+ *  1       Hello
+ *  2       Hi
+ *  3       Hello
+ *  4       Hi
+ */
+```
+
+#### `constructFromLevels(axis)(index, titles)`
+
+Construct indexes based on unique levels
+
+* axis - 0 to construct row index, 1 for constructing column index
+* index - Two dimensional array of string containing unique level of indexes
+* titles - Index titles [Mandatory for axis = 0]
+
+```d
+import magpie.index: Index;
+
+Index inx;
+inx.constructFromLevels!0([["Air", "Water"],
+                           ["Transportation"],
+                           ["Net Income", "Gross Income"]],
+                          ["Index1", "Index2", "Index3"]);
+
+/*
+ *  The basic skeleton:
+ * 
+ *  Index1  Index2          Index3
+ *  Air     Transportation  Net Income
+ *  Air     Transportation  Gross Income
+ *  Water   Transportation  Net Income
+ *  Water   Transportation  Gross Income
+ */
+
+inx.constructFromLevels!1([["Air", "Water"], ["Transportation", "What_to_put_here"], ["Net Income", "Gross Income"]]);
+
+/*
+ *  The basic skeleton:
+ *                                        Air             Air             Air               Air               Water           Water           Water               Water
+ *                                        Transportation  Transportation  What_to put_here  What_to_put_here  Transportation  Transportation  What_to put_here  What_to_put_here 
+ *  Index1  Index2          Index3        Net Income      Gross Income    Net Income        Gross Income      Net Income      Gross Income    Net Income        Gross Income      
+ *  Air     Transportation  Net Income
+ *  Air     Transportation  Gross Income
+ *  Water   Transportation  Net Income
+ *  Water   Transportation  Gross Income
+ */
+```
 
 #### `extend(axis)(next)`
 
@@ -428,6 +575,63 @@ df.display();
  *  Hi     Hello  4.6    6  
  */
 ```
+
+### BinaryOps
+
+DataFrame supports row and column binary operations. Supported operations:
+* Assignment (Assigning values of one row/column to another)
+* Addition
+* Subtraction
+* Multiplication
+* Division
+
+#### Usage
+
+```d
+import magpie.dataframe: DataFrame;
+import magpie.index: Index;
+
+DataFrame!(int, 3) df;
+Index inx;
+inx.setIndex([["Hello", "Hi"], ["Hi", "Hello"]], ["Index", "Index"]);
+df.setFrameIndex(inx);
+df.display();
+/*
+ *  Index  Index  0  1  2
+ *  Hello  Hi     0  0  0   
+ *  Hi     Hello  0  0  0  
+ */
+
+df.assign!1(0, [1, 4]);
+df.assign!1(1, [1, 6]);
+df.assign!1(2, [1, 8]);
+df.display();
+/*
+ *  Index  Index  0  1  2
+ *  Hello  Hi     1  1  1   
+ *  Hi     Hello  4  6  8  
+ */
+
+df[["0"]] = df[["1"]] + df[["2"]];
+df.display();
+/*
+ *  Index  Index  0   1  2
+ *  Hello  Hi     2   1  1   
+ *  Hi     Hello  14  6  8  
+ */
+
+df[["Hello", "Hi"], 0] = df[["Hi", "Hello"], 0];
+df.display();
+/*
+ *  Index  Index  0   1  2
+ *  Hello  Hi     14  6  8   
+ *  Hi     Hello  14  6  8  
+```
+Note:
+* For now, binary operations only work with string based indexes.
+* The first argument is always an array of string [even if level of indexing is 1]
+* Don't specify axis for column binary operation. Using column binary operations as `df[["0"], 1]` will not work.
+
 
 ### I/O
 

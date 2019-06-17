@@ -781,3 +781,20 @@ unittest
     assert(inx.column.codes == [[0, 0, 0, 0, 1, 1, 1, 1, 2], [1, 1, 0, 0, 1, 1, 0, 0, 2], [1, 0, 1, 0, 1, 0, 1, 0, 2]]);
     assert(inx.column.titles == ["Index1", "Index2", "Index3"]);
 }
+
+// README examples
+unittest
+{
+    Index inx;
+    inx.constructFromPairs([["Hello", "Hi"], ["Hi", "Hello"], ["Hey", "Hey"]],
+                            ["RL1", "RL2"],
+                            [["Hello", "Hi"], ["Hi", "Hello"], ["Hey", "Hey"]],
+                            ["CL1", "CL2"]);
+    
+    assert(inx.row.index == [["Hello", "Hey", "Hi"], ["Hello", "Hey", "Hi"]]);
+    assert(inx.column.index == [["Hello", "Hey", "Hi"], ["Hello", "Hey", "Hi"]]);
+    assert(inx.row.codes == [[0, 2, 1], [2, 0, 1]]);
+    assert(inx.column.codes == [[0, 2, 1], [2, 0, 1]]);
+    assert(inx.row.titles == ["RL1", "RL2"]);
+    assert(inx.column.titles == ["CL1", "CL2"]);
+}
