@@ -1098,6 +1098,68 @@ public:
                 data[i][pos] = elements.data[i];
         }
     }
+
+    /++
+    void apply(alias Fn, int axis, T)(T index)
+    Description: Applies a function on a particular row or column
+    @params: Fn - Function
+    @params: axis - 0 for rows, 1 for columns
+    @params: index - integer or string indexes of rows
+    +/
+    void apply(alias Fn, int axis, T)(T index)
+        if(is(T == int[]) || is(T == string[][]))
+    {
+        if(index.length == 0)
+            return;
+
+        static if(is(T == string[][]))
+            foreach(i; index)
+                assert(i.length == indx.indexing[axis].codes.length, "Index level mismatch");
+
+        int[] pos;
+        static if(is(T == int[]))
+            pos = index;
+        else
+        {
+            import std.array: appender;
+            auto loc = appender!(int[]);
+            foreach(i; index)
+                loc.put(getPosition!(axis)(i));
+            pos = loc.data;
+        }
+
+        static if(axis == 0)
+        {
+            static foreach(i; 0 .. RowType.length)
+            {
+                foreach(j; pos)
+                    data[i][j] = cast(RowType[i])Fn(data[i][j]);
+            }
+        }
+        else
+        {
+            static foreach(i; 0 .. RowType.length)
+            {
+                import std.algorithm: countUntil;
+                if(countUntil(pos, i) > -1)
+                    foreach(j; 0 .. rows)
+                        data[i][j] = cast(RowType[i])Fn(data[i][j]);
+            }
+        }
+    }
+
+    /++
+    void apply(alias Fn, int axis, T)(T index)
+    Description: apply overload - apply to all data
+    @params: Fn - Function
+    @params: axis - 0 for rows, 1 for columns
+    +/
+    void apply(alias Fn)()
+    {
+        static foreach(i; 0 .. RowType.length)
+            foreach(j; 0 .. rows)
+                data[i][j] = cast(RowType[i])Fn(data[i][j]);
+    }
 }
 
 // Testing DataFrame Definition - O(n + log(n))
@@ -2493,4 +2555,44 @@ unittest
     // df.display();
     assert(df.data[0][0] == 42);
     assert(df.data[1][1] == 17);
+}
+
+// Apply
+unittest
+{
+    Index inx;
+    DataFrame!(double, 2) df;
+    inx.setIndex([["Hello", "Hi"], ["Hi", "Hello"]], ["RL1", "RL2"],
+                [["Hello", "Hi"], ["Hi", "Hello"]], ["CL1", "CL2"]);
+    df.setFrameIndex(inx);
+    // df.display();
+
+    df.assign!1(0, [1.0, 4.0]);
+    df.assign!1(1, [16.0, 256.0]);
+    // df.display();
+
+    import std.math: sqrt;
+    df.apply!(sqrt, 1)([1]);
+    assert(df.data[1] == [4, 16]);
+
+    df.apply!(sqrt, 1)([["Hi", "Hello"]]);
+    assert(df.data[1] == [2, 4]);
+
+    df.apply!(sqrt, 0)([1]);
+    assert(df.data[0][1] == 2 && df.data[1][1] == 2);
+
+    df.assign!0(1, 16.0, 16.0);
+    df.apply!(sqrt, 0)([["Hi", "Hello"]]);
+    assert(df.data[0][1] == 4 && df.data[1][1] == 4);
+
+    df.assign!1(0, [16.0, 16.0]);
+    df.assign!1(1, [16.0, 16.0]);
+    // df.display();
+
+    // Apply to the entire DataFrame
+    df.apply!(sqrt)();
+    assert(df.data[0] == [4, 4] && df.data[1] == [4, 4]);
+
+    df.apply!(sqrt)();
+    assert(df.data[0] == [2, 2] && df.data[1] == [2, 2]);
 }
