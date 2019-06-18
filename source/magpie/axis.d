@@ -78,20 +78,20 @@ struct Axis(T...)
             Axis!void ret;
         else
             Axis!T ret;
-        
+
         static if(op == "+")
         {
             static if(U.length == 1)
             {
                 assert(data.length == rhs.data.length, "Size mismatch");
                 foreach(i; 0 .. data.length)
-                {  
+                {
                     static if(is(T[0] == void))
                         ret.data ~= DataType(data[i] + rhs.data[i]);
                     else
                         ret.data ~= data[i] + rhs.data[i];
                 }
-                return ret;                
+                return ret;
             }
             else
             {
@@ -108,13 +108,13 @@ struct Axis(T...)
                 assert(data.length == rhs.data.length, "Size mismatch");
 
                 foreach(i; 0 .. data.length)
-                {  
+                {
                     static if(is(T[0] == void))
                         ret.data ~= DataType(data[i] - rhs.data[i]);
                     else
                         ret.data ~= data[i] - rhs.data[i];
                 }
-                return ret;                
+                return ret;
             }
             else
             {
@@ -131,13 +131,13 @@ struct Axis(T...)
                 assert(data.length == rhs.data.length, "Size mismatch");
 
                 foreach(i; 0 .. data.length)
-                {  
+                {
                     static if(is(T[0] == void))
                         ret.data ~= DataType(data[i] * rhs.data[i]);
                     else
                         ret.data ~= data[i] * rhs.data[i];
                 }
-                return ret;                
+                return ret;
             }
             else
             {
@@ -154,13 +154,13 @@ struct Axis(T...)
                 assert(data.length == rhs.data.length, "Size mismatch");
 
                 foreach(i; 0 .. data.length)
-                {  
+                {
                     static if(is(T[0] == void) || is(U[0] == void))
                         ret.data ~= DataType(DataType(data[i]) / DataType(rhs.data[i]));
                     else
                         ret.data ~= data[i] / rhs.data[i];
                 }
-                return ret;                
+                return ret;
             }
             else
             {
@@ -287,7 +287,7 @@ unittest
 
     auto res = a1 - a2;
     auto res2 = a1 - a2 - a3 - a4;
-    
+
     import std.math: approxEqual;
     static foreach(i; 0 .. 2)
     {
@@ -338,7 +338,7 @@ unittest
 
     auto res = a1 * a2;
     auto res2 = a1 * a2 * a3 * a4;
-    
+
     import std.math: approxEqual;
     static foreach(i; 0 .. 2)
     {
@@ -389,7 +389,7 @@ unittest
 
     auto res = a1 / a2;
     auto res2 = a1 / a2 / a3 / a4;
-    
+
     import std.math: approxEqual;
     static foreach(i; 0 .. 2)
     {

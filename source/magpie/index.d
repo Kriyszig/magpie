@@ -145,7 +145,7 @@ public:
                     assert(args[j * 2][0].length > 0, "Inner dimension cannot be 0");
                     foreach(i; 0 .. args[j * 2].length)
                         assert(args[j * 2][i].length == args[j * 2][0].length && args[j * 2][0].length > 0, "Inner dimension of indexes are unequal");
-                    
+
                     indexing[j].index = args[j * 2];
                     foreach(i; 0 .. args[j * 2].length)
                         indexing[j].codes ~= [[]];
@@ -167,7 +167,7 @@ public:
             static if(Args.length > j * 2 + 1)
                 indexing[j].titles = args[j*2 + 1];
         }
-        
+
         generateCodes();
         optimize();
     }
@@ -199,7 +199,7 @@ public:
                     assert(args[j * 2][0].length > 0, "Inner dimension cannot be 0");
                     foreach(i; 0 .. args[j * 2].length)
                         assert(args[j * 2][i].length == args[j * 2][0].length, "Inner dimension of indexes are unequal");
-                    
+
                     // indexing[j].index = args[j * 2];
                     foreach(i; 0 .. args[j * 2][0].length)
                     {
@@ -218,7 +218,7 @@ public:
                     assert(len > 0, "Inner dimension cannot be 0");
                     foreach(i; 0 .. args[j * 2].length)
                         assert(args[j * 2][i].length == len, "Inner dimension of index not equal");
-                    
+
                     foreach(i; 0 .. args[j * 2][0].length)
                     {
                         indexing[j].index ~= [[]];
@@ -236,7 +236,7 @@ public:
                 indexing[j].titles = args[j*2 + 1];
             }
         }
-        
+
         generateCodes();
         optimize();
     }
@@ -270,8 +270,8 @@ public:
         }
 
         if(titles.length > 0)
-            indexing[axis].titles = titles;     
-               
+            indexing[axis].titles = titles;
+
         generateCodes();
         optimize();
     }
@@ -294,21 +294,21 @@ public:
         import std.algorithm: map, reduce, min;
         assert(index.map!(e => e.length).reduce!min > 0, "Index cannot have empty level");
         assert(axis || titles.length == index.length, "Size of titles don't match level od indexing");
-        
+
         indexing[axis] = Indexing();
         indexing[axis].index = index;
         foreach(i; 0 .. index.length)
             indexing[axis].codes ~= [[]];
-        
+
         // Generating codes and optimizing first because constructing levels is just repeating code [Index remains untouched]
         generateCodes();
         optimize();
-        
+
         foreach(i; 1 .. indexing[axis].index.length)
         {
             size_t r1 = indexing[axis].codes[i].length;
             size_t r2 = indexing[axis].codes[i - 1].length;
-            
+
             foreach(j; 0 .. i)
             {
                 int[] u = indexing[axis].codes[j];
@@ -316,7 +316,7 @@ public:
                 foreach(k; 0 .. indexing[axis].codes[j].length)
                     foreach(l; 0 .. r1)
                         newIndex ~= indexing[axis].codes[j][k];
-                
+
                 indexing[axis].codes[j] = newIndex;
             }
 
@@ -339,7 +339,7 @@ public:
     {
         static if(is(T == int[]))
         {
-            
+
             assert(next.length == indexing[axis].codes.length, "Index depth mismatch");
             foreach(i; 0 .. indexing[axis].codes.length)
             {
@@ -402,7 +402,7 @@ public:
                     }
                 }
             }
-            
+
         }
         else
         {
@@ -535,7 +535,7 @@ unittest
     assert(inx.column.titles == ["Index", "Index"]);
 }
 
-// Extending row.index 
+// Extending row.index
 unittest
 {
     Index inx;
@@ -603,7 +603,7 @@ unittest
     inx.indexing[0].codes = [[]];
     foreach(i; 0 .. 100)
         inx.indexing[0].index[0] ~= "Hello";
-    
+
     inx.generateCodes();
     assert(inx.indexing[0].index[0].length == 1);
     assert(inx.indexing[0].codes[0].length == 100);
@@ -621,7 +621,7 @@ unittest
         inx.indexing[0].index[0] ~= "Hello";
     foreach(i; 0 .. 100)
         inx.indexing[0].index[0] ~= "Allo";
-    
+
     inx.generateCodes();
     assert(inx.indexing[0].index[0].length == 2);
     assert(inx.indexing[0].codes[0].length == 200);
@@ -790,7 +790,7 @@ unittest
                             ["RL1", "RL2"],
                             [["Hello", "Hi"], ["Hi", "Hello"], ["Hey", "Hey"]],
                             ["CL1", "CL2"]);
-    
+
     assert(inx.row.index == [["Hello", "Hey", "Hi"], ["Hello", "Hey", "Hi"]]);
     assert(inx.column.index == [["Hello", "Hey", "Hi"], ["Hello", "Hey", "Hi"]]);
     assert(inx.row.codes == [[0, 2, 1], [2, 0, 1]]);
