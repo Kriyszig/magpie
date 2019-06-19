@@ -1160,6 +1160,66 @@ public:
             foreach(j; 0 .. rows)
                 data[i][j] = cast(RowType[i])Fn(data[i][j]);
     }
+
+    /++
+    auto drop(int axis, int[] positions)() @property
+    Description: Drop a row/column from DataFrame
+    @params: axis - 0 for dropping row, 1 for dropping columns
+    @params: positions - integer array of positions of all the rows/colmns to be dropped
+    +/
+    auto drop(int axis, int[] positions)() @property
+    {
+        import magpie.helper: dropper;
+        import std.algorithm: reduce, max, min;
+
+        static if(positions.length == 0)
+        {
+            return this;
+        }
+        else static if(axis == 0)
+        {
+            assert(positions.reduce!min > -1 && positions.reduce!max < rows, "Index out of bound");
+
+            DataFrame!(true, RowType) ret;
+            ret.indx = Index();
+            ret.indx.indexing[1] = indx.indexing[1];
+            ret.indx.row.titles = indx.row.titles;
+
+            foreach(i; 0 .. indx.indexing[0].codes.length)
+            {
+                ret.indx.row.index ~= indx.row.index[i];
+                ret.indx.row.codes ~= dropper(positions, 0, indx.row.codes[i]);
+            }
+
+            static foreach(i; 0 .. RowType.length)
+                ret.data[i] = dropper(positions, 0, data[i]);
+
+            ret.rows = rows - positions.length;
+            return ret;
+        }
+        else
+        {
+            assert(positions.reduce!min > -1 && positions.reduce!max < cols, "Index out of bound");
+            DataFrame!(true, dropper!(positions, 0, RowType)) ret;
+            ret.indx = indx;
+            ret.indx = Index();
+            ret.indx.indexing[0] = indx.indexing[0];
+            ret.indx.column.titles = indx.column.titles;
+
+            foreach(i; 0 .. indx.indexing[1].codes.length)
+            {
+                ret.indx.column.index ~= indx.column.index[i];
+                ret.indx.column.codes ~= dropper(positions, 0, indx.column.codes[i]);
+            }
+
+            auto retdata = dropper!(positions, 0, data);
+            static foreach(i; 0 .. ret.RowType.length)
+                ret.data[i] = retdata[i];
+
+            ret.rows = rows;
+            return ret;
+        }
+    }
 }
 
 // Testing DataFrame Definition - O(n + log(n))
@@ -2595,4 +2655,80 @@ unittest
 
     df.apply!(sqrt)();
     assert(df.data[0] == [2, 2] && df.data[1] == [2, 2]);
+}
+
+// Drop
+unittest
+{
+    Index inx;
+    DataFrame!(double, 2) df;
+    inx.setIndex([["Hello", "Hi"], ["Hi", "Hello"]], ["RL1", "RL2"],
+                [["Hello", "Hi"], ["Hi", "Hello"]], ["CL1", "CL2"]);
+    df.setFrameIndex(inx);
+    // df.display();
+
+    df.assign!1(0, [1.0, 4.0]);
+    df.assign!1(1, [16.0, 256.0]);
+    const string str1 = df.display(true, 200);
+
+
+    // Dropping a row
+    auto drow = df.drop!(0, [1]);
+    assert(drow.rows == 1);
+    assert(drow.data[0][0] == 1 && drow.data[1][0] == 16);
+    assert(drow.display(true, 200) == "       CL1  Hello  Hi     \n"
+        ~ "       CL2  Hi     Hello  \n"
+        ~ "RL1    RL2  \n"
+        ~ "Hello  Hi   1      16     \n"
+    );
+
+    // Checking if df is untouched
+    assert(df.data[0] == [1.0, 4.0]);
+    assert(df.data[1] == [16.0, 256.0]);
+    const string str2 = df.display(true, 200);
+    assert(str1 == str2);
+
+    drow = df.drop!(0, [0]);
+    assert(drow.rows == 1);
+    assert(drow.data[0][0] == 4 && drow.data[1][0] == 256);
+    assert(drow.display(true, 200) == "     CL1    Hello  Hi     \n"
+        ~ "     CL2    Hi     Hello  \n"
+        ~ "RL1  RL2    \n"
+        ~ "Hi   Hello  4      256    \n"
+    );
+
+    assert(df.data[0] == [1.0, 4.0]);
+    assert(df.data[1] == [16.0, 256.0]);
+    const string str3 = df.display(true, 200);
+    assert(str1 == str3);
+
+    auto dcol = df.drop!(1, [0]);
+    assert(dcol.cols == 1);
+    assert(dcol.data[0] == [16, 256]);
+    assert(dcol.display(true, 200) == "       CL1    Hi     \n"
+        ~ "       CL2    Hello  \n"
+        ~ "RL1    RL2    \n"
+        ~ "Hello  Hi     16     \n"
+        ~ "Hi     Hello  256    \n"
+    );
+
+    assert(df.data[0] == [1.0, 4.0]);
+    assert(df.data[1] == [16.0, 256.0]);
+    const string str4 = df.display(true, 200);
+    assert(str1 == str4);
+
+    dcol = df.drop!(1, [1]);
+    assert(dcol.cols == 1);
+    assert(dcol.data[0] == [1, 4]);
+    assert(dcol.display(true, 200) == "       CL1    Hello  \n"
+        ~ "       CL2    Hi     \n"
+        ~ "RL1    RL2    \n"
+        ~ "Hello  Hi     1      \n"
+        ~ "Hi     Hello  4      \n"
+    );
+
+    assert(df.data[0] == [1.0, 4.0]);
+    assert(df.data[1] == [16.0, 256.0]);
+    const string str5 = df.display(true, 200);
+    assert(str1 == str5);
 }
