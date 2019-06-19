@@ -37,6 +37,19 @@ template getArgsList(args...)
         alias getArgsList = AliasSeq!();
 }
 
+/// Template to evaluate RowType when column is dropped
+template dropper(int[] pos, int rem, Types...)
+{
+    static if(pos.length == 0)
+    {
+        alias dropper = Types;
+    }
+    else
+    {
+        alias dropper = AliasSeq!(Types[0 .. pos[0] - rem], dropper!(pos[1 .. $], pos[0] + 1 ,Types[pos[0] - rem + 1 .. $]));
+    }
+}
+
 /// Function to sort indexes in ascending order and switch the code to keep the effective positions same
 void sortIndex(string[] index, int[] codes)
 {
@@ -85,4 +98,13 @@ unittest
     sortIndex(indx, codes);
     assert(indx == ["a", "b", "c", "d"]);
     assert(codes == [1, 2, 0, 3]);
+}
+
+// Testing dropper
+unittest
+{
+    assert(is(dropper!([1, 4], 0, int, long, int, long, byte, float, bool) == AliasSeq!(int, int, long, float, bool)));
+    assert(is(dropper!([0, 4], 0, int, long, int, long, double) == AliasSeq!(long, int, long)));
+    assert(is(dropper!([1, 3, 5], 0, int, long, int, long, double, float, bool) == AliasSeq!(int, int, double, bool)));
+    assert(is(dropper!([0, 2, 3, 5], 0, int, uint, byte, ubyte, long, ulong, bool) == AliasSeq!(uint, long, bool)));
 }
