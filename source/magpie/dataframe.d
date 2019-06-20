@@ -1066,7 +1066,7 @@ public:
     df[["CIndex1"]] = df[["CIndex2"]] + df[["CIndex3"]];
     df[["RIndex1"], 0] = df[["RIndex2"], 0] + df[["RIndex3"], 0];
     +/
-    auto opIndexAssign(T...)(Axis!T elements, string[] index, int axis = 1)
+    void opIndexAssign(T...)(Axis!T elements, string[] index, int axis = 1)
         if(T.length == RowType.length || T.length == 1)
     {
         static if(is(T[0] == void))
@@ -1219,6 +1219,44 @@ public:
             ret.rows = rows;
             return ret;
         }
+    }
+
+    /++
+    auto columnToIndex(int position)() @property
+    Description: Converts a colimn into row index level
+    @params: position - integral index of column to be converted to index
+    +/
+    auto columnToIndex(int position)() @property
+    {
+        assert(position > -1 && position < cols, "Index out of bound");
+
+        import std.conv: to;
+        auto ret = this.drop!(1, [position]);
+        static if(is(RowType[position] == string))
+        {
+            ret.indx.row.index ~= data[position];
+            ret.indx.row.codes ~= [[]];
+        }
+        else static if(is(RowType[position] == int))
+        {
+            ret.indx.row.index ~= [[]];
+            ret.indx.row.codes ~= data[position];
+        }
+        else
+        {
+            ret.indx.row.index ~= to!(string[])(data[position]);
+            ret.indx.row.codes ~= [[]];
+        }
+
+        if(indx.column.index[$ - 1].length == 0)
+            ret.indx.row.titles ~= to!(string)(indx.column.codes[$ - 1][position]);
+        else
+            ret.indx.row.titles ~= indx.column.index[$ - 1][indx.column.codes[$ - 1][position]];
+
+        ret.indx.generateCodes();
+        ret.indx.optimize();
+
+        return ret;
     }
 }
 
@@ -2731,4 +2769,121 @@ unittest
     assert(df.data[1] == [16.0, 256.0]);
     const string str5 = df.display(true, 200);
     assert(str1 == str5);
+}
+
+// Drop - multiple with heterogeneous
+unittest
+{
+    Index inx;
+    DataFrame!(int, double[2]) df;
+    inx.setIndex([["Hello", "Hi", "Hey"], ["Hi", "Hello", "Hey"]], ["RL1", "RL2"],
+                [["Hello", "Hi", "Hey"], ["Hi", "Hello", "Hey"]], ["CL1", "CL2"]);
+    df.setFrameIndex(inx);
+    // df.display();
+
+    df.assign!1(0, [1, 4, 16]);
+    df.assign!1(1, [16.0, 256.0, 225.0]);
+    df.assign!1(2, [1.0, 4.0, 16.0]);
+    const string str1 = df.display(true, 200);
+
+    auto drows = df.drop!(0, [1, 2]);
+    assert(drows.rows == 1);
+    assert(drows.data[0][0] == 1 && drows.data[1][0] == 16 && drows.data[2][0] == 1);
+    assert(drows.display(true, 200) == "       CL1  Hello  Hi     Hey  \n"
+        ~ "       CL2  Hi     Hello  Hey  \n"
+        ~ "RL1    RL2  \n"
+        ~ "Hello  Hi   1      16     1    \n"
+    );
+
+    const string str2 = df.display(true, 200);
+    assert(str1 == str2);
+
+    drows = df.drop!(0, [0, 2]);
+    assert(drows.rows == 1);
+    assert(drows.data[0][0] == 4 && drows.data[1][0] == 256 && drows.data[2][0] == 4);
+    assert(drows.display(true, 200) == "     CL1    Hello  Hi     Hey  \n"
+        ~ "     CL2    Hi     Hello  Hey  \n"
+        ~ "RL1  RL2    \n"
+        ~ "Hi   Hello  4      256    4    \n"
+    );
+
+    const string str3 = df.display(true, 200);
+    assert(str1 == str3);
+
+    auto dcols = df.drop!(1, [1, 2]);
+    assert(dcols.cols == 1);
+    assert(dcols.data[0] == [1, 4, 16]);
+    assert(dcols.display(true, 200) == "       CL1    Hello  \n"
+        ~ "       CL2    Hi     \n"
+        ~ "RL1    RL2    \n"
+        ~ "Hello  Hi     1      \n"
+        ~ "Hi     Hello  4      \n"
+        ~ "Hey    Hey    16     \n"
+    );
+
+    const string str4 = df.display(true, 200);
+    assert(str1 == str4);
+
+    auto dcols2 = df.drop!(1, [0, 1]);
+    assert(dcols2.cols == 1);
+    assert(dcols2.data[0] == [1, 4, 16]);
+    assert(dcols2.display(true, 200) == "       CL1    Hey  \n"
+        ~ "       CL2    Hey  \n"
+        ~ "RL1    RL2    \n"
+        ~ "Hello  Hi     1    \n"
+        ~ "Hi     Hello  4    \n"
+        ~ "Hey    Hey    16   \n"
+    );
+
+    const string str5 = df.display(true, 200);
+    assert(str1 == str5);
+}
+
+// columntoIndex
+unittest
+{
+    Index inx;
+    DataFrame!(double, 2) df;
+    inx.setIndex([["Hello", "Hi"], ["Hi", "Hello"]], ["RL1", "RL2"],
+                [["Hello", "Hi"], ["Hi", "Hello"]], ["CL1", "CL2"]);
+    df.setFrameIndex(inx);
+    // df.display();
+
+    df.assign!1(0, [1.0, 4.0]);
+    df.assign!1(1, [16.0, 256.0]);
+    const string str1 = df.display(true, 200);
+
+    auto extended = df.columnToIndex!(0);
+    assert(extended.indx.row.codes.length == 3);
+    assert(extended.indx.row.index[2] == []);
+    assert(extended.indx.row.codes[2] == [1, 4]);
+    assert(extended.cols == 1);
+    assert(extended.data[0] == [16, 256]);
+    
+    assert(extended.display(true, 200) == "              CL1  Hi     \n"
+        ~ "              CL2  Hello  \n"
+        ~ "RL1    RL2    Hi   \n"
+        ~ "Hello  Hi     1    16     \n"
+        ~ "Hi     Hello  4    256    \n"
+    );
+
+    const string str2 = df.display(true, 200);
+    assert(str1 == str2);
+
+    extended = df.columnToIndex!(1);
+    assert(extended.indx.row.codes.length == 3);
+    assert(extended.indx.row.index[2] == []);
+    assert(extended.indx.row.codes[2] == [16, 256]);
+    assert(extended.cols == 1);
+    assert(extended.data[0] == [1, 4]);
+
+    assert(extended.display(true, 200) == "              CL1    Hello  \n"
+        ~ "              CL2    Hi     \n"
+        ~ "RL1    RL2    Hello  \n"
+        ~ "Hello  Hi     16     1      \n"
+        ~ "Hi     Hello  256    4      \n"
+    );
+
+    const string str3 = df.display(true, 200);
+    assert(str1 == str3);
 }
