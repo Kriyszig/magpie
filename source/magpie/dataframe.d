@@ -768,6 +768,90 @@ public:
     }
 
     /++
+    from_csv rebuild for faster read
+    +/
+    void fastCSV(string path, size_t indexDepth, size_t columnDepth, char sep = ',')
+    {
+        import std.array: appender, split;
+        import std.stdio: File;
+        import std.string: chomp;
+
+        File csvfile = File(path, "r");
+        string[][] lines;
+        int totalLines = 0;
+
+        while(!csvfile.eof())
+        {
+            ++lines.length;
+            lines[totalLines++] = chomp(csvfile.readln()).split(sep);
+        }
+
+        indx.row.titles.length = indexDepth;
+        indx.row.index.length = indexDepth;
+        indx.column.index.length = columnDepth;
+        indx.row.codes.length = indexDepth;
+        indx.column.codes.length = columnDepth;
+        indx.row.titles = lines[columnDepth - 1][0 .. indexDepth];
+
+        foreach(i, ele; lines[0 .. columnDepth])
+            indx.column.index[i] = ele[indexDepth .. $];
+
+        foreach(i, ele; lines[columnDepth .. $])
+        {
+            if(ele.length > 0)
+            {
+                foreach(j; 0 .. indexDepth)
+                {
+                    ++indx.row.index[j].length;
+                    indx.row.index[j][i] = ele[j];
+                }
+
+                static foreach(j; 0 .. RowType.length)
+                {
+                    import std.conv: to;
+                    ++data[j].length;
+                    if(ele[indexDepth + j].length == 0)
+                        data[j][i] =  RowType[j].init;
+                    else
+                        data[j][i] = to!(RowType[j])(ele[indexDepth + j]);
+                }
+            }
+        }
+
+        rows = totalLines - columnDepth - 1;
+        if(indx.row.index.length == 0)
+        {
+            indx.row.index.length = 1;
+            indx.row.codes.length = 1;
+            indx.row.codes[0].length = rows;
+            foreach(i; 0 .. rows)
+                indx.row.codes[0][i] = cast(int)i;
+
+            indx.row.titles = ["Index"];
+        }
+
+        if(indx.column.index.length == 0)
+        {
+            indx.column.index.length = 1;
+            indx.column.codes.length = 1;
+            indx.column.codes[0].length = rows;
+            foreach(i; 0 .. rows)
+                indx.column.codes[0][i] = cast(int)i;
+
+            indx.row.titles.length = indx.row.codes.length;
+            foreach(i; 0 .. indx.row.titles.length)
+            {
+                import std.conv: to;
+                indx.row.titles[i] = "Index" ~ to!(string)(i + 1);
+            }
+        }
+
+        indx.generateCodes();
+        indx.optimize();
+
+    }
+
+    /++
     RowType[i2] at(size_t i1, size_t i2)()
     Description: Getting the element directly from its index
     @param: ii - Row index
@@ -2510,6 +2594,28 @@ unittest
     f2.close();
 }
 
+// Parsing of dataset 1
+unittest
+{
+    DataFrame!(int, 9, double, int, 4) df;
+    df.fastCSV("./test/fromcsv/dataset1.csv", 0, 1);
+    // df.display();
+    df.to_csv("./test/tocsv/ex5p1.csv", false);
+
+    import std.stdio: File;
+    File f1 = File("./test/fromcsv/dataset1.csv", "r");
+    File f2 = File("./test/tocsv/ex5p1.csv", "r");
+
+    while(!f1.eof())
+    {
+        assert(f1.readln() == f2.readln());
+    }
+    assert(f1.eof() && f2.eof());
+
+    f1.close();
+    f2.close();
+}
+
 // Parsing dataset 1 considering first column as index
 unittest
 {
@@ -2521,6 +2627,28 @@ unittest
     import std.stdio: File;
     File f1 = File("./test/fromcsv/dataset1.csv", "r");
     File f2 = File("./test/tocsv/ex3p2.csv", "r");
+
+    while(!f1.eof())
+    {
+        assert(f1.readln() == f2.readln());
+    }
+    assert(f1.eof() && f2.eof());
+
+    f1.close();
+    f2.close();
+}
+
+// fastCSV dataset1
+unittest
+{
+    DataFrame!(int, 8, double, int, 4) df;
+    df.fastCSV("./test/fromcsv/dataset1.csv", 1, 1);
+    // df.display();
+    df.to_csv("./test/tocsv/ex5p2.csv");
+
+    import std.stdio: File;
+    File f1 = File("./test/fromcsv/dataset1.csv", "r");
+    File f2 = File("./test/tocsv/ex5p2.csv", "r");
 
     while(!f1.eof())
     {
@@ -2558,6 +2686,36 @@ unittest
 
     f1.close();
     f2.close();
+}
+
+// fastCSV dataset2
+unittest
+{
+
+    DataFrame!(double, 23) df;
+    df.fastCSV("./test/fromcsv/dataset2.csv", 2, 1);
+    // df.display();
+    df.to_csv("./test/tocsv/ex5p3.csv");
+
+    import std.stdio: File;
+    import std.string: chomp;
+    import std.array: split;
+
+    File f1 = File("./test/fromcsv/dataset2.csv", "r");
+    File f2 = File("./test/tocsv/ex5p3.csv", "r");
+
+    while(!f1.eof())
+    {
+        auto lf1 = chomp(f1.readln()).split(",");
+        auto lf2 = chomp(f2.readln()).split(",");
+        if(lf1.length > 0)
+            assert(lf1[0 .. 3] == lf2[0 .. 3]);
+    }
+    assert(f1.eof() && f2.eof());
+
+    f1.close();
+    f2.close();
+
 }
 
 // Partially parsing the complete columns of dataset2
@@ -2859,7 +3017,7 @@ unittest
     assert(extended.indx.row.codes[2] == [1, 4]);
     assert(extended.cols == 1);
     assert(extended.data[0] == [16, 256]);
-    
+
     assert(extended.display(true, 200) == "              CL1  Hi     \n"
         ~ "              CL2  Hello  \n"
         ~ "RL1    RL2    Hi   \n"
