@@ -90,6 +90,34 @@ void sortIndex(string[] index, int[] codes)
     }
 }
 
+/// Does exactly what generateCode does in Index but for any general ndarray
+int[] vectorize(T)(T[] values)
+{
+    int[T] elementPos;
+    int[] pos;
+    int totalUnique = 0;
+
+    import core.exception: RangeError;
+    foreach(i; values)
+    {
+        try
+        {
+            int p = elementPos[cast(immutable)i];
+            ++pos.length;
+            pos[$ - 1] = p;
+        }
+        catch(RangeError e)
+        {
+            elementPos[cast(immutable)i] = totalUnique;
+            ++pos.length;
+            pos[$ - 1] = totalUnique;
+            ++totalUnique;
+        }
+    }
+
+    return totalUnique ~ pos;
+}
+
 // Community suggested way ot intialize a DataFrame
 unittest
 {
@@ -124,4 +152,25 @@ unittest
     assert(dropper([1, 4], 0, [1, 2, 3, 4, 5, 6]) == [1, 3, 4, 6]);
     assert(dropper([0, 5], 0, [1, 2, 3, 4, 5, 6]) == [2, 3, 4, 5]);
     assert(dropper([0, 3, 5], 0, [1, 2, 3, 4, 5, 6]) == [2, 3, 5]);
+}
+
+unittest
+{
+    double[] arr = [1.2, 2.7, 1.2, 5.6, 1.2, 5.6];
+    auto varr = vectorize(arr);
+    assert(varr.length == arr.length + 1);
+    assert(varr[0] == 3);
+    assert(varr[1 .. $] == [0, 1, 0, 2, 0, 2]);
+
+    string[] arrs = ["Hello", "Hi", "Hello", "Hi"];
+    auto varrs = vectorize(arrs);
+    assert(varrs.length == arrs.length + 1);
+    assert(varrs[0] == 2);
+    assert(varrs[1 .. $] == [0, 1, 0, 1]);
+
+    int[][] arr2d = [[1, 2], [2, 4], [1, 2], [3, 6]];
+    auto varr2d = vectorize(arr2d);
+    assert(varr2d.length == arr2d.length + 1);
+    assert(varr2d[0] == 3);
+    assert(varr2d[1 .. $] == [0, 1, 0, 2]);
 }
