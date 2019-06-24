@@ -1,6 +1,8 @@
 module magpie.helper;
 
 import std.meta: AliasSeq, Repeat;
+import std.range.primitives: ElementType;
+import std.traits: isStaticArray;
 
 /// Build DataFrame argument list
 template getArgsList(args...)
@@ -11,13 +13,19 @@ template getArgsList(args...)
         import std.traits: isType;
         static if(args.length == 1)
         {
-            alias getArgsList = AliasSeq!(arg);
+            static if(isStaticArray!(arg))
+                alias getArgsList = AliasSeq!(Repeat!(arg.length, ElementType!(arg)));
+            else
+                alias getArgsList = AliasSeq!(arg);
         }
         else
         {
             static if(isType!(args[1]))
             {
-                alias getArgsList = AliasSeq!(arg, getArgsList!(args[1 .. $]));
+                static if(isStaticArray!(arg))
+                    alias getArgsList = AliasSeq!(Repeat!(arg.length, ElementType!(arg)), getArgsList!(args[1 .. $]));
+                else
+                    alias getArgsList = AliasSeq!(arg, getArgsList!(args[1 .. $]));
             }
             else
             {
@@ -60,6 +68,16 @@ void sortIndex(string[] index, int[] codes)
     }
 }
 
+// Community suggested way ot intialize a DataFrame
+unittest
+{
+    assert(is(getArgsList!(int[2]) == AliasSeq!(int, int)));
+    assert(is(getArgsList!(int[2], double[3]) == AliasSeq!(int, int, double, double, double)));
+    assert(is(getArgsList!(int[1], double[2], int, 2) == AliasSeq!(int, double, double, int, int)));
+    assert(is(getArgsList!(int, int, double[2], int, 2) == AliasSeq!(int, int, double, double, int, int)));
+}
+
+// Sorting indexes and codes by keeping their effet position same
 unittest
 {
     string[] indx = ["b", "c", "a", "d"];

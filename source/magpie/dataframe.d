@@ -1,5 +1,6 @@
 module magpie.dataframe;
 
+import magpie.axis: Axis;
 import magpie.index: Index;
 import magpie.helper: getArgsList;
 
@@ -24,7 +25,7 @@ struct DataFrame(FrameFields...)
         alias RowType = FrameFields[1 .. $];
     else
         alias RowType = getArgsList!(FrameFields);
-    
+
     alias FrameType = staticMap!(toArr, RowType);
 
     ///
@@ -131,7 +132,7 @@ public:
                         tmp = indx.row.codes[i][0 .. top - indx.column.index.length - extra].map!(e => to!string(e).length).reduce!max;
                     else
                         tmp = indx.row.codes[i][0 .. top - indx.column.index.length - extra].map!(e => indx.row.index[i][e].length).reduce!max;
-                    
+
                     if(tmp > thisGap)
                     {
                         thisGap = tmp;
@@ -149,7 +150,7 @@ public:
                             tmp = indx.row.codes[i].map!(e => to!string(e).length).reduce!max;
                         else
                             tmp = indx.row.codes[i].map!(e => indx.row.index[i][e].length).reduce!max;
-                        
+
                         if(tmp > thisGap)
                         {
                             thisGap = tmp;
@@ -164,7 +165,7 @@ public:
                             tmp = indx.row.codes[i][$ - bottom .. $].map!(e => to!string(e).length).reduce!max;
                         else
                             tmp = indx.row.codes[i][$ - bottom .. $].map!(e => indx.row.index[i][e].length).reduce!max;
-                        
+
                         if(tmp > thisGap)
                         {
                             thisGap = tmp;
@@ -177,7 +178,7 @@ public:
                     const auto tmp = (indx.column.titles.length > top)
                         ? indx.column.titles[0 .. top].map!(e => e.length).reduce!max
                         : indx.column.titles.map!(e => e.length).reduce!max;
-                    
+
                     if(tmp > thisGap)
                     {
                         thisGap = tmp;
@@ -198,7 +199,7 @@ public:
                         lenCol = to!string(indx.column.codes[j][dataIndex]).length;
                     else
                         lenCol = indx.column.index[j][indx.column.codes[j][dataIndex]].length;
-                    
+
                     maxGap = (maxGap > lenCol)? maxGap: lenCol;
                 }
 
@@ -211,7 +212,7 @@ public:
                         lenCol = to!string(indx.column.codes[j][dataIndex]).length;
                     else
                         lenCol = indx.column.index[j][indx.column.codes[j][dataIndex]].length;
-                    
+
                     maxGap = (maxGap > lenCol)? maxGap: lenCol;
                 }
 
@@ -267,7 +268,7 @@ public:
         auto dispstr = appender!string;
         foreach(ele; [[0, top], [totalHeight - bottom, totalHeight]])
         {
-            const int extra = (indx.row.titles.length > 0 && indx.column.titles.length > 0)? 1: 0; 
+            const int extra = (indx.row.titles.length > 0 && indx.column.titles.length > 0)? 1: 0;
             if(ele[0] < indx.column.index.length + extra)
             {
                 dataIndex = 0;
@@ -287,7 +288,7 @@ public:
                         {
                             if(j < indx.row.index.length)
                             {
-                                if(j == indx.row.index.length - 1 
+                                if(j == indx.row.index.length - 1
                                     && indx.column.titles.length != 0)
                                 {
                                     if(indx.column.titles[i].length > maxColSize)
@@ -463,7 +464,7 @@ public:
                 dispstr.put("\n");
             }
         }
-        
+
         import std.stdio: writeln;
         if(!getStr)
         {
@@ -494,12 +495,12 @@ public:
         auto formatter = appender!(string);
         const size_t totalHeight = rows + indx.column.index.length +
             ((indx.row.titles.length > 0 && indx.column.titles.length > 0)? 1: 0);
-        
+
         if(rows == 0)
         {
             return;
         }
-        
+
         if(writeColumn)
         {
             foreach(i; 0 .. indx.column.index.length)
@@ -538,7 +539,7 @@ public:
                         colindx = to!string(indx.column.codes[i][j]);
                     else
                         colindx = indx.column.index[i][indx.column.codes[i][j]];
-                    
+
                     formatter.put(colindx);
                     if(j < cols - 1)
                         formatter.put(sep);
@@ -607,7 +608,7 @@ public:
     @params: indexDepth - Number of column row index span
     @params: columnDepth - Number of rows column index span
     @params: column.index - Integer row.index of column to selectively parse
-    @params: sep - Data seperator in the file 
+    @params: sep - Data seperator in the file
     +/
     void from_csv(string path, size_t indexDepth, size_t columnDepth, size_t[] columns = [], char sep = ',')
     {
@@ -622,7 +623,7 @@ public:
                 all.put(i);
             columns = all.data;
         }
-        
+
         assert(columns.length == cols, "The dimension of columns must be same as dimension of the DataFrame");
 
         File csvfile = File(path, "r");
@@ -635,7 +636,7 @@ public:
             indx.row.codes ~= [[]];
             indx.row.index ~= [[]];
         }
-        
+
         size_t dataIndex = 0;
         while(!csvfile.eof())
         {
@@ -651,7 +652,7 @@ public:
                 {
                     indx.column.titles ~= fields[indexDepth - 1];
                     bothTitle = true;
-                } 
+                }
 
                 indx.column.index ~= [[]];
                 indx.column.codes ~= [[]];
@@ -659,7 +660,7 @@ public:
                 {
                     size_t pos = columns[i];
                     string colindx = fields[indexDepth + pos];
-                    
+
                     if(i > 0 && colindx.length == 0)
                     {
                         indx.column.codes[line] ~= indx.column.codes[line][$ - 1];
@@ -668,7 +669,7 @@ public:
                     {
                         import std.algorithm: countUntil;
                         int idxpos = cast(int)countUntil(indx.column.index[line], colindx);
-                        
+
                         if(idxpos > -1)
                         {
                             indx.column.codes[line] ~= cast(int)idxpos;
@@ -715,11 +716,11 @@ public:
 
                     static foreach(i; 0 .. RowType.length)
                     {
-                        
+
                         if(fields.length > (columns[i] + indexDepth))
                         {
                             import std.conv: to, ConvException;
-                            
+
                             try
                             {
                                 data[i] ~= to!(RowType[i])(fields[columns[i] + indexDepth]);
@@ -856,12 +857,12 @@ public:
         assert(index.row.codes.length > 0 || index.column.codes.length > 0
             || index.row.titles.length > 0 || index.column.titles.length > 0,
             "Cannot set empty index to DataFrame");
-        
+
         bool needsPadding = false;
-        
+
         foreach(i; 0 .. 2)
         {
-            if(index.indexing[i].codes.length > 0 && index.indexing[i].codes[0].length >= (i)? cols: rows)
+            if(index.indexing[i].codes.length > 0 && index.indexing[i].codes[0].length >= ((i)? cols: rows))
             {
                 indx.indexing[i].codes = index.indexing[i].codes;
                 indx.indexing[i].index = index.indexing[i].index;
@@ -949,7 +950,7 @@ public:
             pos = getPosition!(axis)(index);
 
         assert(pos > -1 && pos < (axis)? rows: cols, "Index out of bound");
-        
+
         static if(axis == 0)
         {
             static foreach(i; 0 .. (RowType.length > U.length)? U.length: RowType.length)
@@ -981,7 +982,7 @@ public:
         static foreach(i; 0 .. RowType.length)
             if(i == i2)
                 return data[i][i1];
-        
+
         // If the above assertions pass, a value will be definitely returned
         assert(0);
     }
@@ -1011,7 +1012,7 @@ public:
         static foreach(i; 0 .. RowType.length)
             if(i == i2)
                 return data[i][i1];
-        
+
         assert(0);
     }
 
@@ -1023,6 +1024,10 @@ public:
     auto opIndex(Args...)(Args args)
         if(Args.length > 0 && Args.length < 3)
     {
+        static assert(is(Args[0] == string[]), "Indexes must be an array of string");
+        static if(Args.length > 1)
+            static assert(is(Args[1] == int), "Use df[Row_Index, 0] to use binary operations on row.\n
+                Note: To use column binary operations, use just df[Column_Index]");
         const int axis = (Args.length == 1)? 1: 0;
         int pos = -1;
         if(axis == 0)
@@ -1034,10 +1039,14 @@ public:
 
         static if(axis == 1)
         {
-            import magpie.axis: Axis;
+            import magpie.axis: Axis, DataType;
+            Axis!void retcol;
             static foreach(i; 0 .. RowType.length)
                 if(i == pos)
-                    return Axis!(FrameType[i])(data[i]);
+                    foreach(j; data[i])
+                        retcol.data ~= DataType(j);
+
+            return retcol;
         }
         else
         {
@@ -1050,6 +1059,44 @@ public:
         }
 
         assert(0);
+    }
+
+    /++
+    Column/Row binary operations
+    df[["CIndex1"]] = df[["CIndex2"]] + df[["CIndex3"]];
+    df[["RIndex1"], 0] = df[["RIndex2"], 0] + df[["RIndex3"], 0];
+    +/
+    auto opIndexAssign(T...)(Axis!T elements, string[] index, int axis = 1)
+        if(T.length == RowType.length || T.length == 1)
+    {
+        static if(is(T[0] == void))
+        {
+            assert(elements.data.length == rows, "Length of Axis.data is not equal to number of rows");
+            int pos = getPosition!1(index);
+            assert(pos > -1, "Index not found");
+            static foreach(i; 0 .. RowType.length)
+                if(i == pos)
+                    foreach(j; 0 .. elements.data.length)
+                    {
+                        import std.variant: VariantException;
+                        try
+                        {
+                            data[i][j] = elements.data[j].get!(RowType[i]);
+                        }
+                        catch(VariantException e)
+                        {
+                            data[i][j] = cast(RowType[i])elements.data[j].get!(double);
+                        }
+                    }
+        }
+        else
+        {
+            assert(elements.data.length == RowType.length, "Length of Axis.data is less than the number of columns");
+            int pos = getPosition!0(index);
+            assert(pos > -1, "Index not found");
+            static foreach(i; 0 .. RowType.length)
+                data[i][pos] = elements.data[i];
+        }
     }
 }
 
@@ -1081,6 +1128,27 @@ unittest
     assert(is(typeof(df.data) == AliasSeq!(int[], double[])));
 }
 
+// Community suggested way to declare a DataFrame
+unittest
+{
+    DataFrame!(int[3], double) df;
+    assert(is(df.RowType == AliasSeq!(int, int, int, double)));
+}
+
+// Community suggested way to declare a DataFrame - from struct
+unittest
+{
+    struct Example
+    {
+        int[2] x;
+        double[2] y;
+    }
+
+    import std.traits: Fields;
+    DataFrame!(Fields!Example) df;
+    assert(is(df.RowType == AliasSeq!(int, int, double, double)));
+}
+
 // Getting element from it's index
 unittest
 {
@@ -1091,7 +1159,7 @@ unittest
     df.indx.row.index = [["Hello", "Hi"]];
     df.indx.row.codes = [[]];
     df.indx.column.titles = [];
-    df.indx.column.index = [["Hello","Hi"]];
+    df.indx.column.index = [["Hello", "Hi"]];
     df.indx.column.codes = [[]];
     df.rows = 2;
     df.data[0] = [1,2];
@@ -1118,11 +1186,11 @@ unittest
     df.indx.row.index = [["Hello", "Hi"]];
     df.indx.row.codes = [[]];
     df.indx.column.titles = [];
-    df.indx.column.index = [["Hello","Hi"]];
+    df.indx.column.index = [["Hello", "Hi"]];
     df.indx.column.codes = [[]];
     df.rows = 2;
-    df.data[0] = [1,2];
-    df.data[1] = [1,2];
+    df.data[0] = [1, 2];
+    df.data[1] = [1, 2];
 
     df[0, 0] = 42;
     assert(df.data[0] == [42, 2]);
@@ -1135,14 +1203,14 @@ unittest
     assert(is(typeof(df.data) == Repeat!(2, int[])));
 
     df.indx.row.titles = ["Index1", "Index2", "Index3"];
-    df.indx.row.index = [["Hello", "Hi"],["Hello"], []];
+    df.indx.row.index = [["Hello", "Hi"], ["Hello"], []];
     df.indx.row.codes = [[0, 1], [0, 0], [1, 24]];
-    df.indx.column.titles = ["Hey","Hey","Hey"];
-    df.indx.column.index = [["Hello","Hi"],[],["Hello"]];
-    df.indx.column.codes = [[0,1],[1,2],[0,0]];
+    df.indx.column.titles = ["Hey", "Hey", "Hey"];
+    df.indx.column.index = [["Hello", "Hi"], [], ["Hello"]];
+    df.indx.column.codes = [[0, 1], [1, 2], [0, 0]];
     df.rows = 2;
-    df.data[0] = [1,2];
-    df.data[1] = [1,2];
+    df.data[0] = [1, 2];
+    df.data[1] = [1, 2];
 
     df[["Hello", "Hello", "1"], ["Hello", "1", "Hello"]] = 48;
     assert(df.data[0] == [48, 2]);
@@ -1169,14 +1237,14 @@ unittest
     assert(is(typeof(df.data) == Repeat!(2, int[])));
 
     df.indx.row.titles = ["Index1", "Index2", "Index3"];
-    df.indx.row.index = [["Hello", "Hi"],["Hello"], []];
+    df.indx.row.index = [["Hello", "Hi"], ["Hello"], []];
     df.indx.row.codes = [[0, 1], [0, 0], [1,24]];
-    df.indx.column.titles = ["Hey","Hey","Hey"];
-    df.indx.column.index = [["Hello","Hi"],[],["Hello"]];
-    df.indx.column.codes = [[],[1,2],[0,0]];
+    df.indx.column.titles = ["Hey", "Hey", "Hey"];
+    df.indx.column.index = [["Hello", "Hi"], [], ["Hello"]];
+    df.indx.column.codes = [[], [1, 2], [0, 0]];
     df.rows = 2;
-    df.data[0] = [1,2];
-    df.data[1] = [1,2];
+    df.data[0] = [1, 2];
+    df.data[1] = [1, 2];
 
     assert(df.getRowPosition(["Hello", "Hello", "1"]) == 0);
     assert(df.getRowPosition(["Hi", "Hello", "24"]) == 1);
@@ -1192,11 +1260,11 @@ unittest
     assert(is(typeof(df.data) == Repeat!(2, int[])));
 
     df.indx.row.titles = ["Index1", "Index2", "Index3"];
-    df.indx.row.index = [["Hello", "Hi"],["Hello"], []];
-    df.indx.row.codes = [[0, 1], [0, 0], [1,24]];
-    df.indx.column.titles = ["Hey","Hey","Hey"];
-    df.indx.column.index = [["Hello","Hi"],[],["Hello"]];
-    df.indx.column.codes = [[0,1],[1,2],[0,0]];
+    df.indx.row.index = [["Hello", "Hi"], ["Hello"], []];
+    df.indx.row.codes = [[0, 1], [0, 0], [1, 24]];
+    df.indx.column.titles = ["Hey", "Hey", "Hey"];
+    df.indx.column.index = [["Hello", "Hi"], [], ["Hello"]];
+    df.indx.column.codes = [[0, 1], [1, 2], [0, 0]];
     df.rows = 2;
     df.data[0] = [1,2];
     df.data[1] = [1,2];
@@ -1212,7 +1280,7 @@ unittest
 {
     DataFrame!(double, int) df;
     Index inx;
-    inx.setIndex([1,2,3,4,5], ["Index"]);
+    inx.setIndex([1, 2, 3, 4, 5], ["Index"]);
     df.setFrameIndex(inx);
     string ret = df.display(true, 200);
     assert(ret == "Index  0    1  \n"
@@ -1229,10 +1297,10 @@ unittest
 {
     DataFrame!(double, int) df;
     Index inx;
-    inx.setIndex([1,2,3,4,5], ["Index"], [1, 2], ["Index"]);
+    inx.setIndex([1, 2, 3, 4, 5], ["Index"], [1, 2], ["Index"]);
     df.setFrameIndex(inx);
     df[["1"], ["2"]] = 42;
-    assert(df.data[1] == [42,0,0,0,0]);
+    assert(df.data[1] == [42, 0, 0, 0, 0]);
 }
 
 // Checking if setting index works as intended when assigning using the set index
@@ -1243,7 +1311,7 @@ unittest
     inx.setIndex([["Hello", "Hi"], ["Hi", "Hello"]], ["Index", "Index"], [1, 2], ["Index"]);
     df.setFrameIndex(inx);
     df[["Hello", "Hi"], ["2"]] = 42;
-    assert(df.data[1] == [42,0]);
+    assert(df.data[1] == [42, 0]);
 }
 
 // Checking if setting index works as intended when assigning using the set index
@@ -1254,7 +1322,7 @@ unittest
     inx.setIndex([["Hello", "Hi"], ["Hi", "Hello"]], ["Index", "Index"], [["Hello", "Hi"], ["Hi", "Hello"]]);
     df.setFrameIndex(inx);
     df[["Hello", "Hi"], ["Hi", "Hello"]] = 42;
-    assert(df.data[1] == [42,0]);
+    assert(df.data[1] == [42, 0]);
 }
 
 // Basic Assignment operation
@@ -1268,18 +1336,18 @@ unittest
     // Assignment
     df = [[1, 2], [3, 4]];
     // df.display();
-    assert(df.data[0] == [1,3]);
-    assert(df.data[1] == [2,4]);
+    assert(df.data[0] == [1, 3]);
+    assert(df.data[1] == [2, 4]);
     assert(df[["Hello", "Hi"], ["Hello", "Hi"]] == 1);
     assert(df[["Hello", "Hi"], ["Hi", "Hello"]] == 2);
     assert(df[["Hi", "Hello"], ["Hello", "Hi"]] == 3);
     assert(df[["Hi", "Hello"], ["Hi", "Hello"]] == 4);
 
     // Assignment that needs apdding
-    df = [[1], [2,3]];
+    df = [[1], [2, 3]];
     // df.display();
-    assert(df.data[0] == [1,2]);
-    assert(df.data[1] == [0,3]);
+    assert(df.data[0] == [1, 2]);
+    assert(df.data[1] == [0, 3]);
     assert(df[["Hello", "Hi"], ["Hello", "Hi"]] == 1);
     assert(df[["Hello", "Hi"], ["Hi", "Hello"]] == 0);
     assert(df[["Hi", "Hello"], ["Hello", "Hi"]] == 2);
@@ -1316,20 +1384,20 @@ unittest
     df.assign!0(["Hi", "Hello"], 1.688, 6);
     assert(df.data[0][1] == 1.688);
     assert(df.data[1][1] == 6);
-    
+
     // Assigning usig direct index
     df.assign!0(1, 1.588, 6);
     assert(df.data[0][1] == 1.588);
     assert(df.data[1][1] == 6);
-    
+
     // Assigning column
     df.assign!1(["Hello", "Hi"], [1.2, 3.6]);
     assert(df.data[0] == [1.2, 3.6]);
-    
+
     // Assigning column.index using direct index
     df.assign!1(0, [1.26, 4.6]);
     assert(df.data[0] == [1.26, 4.6]);
-    
+
     // Partial Assignment - rows
     df.assign!0(1, 3.588);
     assert(df.data[0][1] == 3.588);
@@ -1348,13 +1416,13 @@ unittest
 
     df.indx.row.titles = ["Index1", "Index2", "Index3"];
     df.indx.row.index = [["Hello", "Hi"],["Hello"], []];
-    df.indx.row.codes = [[0, 1], [0, 0], [1,24]];
-    df.indx.column.titles = ["Hey","Hey","Hey"];
-    df.indx.column.index = [["Hello","Hi"],[],["Hello"]];
-    df.indx.column.codes = [[0,1],[1,2],[0,0]];
+    df.indx.row.codes = [[0, 1], [0, 0], [1, 24]];
+    df.indx.column.titles = ["Hey", "Hey", "Hey"];
+    df.indx.column.index = [["Hello", "Hi"], [], ["Hello"]];
+    df.indx.column.codes = [[0, 1],[1, 2],[0, 0]];
     df.rows = 2;
-    df.data[0] = [1,2];
-    df.data[1] = [1,2];
+    df.data[0] = [1, 2];
+    df.data[1] = [1, 2];
 
     assert(df[["Hello", "1", "Hello"]].data == [1, 2]);
     assert(df[["Hi", "2", "Hello"]].data == [1, 2]);
@@ -1362,6 +1430,183 @@ unittest
     assert(df[["Hi", "Hello", "24"], 0].data[0] == 2);
     assert(df[["Hello", "Hello", "1"], 0].data[1] == 1);
     assert(df[["Hi", "Hello", "24"], 0].data[1] == 2);
+}
+
+// Column binary Operation
+unittest
+{
+    DataFrame!(int, 3) df;
+    Index inx;
+    inx.setIndex([["Hello", "Hi"], ["Hi", "Hello"]], ["Index", "Index"]);
+    df.setFrameIndex(inx);
+    // df.display();
+
+    df.assign!1(0, [1, 4]);
+    df.assign!1(1, [1, 6]);
+    df.assign!1(2, [1, 8]);
+    // df.display();
+
+    df[["0"]] = df[["1"]] + df[["2"]];
+    assert(df.data[0] == [2, 14]);
+    df[["Hello", "Hi"], 0] = df[["Hi", "Hello"], 0];
+    assert(df.data[0][0] == 14 && df.data[1][0] == 6 && df.data[2][0] == 8);
+    // df.display();
+
+    df[["0"]] = df[["1"]] - df[["2"]];
+    assert(df.data[0] == [-2, -2]);
+    // df.display();
+
+    df[["0"]] = df[["1"]] * df[["2"]];
+    assert(df.data[0] == [48, 48]);
+    // df.display();
+
+    df[["0"]] = df[["1"]] / df[["2"]];
+    assert(df.data[0] == [0, 0]);
+    // df.display();
+
+    df[["0"]] = df[["1"]];
+    assert(df.data[0] == [6, 6]);
+}
+
+// Row binary operations
+unittest
+{
+    DataFrame!(int, 3) df;
+    Index inx;
+    inx.setIndex([["Hello", "Hi", "Hey"], ["Hi", "Hello", "Hey"]], ["Index", "Index", "Index"]);
+    df.setFrameIndex(inx);
+    // df.display();
+
+    df.assign!1(0, [1, 4, 8]);
+    df.assign!1(1, [1, 6, 9]);
+    df.assign!1(2, [1, 8, 17]);
+
+    df[["Hello", "Hi"], 0] = df[["Hi", "Hello"], 0] + df[["Hey", "Hey"], 0];
+    assert(df.data[0][0] == 12 && df.data[1][0] == 15 && df.data[2][0] == 25);
+
+    df[["Hello", "Hi"], 0] = df[["Hi", "Hello"], 0] - df[["Hey", "Hey"], 0];
+    assert(df.data[0][0] == -4 && df.data[1][0] == -3 && df.data[2][0] == -9);
+
+    df[["Hello", "Hi"], 0] = df[["Hi", "Hello"], 0] * df[["Hey", "Hey"], 0];
+    assert(df.data[0][0] == 32 && df.data[1][0] == 54 && df.data[2][0] == 136);
+
+    df[["Hello", "Hi"], 0] = df[["Hi", "Hello"], 0] / df[["Hey", "Hey"], 0];
+    assert(df.data[0][0] == 0 && df.data[1][0] == 0 && df.data[2][0] == 0);
+
+    // df.display();
+}
+
+// Column Binary Operation - Heterogeneous DataFrame
+unittest
+{
+    DataFrame!(int, 2, double, 2) df;
+    Index inx;
+    inx.setIndex([["Hello", "Hi"], ["Hi", "Hello"]], ["Index", "Index"]);
+    df.setFrameIndex(inx);
+    // df.display();
+
+    df.assign!1(0, [1, 4]);
+    df.assign!1(1, [1, 6]);
+    df.assign!1(2, [1.9, 8.4]);
+    df.assign!1(3, [9.2, 4.6]);
+    // df.display();
+
+    df[["0"]] = df[["1"]];
+    assert(df.data[0] == [1, 6]);
+
+    // If for some reason float is assigned to int, it gets explicitly converted
+    // Supported only for floating point -> Integral kind
+    df[["0"]] = df[["2"]];
+    assert(df.data[0] == [1, 8]);
+
+    df[["1"]] = df[["2"]] + df[["3"]];
+    assert(df.data[1] == [11, 13]);
+
+    df[["0"]] = df[["1"]] + df[["2"]] + df[["3"]];
+    assert(df.data[0] == [22, 26]);
+
+    df[["3"]] = df[["0"]];
+    assert(df.data[3] == [22, 26]);
+
+    df[["0"]] = df[["1"]] + df[["2"]] * df[["3"]];
+    foreach(i; 0 .. 2)
+        assert(df.data[0][i] == cast(int)(df.data[1][i] + df.data[2][i] * df.data[3][i]));
+
+    df[["0"]] = df[["1"]] - df[["2"]] / df[["3"]];
+    foreach(i; 0 .. 2)
+        assert(df.data[0][i] == cast(int)(df.data[1][i] - df.data[2][i] / df.data[3][i]));
+
+    import std.math: approxEqual;
+    df[["2"]] = df[["0"]] * df[["1"]] / df[["3"]];
+    foreach(i; 0 .. 2)
+        assert(approxEqual(df.data[2][i], df.data[0][i] * df.data[1][i] / df.data[3][i], 1e-3));
+
+    df[["3"]] = df[["2"]] / df[["1"]] / df[["0"]];
+    foreach(i; 0 .. 2)
+        assert(approxEqual(df.data[3][i], df.data[2][i] / df.data[1][i] / df.data[0][i], 1e-3));
+
+    df[["Hello", "Hi"], 0] = df[["Hi", "Hello"], 0];
+    static foreach(i; 0 .. 4)
+        assert(approxEqual(df.data[i][0], df.data[i][1], 1e-3));
+}
+
+// Row binary Operation on Heterogeneous DataFrame
+unittest
+{
+    DataFrame!(int, 2, double, 2) df;
+    Index inx;
+    inx.setIndex([["Hello", "Hi", "Hey", "Ahoy"], ["Hi", "Hello", "Ahoy", "Hey"]], ["Index", "Index"]);
+    df.setFrameIndex(inx);
+    // df.display();
+
+    df.assign!1(0, [1, 4, 7, 8]);
+    df.assign!1(1, [1, 6, 13, 45]);
+    df.assign!1(2, [1.9, 8.4, 17.2, 34.3]);
+    df.assign!1(3, [9.2, 4.6, 19.6, 44.3]);
+    // df.display();
+
+    import std.math: approxEqual;
+    df[["Hello", "Hi"], 0] = df[["Hi", "Hello"], 0] + df[["Hey", "Ahoy"], 0] * df[["Ahoy", "Hey"], 0];
+    static foreach(i; 0 .. 4)
+        assert(approxEqual(df.data[i][0], df.data[i][1] + df.data[i][2] * df.data[i][3], 1e-1));
+
+    df[["Hello", "Hi"], 0] = df[["Hi", "Hello"], 0] * df[["Hey", "Ahoy"], 0] / df[["Ahoy", "Hey"], 0];
+    static foreach(i; 0 .. 4)
+        assert(approxEqual(df.data[i][0], df.data[i][1] * df.data[i][2] / df.data[i][3], 1e-1));
+
+    df[["Hello", "Hi"], 0] = df[["Hi", "Hello"], 0] * df[["Hey", "Ahoy"], 0] * df[["Ahoy", "Hey"], 0];
+    static foreach(i; 0 .. 4)
+        assert(approxEqual(df.data[i][0], df.data[i][1] * df.data[i][2] * df.data[i][3], 1e-1));
+
+    df[["Hello", "Hi"], 0] = df[["Hi", "Hello"], 0] / df[["Hey", "Ahoy"], 0] / df[["Ahoy", "Hey"], 0];
+    static foreach(i; 0 .. 4)
+        assert(approxEqual(df.data[i][0], df.data[i][1] / df.data[i][2] / df.data[i][3], 1e-1));
+
+    df[["Hello", "Hi"], 0] = (df[["Hi", "Hello"], 0] + df[["Hey", "Ahoy"], 0]) * df[["Ahoy", "Hey"], 0];
+    static foreach(i; 0 .. 4)
+        assert(approxEqual(df.data[i][0], (df.data[i][1] + df.data[i][2]) * df.data[i][3], 1e-1));
+
+    df[["Hi", "Hello"], 0] = (df[["Hello", "Hi"], 0] + df[["Hey", "Ahoy"], 0]) * df[["Ahoy", "Hey"], 0];
+    static foreach(i; 0 .. 4)
+        assert(approxEqual(df.data[i][1], (df.data[i][0] + df.data[i][2]) * df.data[i][3], 1e-1));
+
+    df[["Hi", "Hello"], 0] = (df[["Hello", "Hi"], 0] - df[["Hey", "Ahoy"], 0]) / df[["Ahoy", "Hey"], 0];
+    static foreach(i; 0 .. 4)
+        assert(approxEqual(df.data[i][1], (df.data[i][0] - df.data[i][2]) / df.data[i][3], 1e-1));
+}
+
+// Checking if pattern matching for steIndex works - If an index isn't assignable, it's overlooked
+unittest
+{
+    DataFrame!(double, 2, int) df;
+    Index inx;
+    inx.setIndex([["Hello", "Hi"], ["Hi", "Hello"]], ["Index", "Index"], [["Hello", "Hi"], ["Hi", "Hello"]]);
+    df.setFrameIndex(inx);
+
+    assert(df.indx.column.index == [[]]);
+    assert(df.indx.column.codes == [[0, 1, 2]]);
+    assert(df.indx.row.index == [["Hello", "Hi"], ["Hello", "Hi"]]);
+    assert(df.indx.row.codes == [[0, 1], [1, 0]]);
 }
 
 // Simple Data Frame
@@ -1374,11 +1619,11 @@ unittest
     df.indx.row.index = [["Hello", "Hi"]];
     df.indx.row.codes = [[]];
     df.indx.column.titles = [];
-    df.indx.column.index = [["Hello","Hi"]];
+    df.indx.column.index = [["Hello", "Hi"]];
     df.indx.column.codes = [[]];
     df.rows = 2;
-    df.data[0] = [1,2];
-    df.data[1] = [1,2];
+    df.data[0] = [1, 2];
+    df.data[1] = [1, 2];
     string ret = df.display(true, 200);
     assert(ret == "Index1  Hello  Hi  \n"
         ~ "Hello   1      1   \n"
@@ -1396,11 +1641,11 @@ unittest
     df.indx.row.index = [["Hello", "Hi"]];
     df.indx.row.codes = [[]];
     df.indx.column.titles = ["Also Index"];
-    df.indx.column.index = [["Hello","Hi"]];
+    df.indx.column.index = [["Hello", "Hi"]];
     df.indx.column.codes = [[]];
     df.rows = 2;
-    df.data[0] = [1,2];
-    df.data[1] = [1,2];
+    df.data[0] = [1, 2];
+    df.data[1] = [1, 2];
     string ret = df.display(true, 200);
 
     assert(ret == "Also Index  Hello  Hi  \n"
@@ -1420,13 +1665,13 @@ unittest
     df.indx.row.index = [["Hello", "Hi"], ["Hello", "Hi"]];
     df.indx.row.codes = [[],[]];
     df.indx.column.titles = [];
-    df.indx.column.index = [["Hello","Hi"]];
+    df.indx.column.index = [["Hello", "Hi"]];
     df.indx.column.codes = [[]];
     df.rows = 2;
-    df.data[0] = [1,2];
-    df.data[1] = [1,2];
+    df.data[0] = [1, 2];
+    df.data[1] = [1, 2];
     string ret = df.display(true, 200);
-    
+
     assert(ret == "Index1  Index2  Hello  Hi  \n"
         ~ "Hello   Hello   1      1   \n"
         ~ "Hi      Hi      2      2   \n"
@@ -1442,13 +1687,13 @@ unittest
     df.indx.row.index = [["Hello", "Hi"]];
     df.indx.row.codes = [[]];
     df.indx.column.titles = [];
-    df.indx.column.index = [["Hello","Hi"], ["Hello","Hi"]];
-    df.indx.column.codes = [[],[]];
+    df.indx.column.index = [["Hello", "Hi"], ["Hello", "Hi"]];
+    df.indx.column.codes = [[], []];
     df.rows = 2;
-    df.data[0] = [1,2];
-    df.data[1] = [1,2];
+    df.data[0] = [1, 2];
+    df.data[1] = [1, 2];
     string ret = df.display(true, 200);
-    
+
     assert(ret == "        Hello  Hi  \n"
         ~ "Index1  Hello  Hi  \n"
         ~ "Hello   1      1   \n"
@@ -1466,13 +1711,13 @@ unittest
     df.indx.row.index = [["Hello", "Hi"]];
     df.indx.row.codes = [[]];
     df.indx.column.titles = ["CIndex1", "CIndex2"];
-    df.indx.column.index = [["Hello","Hi"], ["Hello","Hi"]];
-    df.indx.column.codes = [[],[]];
+    df.indx.column.index = [["Hello", "Hi"], ["Hello", "Hi"]];
+    df.indx.column.codes = [[], []];
     df.rows = 2;
-    df.data[0] = [1,2];
-    df.data[1] = [1,2];
+    df.data[0] = [1, 2];
+    df.data[1] = [1, 2];
     string ret = df.display(true, 200);
-    
+
     assert(ret == "CIndex1  Hello  Hi  \n"
         ~ "CIndex2  Hello  Hi  \n"
         ~ "Index1   \n"
@@ -1520,7 +1765,7 @@ unittest
     df.indx.row.index = [[]];
     df.indx.row.codes = [[]];
     df.indx.column.titles = [];
-    df.indx.column.index = [["Hello","Hi"]];
+    df.indx.column.index = [["Hello", "Hi"]];
     df.indx.column.codes = [[]];
     df.rows = 100;
     int[] arr = [];
@@ -1595,14 +1840,14 @@ unittest
     assert(is(typeof(df.data) == Repeat!(2, int[])));
 
     df.indx.row.titles = ["Index1", "Index2", "Index3"];
-    df.indx.row.index = [["Hello", "Hi"],["Hello"], []];
-    df.indx.row.codes = [[0, 1], [0, 0], [1,24]];
+    df.indx.row.index = [["Hello", "Hi"], ["Hello"], []];
+    df.indx.row.codes = [[0, 1], [0, 0], [1, 24]];
     df.indx.column.titles = [];
-    df.indx.column.index = [["Hello","Hi"],[],["Hello"]];
-    df.indx.column.codes = [[],[1,2],[0,0]];
+    df.indx.column.index = [["Hello", "Hi"], [], ["Hello"]];
+    df.indx.column.codes = [[], [1, 2], [0, 0]];
     df.rows = 2;
-    df.data[0] = [1,2];
-    df.data[1] = [1,2];
+    df.data[0] = [1, 2];
+    df.data[1] = [1, 2];
     string ret = df.display(true, 200);
     assert(ret == "                        Hello  Hi     \n"
         ~ "                        1      2      \n"
@@ -1619,14 +1864,14 @@ unittest
     assert(is(typeof(df.data) == Repeat!(2, int[])));
 
     df.indx.row.titles = ["Index1", "Index2", "Index3"];
-    df.indx.row.index = [["Hello", "Hi"],["Hello"], []];
-    df.indx.row.codes = [[0, 1], [0, 0], [1,24]];
-    df.indx.column.titles = ["Hey","Hey","Hey"];
-    df.indx.column.index = [["Hello","Hi"],[],["Hello"]];
-    df.indx.column.codes = [[],[1,2],[0,0]];
+    df.indx.row.index = [["Hello", "Hi"], ["Hello"], []];
+    df.indx.row.codes = [[0, 1], [0, 0], [1, 24]];
+    df.indx.column.titles = ["Hey", "Hey", "Hey"];
+    df.indx.column.index = [["Hello", "Hi"], [], ["Hello"]];
+    df.indx.column.codes = [[], [1, 2], [0, 0]];
     df.rows = 2;
-    df.data[0] = [1,2];
-    df.data[1] = [1,2];
+    df.data[0] = [1, 2];
+    df.data[1] = [1, 2];
     string ret = df.display(true, 200);
     assert(ret == "                Hey     Hello  Hi     \n"
         ~ "                Hey     1      2      \n"
@@ -1646,15 +1891,15 @@ unittest
     assert(is(typeof(df.data) == Repeat!(2, int[])));
 
     df.indx.row.titles = ["Index1", "Index2", "Index3"];
-    df.indx.row.index = [["Hello", "Hi"],["Hello"], []];
-    df.indx.row.codes = [[1, 1], [0, 0], [1,24]];
+    df.indx.row.index = [["Hello", "Hi"], ["Hello"], []];
+    df.indx.row.codes = [[1, 1], [0, 0], [1, 24]];
     df.indx.column.titles = [];
-    df.indx.column.index = [["Hello","Hi"],[],["Hello"]];
-    df.indx.column.codes = [[],[1,2],[0,0]];
+    df.indx.column.index = [["Hello", "Hi"], [], ["Hello"]];
+    df.indx.column.codes = [[], [1, 2], [0, 0]];
     df.indx.isMultiIndexed = true;
     df.rows = 2;
-    df.data[0] = [1,2];
-    df.data[1] = [1,2];
+    df.data[0] = [1, 2];
+    df.data[1] = [1, 2];
     string ret = df.display(true, 200);
     assert(ret == "                        Hello  Hi     \n"
         ~ "                        1      2      \n"
@@ -1671,17 +1916,17 @@ unittest
     assert(is(typeof(df.data) == Repeat!(2, int[])));
 
     df.indx.row.titles = ["Index1", "Index2", "Index3"];
-    df.indx.row.index = [["Hello", "Hi"],["Hello"], []];
-    df.indx.row.codes = [[1, 0], [0, 0], [1,24]];
+    df.indx.row.index = [["Hello", "Hi"], ["Hello"], []];
+    df.indx.row.codes = [[1, 0], [0, 0], [1, 24]];
     df.indx.column.titles = [];
-    df.indx.column.index = [["Hello","Hi"],[],["Hello"]];
-    df.indx.column.codes = [[],[1,2],[0,0]];
+    df.indx.column.index = [["Hello","Hi"], [], ["Hello"]];
+    df.indx.column.codes = [[], [1, 2], [0, 0]];
     df.indx.isMultiIndexed = true;
     df.rows = 2;
-    df.data[0] = [1,2];
-    df.data[1] = [1,2];
+    df.data[0] = [1, 2];
+    df.data[1] = [1, 2];
     string ret = df.display(true, 200);
-    
+
     assert(ret == "                        Hello  Hi     \n"
         ~ "                        1      2      \n"
         ~ "Index1  Index2  Index3  Hello  Hello  \n"
@@ -1699,15 +1944,15 @@ unittest
     assert(is(typeof(df.data) == Repeat!(2, int[])));
 
     df.indx.row.titles = ["Index1", "Index2", "Index3"];
-    df.indx.row.index = [["Hello", "Hi"],["Hello"], []];
-    df.indx.row.codes = [[0, 1], [0, 0], [1,24]];
-    df.indx.column.titles = ["Hey","Hey","Hey"];
-    df.indx.column.index = [["Hello","Hi"],[],["Hello"]];
-    df.indx.column.codes = [[],[1,2],[0,0]];
+    df.indx.row.index = [["Hello", "Hi"], ["Hello"], []];
+    df.indx.row.codes = [[0, 1], [0, 0], [1, 24]];
+    df.indx.column.titles = ["Hey", "Hey", "Hey"];
+    df.indx.column.index = [["Hello", "Hi"], [], ["Hello"]];
+    df.indx.column.codes = [[], [1, 2], [0, 0]];
     df.rows = 2;
-    df.data[0] = [1,2];
-    df.data[1] = [1,2];
-    
+    df.data[0] = [1, 2];
+    df.data[1] = [1, 2];
+
     df.to_csv("./test/tocsv/ex1p1.csv");
     string[] data = [
         ",,Hey,Hello,Hi",
@@ -1738,15 +1983,15 @@ unittest
     assert(is(typeof(df.data) == Repeat!(2, int[])));
 
     df.indx.row.titles = ["Index1", "Index2", "Index3"];
-    df.indx.row.index = [["Hello", "Hi"],["Hello"], []];
-    df.indx.row.codes = [[0, 1], [0, 0], [1,24]];
-    df.indx.column.titles = ["Hey","Hey","Hey"];
-    df.indx.column.index = [["Hello","Hi"],[],["Hello"]];
-    df.indx.column.codes = [[],[1,2],[0,0]];
+    df.indx.row.index = [["Hello", "Hi"], ["Hello"], []];
+    df.indx.row.codes = [[0, 1], [0, 0], [1, 24]];
+    df.indx.column.titles = ["Hey", "Hey", "Hey"];
+    df.indx.column.index = [["Hello", "Hi"], [], ["Hello"]];
+    df.indx.column.codes = [[], [1, 2], [0, 0]];
     df.rows = 2;
-    df.data[0] = [1,2];
-    df.data[1] = [1,2];
-    
+    df.data[0] = [1, 2];
+    df.data[1] = [1, 2];
+
     df.to_csv("./test/tocsv/ex1p2.csv", true, false);
     string[] data = [
         "Hello,Hello,1,1,1",
@@ -1774,14 +2019,14 @@ unittest
 
     df.indx.row.titles = ["Index1", "Index2", "Index3"];
     df.indx.row.index = [["Hello", "Hi"],["Hello"], []];
-    df.indx.row.codes = [[0, 1], [0, 0], [1,24]];
-    df.indx.column.titles = ["Hey","Hey","Hey"];
-    df.indx.column.index = [["Hello","Hi"],[],["Hello"]];
-    df.indx.column.codes = [[],[1,2],[0,0]];
+    df.indx.row.codes = [[0, 1], [0, 0], [1, 24]];
+    df.indx.column.titles = ["Hey", "Hey", "Hey"];
+    df.indx.column.index = [["Hello", "Hi"], [], ["Hello"]];
+    df.indx.column.codes = [[], [1, 2], [0, 0]];
     df.rows = 2;
-    df.data[0] = [1,2];
-    df.data[1] = [1,2];
-    
+    df.data[0] = [1, 2];
+    df.data[1] = [1, 2];
+
     df.to_csv("./test/tocsv/ex1p3.csv", false, true);
     string[] data = [
         "Hello,Hi",
@@ -1812,14 +2057,14 @@ unittest
 
     df.indx.row.titles = ["Index1", "Index2", "Index3"];
     df.indx.row.index = [["Hello", "Hi"],["Hello"], []];
-    df.indx.row.codes = [[0, 1], [0, 0], [1,24]];
-    df.indx.column.titles = ["Hey","Hey","Hey"];
-    df.indx.column.index = [["Hello","Hi"],[],["Hello"]];
-    df.indx.column.codes = [[],[1,2],[0,0]];
+    df.indx.row.codes = [[0, 1], [0, 0], [1, 24]];
+    df.indx.column.titles = ["Hey", "Hey", "Hey"];
+    df.indx.column.index = [["Hello", "Hi"], [], ["Hello"]];
+    df.indx.column.codes = [[], [1, 2], [0, 0]];
     df.rows = 2;
-    df.data[0] = [1,2];
-    df.data[1] = [1,2];
-    
+    df.data[0] = [1, 2];
+    df.data[1] = [1, 2];
+
     df.to_csv("./test/tocsv/ex1p4.csv", false, false);
     string[] data = [
         "1,1",
@@ -1846,15 +2091,15 @@ unittest
     assert(is(typeof(df.data) == Repeat!(2, int[])));
 
     df.indx.row.titles = ["Index1", "Index2", "Index3"];
-    df.indx.row.index = [["Hello", "Hi"],["Hello"], []];
-    df.indx.row.codes = [[0, 1], [0, 0], [1,24]];
-    df.indx.column.titles = ["Hey","Hey","Hey"];
-    df.indx.column.index = [["Hello","Hi"],[],["Hello"]];
-    df.indx.column.codes = [[],[1,2],[0,0]];
+    df.indx.row.index = [["Hello", "Hi"], ["Hello"], []];
+    df.indx.row.codes = [[0, 1], [0, 0], [1, 24]];
+    df.indx.column.titles = ["Hey", "Hey", "Hey"];
+    df.indx.column.index = [["Hello", "Hi"], [], ["Hello"]];
+    df.indx.column.codes = [[], [1, 2], [0, 0]];
     df.rows = 2;
-    df.data[0] = [1,2];
-    df.data[1] = [1,2];
-    
+    df.data[0] = [1, 2];
+    df.data[1] = [1, 2];
+
     df.to_csv("./test/tocsv/ex1p5.csv", false, false, '|');
     string[] data = [
         "1|1",
@@ -1991,7 +2236,7 @@ unittest
     DataFrame!(int) df;
     df.from_csv("./test/tocsv/ex1p4.csv", 0, 0, [0]);
     // df.display();
-    assert(df.data[0] == [1,2]);
+    assert(df.data[0] == [1, 2]);
 }
 
 // Partial parsing - second column
@@ -2000,7 +2245,7 @@ unittest
     DataFrame!(int) df;
     df.from_csv("./test/tocsv/ex2p6.csv", 0, 0, [1]);
     // df.display();
-    assert(df.data[0] == [1,24]);
+    assert(df.data[0] == [1, 24]);
 }
 
 // Parsing by mentioning all the column.index
@@ -2030,7 +2275,7 @@ unittest
 {
     DataFrame!(int) df;
     df.from_csv("./test/tocsv/ex1p1.csv", 3, 3, [0]);
-    assert(df.data[0] == [1,2]);
+    assert(df.data[0] == [1, 2]);
     df.to_csv("./test/tocsv/ex2p8.csv");
     string[] data = [
         ",,Hey,Hello",
@@ -2059,7 +2304,7 @@ unittest
 {
     DataFrame!(int) df;
     df.from_csv("./test/tocsv/ex1p1.csv", 3, 3, [1]);
-    assert(df.data[0] == [1,2]);
+    assert(df.data[0] == [1, 2]);
     df.to_csv("./test/tocsv/ex2p9.csv");
     string[] data = [
         ",,Hey,Hi",
@@ -2188,7 +2433,7 @@ unittest
 {
     DataFrame!(int, 2, double, 1) df;
     Index index;
-    index.setIndex([0,1,2,3,4,5], ["Row Index"], [0,1,2], ["Column Index"]);
+    index.setIndex([0, 1, 2, 3, 4, 5], ["Row Index"], [0, 1, 2], ["Column Index"]);
     df.setFrameIndex(index);
     // df.display();
 
@@ -2239,8 +2484,8 @@ unittest
     df.setFrameIndex(inx);
     // df.display();
     df = [[1.0], [1.0, 2.0], [1.0, 2.0, 3.5]];
-    assert(df.data[0] == [1,1,1]);
-    assert(df.data[1] == [0,2,2]);
+    assert(df.data[0] == [1, 1, 1]);
+    assert(df.data[1] == [0, 2, 2]);
     assert(df.data[2][2] == 3.5);
 
     df[0, 0] = 42;
