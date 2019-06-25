@@ -220,10 +220,21 @@ public:
                 {
                     if(j == dataIndex)
                     {
-                        size_t maxsize = data[j].map!(e => to!string(e).length).reduce!max;
-                        if(maxsize > maxGap)
+                        size_t maxsize1 = 0, maxsize2 = 0;
+                        if(top > indx.column.index.length + extra)
+                            maxsize1 = data[j][0 .. top - indx.column.index.length - extra].map!(e => to!string(e).length).reduce!max;
+                        if(bottom > data[j].length)
+                            maxsize2 = data[j].map!(e => to!string(e).length).reduce!max;
+                        else if(bottom > 0)
+                            maxsize2 = data[j][$ - bottom .. $].map!(e => to!string(e).length).reduce!max;
+                        
+                        if(maxsize1 > maxGap)
                         {
-                            maxGap = maxsize;
+                            maxGap = maxsize1;
+                        }
+                        if(maxsize2 > maxGap)
+                        {
+                            maxGap = maxsize2;
                         }
                     }
                 }
