@@ -227,7 +227,7 @@ public:
                             maxsize2 = data[j].map!(e => to!string(e).length).reduce!max;
                         else if(bottom > 0)
                             maxsize2 = data[j][$ - bottom .. $].map!(e => to!string(e).length).reduce!max;
-                        
+
                         if(maxsize1 > maxGap)
                         {
                             maxGap = maxsize1;
@@ -783,19 +783,15 @@ public:
     +/
     void fastCSV(string path, size_t indexDepth, size_t columnDepth, char sep = ',')
     {
-        import std.array: appender, split;
+        import std.array: array, split;
+        import std.algorithm: map;
         import std.stdio: File;
         import std.string: chomp;
 
         File csvfile = File(path, "r");
-        string[][] lines;
-        int totalLines = 0;
-
-        while(!csvfile.eof())
-        {
-            ++lines.length;
-            lines[totalLines++] = chomp(csvfile.readln()).split(sep);
-        }
+        string[][] lines = csvfile.byLineCopy().map!(chomp).map!(e => e.split(",")).array();
+        int totalLines = cast(int)lines.length;
+        csvfile.close();
 
         indx.row.titles.length = indexDepth;
         indx.row.index.length = indexDepth;
@@ -809,27 +805,27 @@ public:
 
         foreach(i, ele; lines[columnDepth .. $])
         {
-            if(ele.length > 0)
-            {
-                foreach(j; 0 .. indexDepth)
-                {
-                    ++indx.row.index[j].length;
-                    indx.row.index[j][i] = ele[j];
-                }
+            if(ele.length == 0)
+                continue;
 
-                static foreach(j; 0 .. RowType.length)
-                {
-                    import std.conv: to;
-                    ++data[j].length;
-                    if(ele[indexDepth + j].length == 0)
-                        data[j][i] =  RowType[j].init;
-                    else
-                        data[j][i] = to!(RowType[j])(ele[indexDepth + j]);
-                }
+            foreach(j; 0 .. indexDepth)
+            {
+                ++indx.row.index[j].length;
+                indx.row.index[j][i] = ele[j];
+            }
+
+            static foreach(j; 0 .. RowType.length)
+            {
+                import std.conv: to;
+                ++data[j].length;
+                if(ele[indexDepth + j].length == 0)
+                    data[j][i] =  RowType[j].init;
+                else
+                    data[j][i] = to!(RowType[j])(ele[indexDepth + j]);
             }
         }
 
-        rows = totalLines - columnDepth - 1;
+        rows = totalLines - columnDepth;
         if(indx.row.index.length == 0)
         {
             indx.row.index.length = 1;
@@ -1216,11 +1212,9 @@ public:
             pos = index;
         else
         {
-            import std.array: appender;
-            auto loc = appender!(int[]);
-            foreach(i; index)
-                loc.put(getPosition!(axis)(i));
-            pos = loc.data;
+            pos.length = index.length;
+            foreach(i, ele; index)
+                pos[i] = getPosition!(axis)(ele);
         }
 
         static if(axis == 0)
@@ -1283,11 +1277,11 @@ public:
             foreach(i; 0 .. indx.indexing[0].codes.length)
             {
                 ret.indx.row.index ~= indx.row.index[i];
-                ret.indx.row.codes ~= dropper(positions, 0, indx.row.codes[i]);
+                ret.indx.row.codes ~= dropper(positions, indx.row.codes[i]);
             }
 
             static foreach(i; 0 .. RowType.length)
-                ret.data[i] = dropper(positions, 0, data[i]);
+                ret.data[i] = dropper(positions, data[i]);
 
             ret.rows = rows - positions.length;
             return ret;
@@ -1295,7 +1289,7 @@ public:
         else
         {
             assert(positions.reduce!min > -1 && positions.reduce!max < cols, "Index out of bound");
-            DataFrame!(true, dropper!(positions, 0, RowType)) ret;
+            DataFrame!(true, dropper!(positions, RowType)) ret;
             ret.indx = indx;
             ret.indx = Index();
             ret.indx.indexing[0] = indx.indexing[0];
@@ -1304,10 +1298,10 @@ public:
             foreach(i; 0 .. indx.indexing[1].codes.length)
             {
                 ret.indx.column.index ~= indx.column.index[i];
-                ret.indx.column.codes ~= dropper(positions, 0, indx.column.codes[i]);
+                ret.indx.column.codes ~= dropper(positions, indx.column.codes[i]);
             }
 
-            auto retdata = dropper!(positions, 0, data);
+            auto retdata = dropper!(positions, data);
             static foreach(i; 0 .. ret.RowType.length)
                 ret.data[i] = retdata[i];
 
@@ -1318,7 +1312,7 @@ public:
 
     /++
     auto columnToIndex(int position)() @property
-    Description: Converts a colimn into row index level
+    Description: Converts a column into row index level
     @params: position - integral index of column to be converted to index
     +/
     auto columnToIndex(int position)() @property

@@ -37,26 +37,37 @@ template getArgsList(args...)
         alias getArgsList = AliasSeq!();
 }
 
-/// Template to evaluate RowType when column is dropped
-template dropper(int[] pos, int rem, Types...)
+private template dropper_internal(int[] pos, int rem, Types...)
 {
     static if(pos.length == 0)
     {
-        alias dropper = Types;
+        alias dropper_internal = Types;
     }
     else
     {
-        alias dropper = AliasSeq!(Types[0 .. pos[0] - rem], dropper!(pos[1 .. $], pos[0] + 1 ,Types[pos[0] - rem + 1 .. $]));
+        alias dropper_internal = AliasSeq!(Types[0 .. pos[0] - rem],
+            dropper_internal!(pos[1 .. $], pos[0] + 1 ,Types[pos[0] - rem + 1 .. $]));
     }
 }
 
-/// drops values at a set of position from given array
-T[] dropper(T)(int[] pos, int rem, T[] values)
+/// Template to evaluate RowType - removes elements in Types according to the positions in pos. pos must be ascending
+template dropper(int[] pos, Types...)
 {
-    if(pos.length == 0)
-        return values;
-    else
-        return values[0 .. pos[0] - rem] ~ dropper(pos[1 .. $], pos[0] + 1, values[pos[0] - rem + 1 .. $]);
+    alias dropper = dropper_internal!(pos, 0, Types);
+}
+
+/// drops values at a set of position from given array
+T[] dropper(T)(int[] pos, T[] values)
+{
+    T[] dropper_internal(T)(int[] pos, int rem, T[] values)
+    {
+        if(pos.length == 0)
+            return values;
+        else
+            return values[0 .. pos[0] - rem] ~ dropper_internal(pos[1 .. $], pos[0] + 1, values[pos[0] - rem + 1 .. $]);
+    }
+
+    return dropper_internal(pos, 0, values);
 }
 
 /// Function to sort indexes in ascending order and switch the code to keep the effective positions same
@@ -97,22 +108,10 @@ int[] vectorize(T)(T[] values)
     int[] pos;
     int totalUnique = 0;
 
-    import core.exception: RangeError;
     foreach(i; values)
     {
-        try
-        {
-            int p = elementPos[cast(immutable)i];
-            ++pos.length;
-            pos[$ - 1] = p;
-        }
-        catch(RangeError e)
-        {
-            elementPos[cast(immutable)i] = totalUnique;
-            ++pos.length;
-            pos[$ - 1] = totalUnique;
-            ++totalUnique;
-        }
+        ++pos.length;
+        pos[$ - 1] = elementPos.require(cast(immutable)i, { return totalUnique++; }());
     }
 
     return totalUnique ~ pos;
@@ -140,18 +139,18 @@ unittest
 // Testing dropper
 unittest
 {
-    assert(is(dropper!([1, 4], 0, int, long, int, long, byte, float, bool) == AliasSeq!(int, int, long, float, bool)));
-    assert(is(dropper!([0, 4], 0, int, long, int, long, double) == AliasSeq!(long, int, long)));
-    assert(is(dropper!([1, 3, 5], 0, int, long, int, long, double, float, bool) == AliasSeq!(int, int, double, bool)));
-    assert(is(dropper!([0, 2, 3, 5], 0, int, uint, byte, ubyte, long, ulong, bool) == AliasSeq!(uint, long, bool)));
+    assert(is(dropper!([1, 4], int, long, int, long, byte, float, bool) == AliasSeq!(int, int, long, float, bool)));
+    assert(is(dropper!([0, 4], int, long, int, long, double) == AliasSeq!(long, int, long)));
+    assert(is(dropper!([1, 3, 5], int, long, int, long, double, float, bool) == AliasSeq!(int, int, double, bool)));
+    assert(is(dropper!([0, 2, 3, 5], int, uint, byte, ubyte, long, ulong, bool) == AliasSeq!(uint, long, bool)));
 }
 
 // Testing dropper for arrays
 unittest
 {
-    assert(dropper([1, 4], 0, [1, 2, 3, 4, 5, 6]) == [1, 3, 4, 6]);
-    assert(dropper([0, 5], 0, [1, 2, 3, 4, 5, 6]) == [2, 3, 4, 5]);
-    assert(dropper([0, 3, 5], 0, [1, 2, 3, 4, 5, 6]) == [2, 3, 5]);
+    assert(dropper([1, 4], [1, 2, 3, 4, 5, 6]) == [1, 3, 4, 6]);
+    assert(dropper([0, 5], [1, 2, 3, 4, 5, 6]) == [2, 3, 4, 5]);
+    assert(dropper([0, 3, 5], [1, 2, 3, 4, 5, 6]) == [2, 3, 5]);
 }
 
 unittest
