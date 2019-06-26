@@ -117,6 +117,26 @@ int[] vectorize(T)(T[] values)
     return totalUnique ~ pos;
 }
 
+/// Transposes an array of integer
+int[][] transposed(int[][] data)
+{
+    int[][] ret;
+    ret.length = data[0].length;
+    foreach(i, eleu; data)
+    {
+        foreach(j, elel; eleu)
+        {
+            ++ret[j].length;
+            ret[j][i] = elel;
+        }
+    }
+
+    return ret;
+}
+
+/// Template to get array from type
+alias toArr(T) = T[];
+
 // Community suggested way ot intialize a DataFrame
 unittest
 {
@@ -172,4 +192,13 @@ unittest
     assert(varr2d.length == arr2d.length + 1);
     assert(varr2d[0] == 3);
     assert(varr2d[1 .. $] == [0, 1, 0, 2]);
+}
+
+unittest
+{
+    int[][] a = [[1, 2, 3], [4, 5, 6]];
+    assert(transposed(a) == [[1, 4], [2, 5], [3, 6]]);
+
+    int[][] b = [[1, 2, 3], [4, 5, 6], [7, 8, 9]];
+    assert(transposed(b) == [[1, 4, 7], [2, 5, 8], [3, 6, 9]]);
 }

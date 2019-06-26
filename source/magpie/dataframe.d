@@ -2,16 +2,11 @@ module magpie.dataframe;
 
 import magpie.axis: Axis;
 import magpie.index: Index;
-import magpie.helper: getArgsList;
+import magpie.helper: getArgsList, toArr;
 
 import std.meta: AliasSeq, Repeat, staticMap;
 import std.array: appender;
 import std.traits: isType, isBoolean, isArray;
-
-/// Template to convert DataFrame template args to RowType
-
-// Template to get array from type
-private alias toArr(T) = T[];
 
 /++
 The DataFrame Structure
