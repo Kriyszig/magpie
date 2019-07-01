@@ -2572,6 +2572,23 @@ unittest
     csv.close();
 }
 
+// DataFrame without row indexes - testt for groupBy
+unittest
+{
+    DataFrame!(int, int) df;
+    df.indx.column.index = [["Data1L1", "Data2L1"], ["Data1L2", "Data2L2"]];
+    df.indx.column.codes = [[0, 1], [0, 1]];
+    df.data[0] = [1, 2, 3];
+    df.data[1] = [1, 2, 3];
+    df.rows = 3;
+    assert(df.display(true, 200) == "Data1L1  Data2L1  \n"
+        ~ "Data1L2  Data2L2  \n"
+        ~ "1        1        \n"
+        ~ "2        2        \n"
+        ~ "3        3        \n"
+    );
+}
+
 // PArsing of dataset 1
 unittest
 {

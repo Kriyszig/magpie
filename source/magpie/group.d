@@ -33,7 +33,7 @@ public:
         foreach(i, ele; groups)
             if(grpTitles == ele)
                 return cast(int)i;
-        
+
         return -1;
     }
 
@@ -87,7 +87,7 @@ public:
                 }
             }
         }
-        
+
         // This is required as dropper!(dataLevels, df.data) won't work
         auto dropped = df.drop!(1, dataLevels);
 
@@ -137,18 +137,12 @@ public:
         auto retstr = appender!(string);
 
         int[] pos;
-        if(groupIndex.length == 0)
-        {
-            pos.length = groups.length;
-            foreach(i; 0 .. groups.length)
-                pos[i] = cast(int)i;
-        }
-        else static if(is(T == int))
+        static if(is(T == int))
         {
             import std.algorithm: reduce, max, min;
             assert(groupIndex.reduce!max < groups.length, "Index out of bound");
             assert(groupIndex.reduce!min > -1, "Index out of bound");
-            pos = groupIndex;   
+            pos = groupIndex;
         }
         else static if(is(T == string))
         {
@@ -209,12 +203,119 @@ public:
     }
 
     /++
+    string display(bool getStr = false, int termianlw = 0)
+    Description: Display complete groupBy on terminal
+    @params: getStr - Returns the generated display sring
+    @params: termianlw - Set terminal width
+    +/
+    string display(bool getStr = false, int termianlw = 0)
+    {
+        int[] pos;
+        pos.length = groups.length;
+        foreach(i; 0 .. groups.length)
+            pos[i] = cast(int)i;
+
+        return display(pos, getStr, termianlw);
+    }
+
+    /++
     string[][] getGroups() @property
     Description: Get the generated string array containing all the groups
     +/
     string[][] getGroups() @property
     {
         return groups;
+    }
+
+    /++
+    auto combine(T)(T[] groupIndex)
+    Description: Combines selective groups into a DataFrame
+    @params: groupIndex - Group index in form of integer array or string array
+    +/
+    auto combine(T)(T[] groupIndex)
+    {
+        int[] pos;
+        static if(is(T == int))
+        {
+            import std.algorithm: reduce, max, min;
+            assert(groupIndex.reduce!max < groups.length, "Index out of bound");
+            assert(groupIndex.reduce!min > -1, "Index out of bound");
+            pos = groupIndex;
+        }
+        else static if(is(T == string))
+        {
+            pos.length = 1;
+            int indxpos = getGroupPosition(groupIndex);
+            assert(indxpos > -1, "Group not found");
+            pos[0] = indxpos;
+        }
+        else static if(is(T == string[]))
+        {
+            pos.length = groupIndex.length;
+            foreach(i, ele; groupIndex)
+            {
+                int indxpos = getGroupPosition(ele);
+                assert(indxpos > -1, "Group not found");
+                pos[i] = indxpos;
+            }
+        }
+        else
+        {
+            assert(0, "Group Indexes must be an array of integer, 1D array of string or 2D array of string");
+        }
+
+        DataFrame!(true, GrpRowType) combinator;
+        combinator.indx.column = grpIndex.column;
+        foreach(i; 0 .. groups[0].length)
+        {
+            import std.conv: to;
+            ++combinator.indx.row.titles.length;
+            combinator.indx.row.titles[i] = "GroupL" ~ to!(string)(i + 1);
+        }
+
+        combinator.indx.row.titles ~= grpIndex.row.titles;
+        combinator.indx.row.index.length = combinator.indx.row.titles.length;
+        combinator.indx.row.codes.length = combinator.indx.row.titles.length;
+
+        foreach(i; 0 .. grpIndex.row.index.length)
+            combinator.indx.row.index[groups[0].length + i] = grpIndex.row.index[i];
+
+        foreach(i; 0 .. pos.length)
+        {
+            foreach(j, ele; groups[pos[i]])
+            {
+                combinator.indx.row.index[j].length += elementCountTill[pos[i] + 1] - elementCountTill[pos[i]];
+                foreach(k; 0 .. elementCountTill[pos[i] + 1] - elementCountTill[pos[i]])
+                    combinator.indx.row.index[j][$ - 1 - k] = ele;
+            }
+
+            foreach(j; 0 .. grpIndex.row.index.length)
+                combinator.indx.row.codes[groups[0].length + j] ~= grpIndex.row.codes[j][elementCountTill[pos[i]] .. elementCountTill[pos[i] + 1]];
+
+            static foreach(j; 0 .. GrpRowType.length)
+                combinator.data[j] ~= data[j][elementCountTill[pos[i]] .. elementCountTill[pos[i] + 1]];
+
+            combinator.rows += elementCountTill[pos[i] + 1] - elementCountTill[pos[i]];
+        }
+
+        combinator.indx.generateCodes();
+        combinator.indx.optimize();
+
+        return combinator;
+    }
+
+    /++
+    auto combine(T)(T[] groupIndex)
+    Description: Combines all te groups into a DataFrame
+    +/
+    auto combine()
+    {
+        int[] pos;
+        pos.length = groups.length;
+        foreach(i; 0 .. groups.length)
+            pos[i] = cast(int)i;
+
+        return combine(pos);
     }
 }
 
@@ -272,7 +373,7 @@ unittest
     gp.createGroup!([2])(df, [0, 1]);
 
     // Full Group
-    assert(gp.display([], true, 200) == "3    0  1  3  4  \n"
+    assert(gp.display(true, 200) == "3    0  1  3  4  \n"
         ~ "Hey  0  0  0  1  \n\n"
         ~ "3      0  1  3  4  \n"
         ~ "Hello  0  0  0  2  \n\n"
@@ -342,7 +443,7 @@ unittest
     assert(gp.data[0] == [380.0, 370.0, 24.0, 26.0]);
 
     // Display full
-    assert(gp.display([], true, 200) == "Type     Max-Speed  \n"
+    assert(gp.display(true, 200) == "Type     Max-Speed  \n"
         ~ "Captive  380        \n"
         ~ "Wild     370        \n\n"
         ~ "Type     Max-Speed  \n"
@@ -400,4 +501,110 @@ unittest
     Group!(int, int, int, int) gp2;
     gp2.createGroup!([2])(df2, [0, 1]);
     assert(gp2.getGroups == [["Hello", "Hi", "1"], ["Hi", "Hello", "2"], ["Hey", "Hey", "3"]]);
+}
+
+// Combine groups to get a DataFrame
+unittest
+{
+    DataFrame!(double) df1;
+    Index inx1;
+    inx1.constructFromLevels!(0)([["Falcon", "Parrot"], ["Captive", "Wild"]], ["Animal", "Type"]);
+    inx1.constructFromLevels!(1)([["Max-Speed"]]);
+    df1.setFrameIndex(inx1);
+    df1.assign!1(0, [380.0, 370.0, 24.0, 26.0]);
+    // df.display();
+
+    Group!(double) gp1;
+    gp1.createGroup(df1, [0]);
+    // gp1.display();
+
+    // Combine one group
+    assert(gp1.combine([0]).display(true, 200) == "GroupL1  Type     Max-Speed  \n"
+        ~ "Falcon   Captive  380        \n"
+        ~ "Falcon   Wild     370        \n"
+    );
+
+    // Combine both the groups
+    assert(gp1.combine([0, 1]).display(true, 200) == "GroupL1  Type     Max-Speed  \n"
+        ~ "Falcon   Captive  380        \n"
+        ~ "Falcon   Wild     370        \n"
+        ~ "Parrot   Captive  24         \n"
+        ~ "Parrot   Wild     26         \n"
+    );
+
+    // Cobine all - overload
+    assert(gp1.combine().display(true, 200) == "GroupL1  Type     Max-Speed  \n"
+        ~ "Falcon   Captive  380        \n"
+        ~ "Falcon   Wild     370        \n"
+        ~ "Parrot   Captive  24         \n"
+        ~ "Parrot   Wild     26         \n"
+    );
+
+    assert(gp1.combine(["Falcon"]).display(true, 200) == "GroupL1  Type     Max-Speed  \n"
+        ~ "Falcon   Captive  380        \n"
+        ~ "Falcon   Wild     370        \n"
+    );
+
+    // Combine both the groups
+    assert(gp1.combine([["Falcon"], ["Parrot"]]).display(true, 200) == "GroupL1  Type     Max-Speed  \n"
+        ~ "Falcon   Captive  380        \n"
+        ~ "Falcon   Wild     370        \n"
+        ~ "Parrot   Captive  24         \n"
+        ~ "Parrot   Wild     26         \n"
+    );
+
+    // Just Parrot
+    assert(gp1.combine(["Parrot"]).display(true, 200) == "GroupL1  Type     Max-Speed  \n"
+        ~ "Parrot   Captive  24         \n"
+        ~ "Parrot   Wild     26         \n"
+    );
+}
+
+unittest
+{
+    DataFrame!(int, 5) df;
+    Index inx;
+    inx.setIndex([["Hello", "Hi", "Hey"], ["Hi", "Hello", "Hey"], ["Hey", "Hello", "Hi"]], ["1", "2", "3"]);
+    df.setFrameIndex(inx);
+    df.assign!1(2, [1,2,3]);
+    df.assign!1(4, [1,2,3]);
+
+    Group!(int, int, int, int) gp;
+    gp.createGroup!([2])(df, [0, 1]);
+
+    // Complete Group
+    assert(gp.combine().display(true, 200) == "GroupL1  GroupL2  GroupL3  3      0  1  3  4  \n"
+        ~ "Hello    Hi       1        Hey    0  0  0  1  \n"
+        ~ "Hi       Hello    2        Hello  0  0  0  2  \n"
+        ~ "Hey      Hey      3        Hi     0  0  0  3  \n"
+    );
+
+    // Single Group
+    assert(gp.combine([0]).display(true, 200) == "GroupL1  GroupL2  GroupL3  3    0  1  3  4  \n"
+        ~ "Hello    Hi       1        Hey  0  0  0  1  \n"
+    );
+
+    // 2 Groups combine
+    assert(gp.combine([0, 1]).display(true, 200) == "GroupL1  GroupL2  GroupL3  3      0  1  3  4  \n"
+        ~ "Hello    Hi       1        Hey    0  0  0  1  \n"
+        ~ "Hi       Hello    2        Hello  0  0  0  2  \n"
+    );
+
+    // Complete group again
+    assert(gp.combine([0, 1, 2]).display(true, 200) == "GroupL1  GroupL2  GroupL3  3      0  1  3  4  \n"
+        ~ "Hello    Hi       1        Hey    0  0  0  1  \n"
+        ~ "Hi       Hello    2        Hello  0  0  0  2  \n"
+        ~ "Hey      Hey      3        Hi     0  0  0  3  \n"
+    );
+
+    // Groups using string array
+    assert(gp.combine(["Hello", "Hi", "1"]).display(true, 200) == "GroupL1  GroupL2  GroupL3  3    0  1  3  4  \n"
+        ~ "Hello    Hi       1        Hey  0  0  0  1  \n"
+    );
+
+    // Groups using 2D string array
+    assert(gp.combine([["Hello", "Hi", "1"], ["Hi", "Hello", "2"]]).display(true, 200) == "GroupL1  GroupL2  GroupL3  3      0  1  3  4  \n"
+        ~ "Hello    Hi       1        Hey    0  0  0  1  \n"
+        ~ "Hi       Hello    2        Hello  0  0  0  2  \n"
+    );
 }

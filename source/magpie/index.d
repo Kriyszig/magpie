@@ -323,8 +323,11 @@ public:
     @params: axis - 0 for rows, 1 for column.index
     @params: next - The element to extend element
     +/
-    void extend(int axis, T)(T next)
+    void extend(int axis, T)(T next, int insertPos = -1)
     {
+        if(insertPos < 0)
+            insertPos = cast(int)indexing[axis].codes[0].length;
+
         static if(is(T == int[]))
         {
 
@@ -332,7 +335,8 @@ public:
             foreach(i; 0 .. indexing[axis].codes.length)
             {
                 if(indexing[axis].index[i].length == 0)
-                    indexing[axis].codes[i] ~= next[i];
+                    indexing[axis].codes[i] = indexing[axis].codes[i][0 .. insertPos] ~
+                    next[i] ~ indexing[axis].codes[i][insertPos .. $];
                 else
                 {
                     import std.conv: to, ConvException;
@@ -342,12 +346,14 @@ public:
 
                     if(pos > -1)
                     {
-                        indexing[axis].codes[i] ~= pos;
+                        indexing[axis].codes[i] = indexing[axis].codes[i][0 .. insertPos] ~
+                        pos ~ indexing[axis].codes[i][insertPos .. $];
                     }
                     else
                     {
                         indexing[axis].index[i] ~= ele;
-                        indexing[axis].codes[i] ~= cast(int)indexing[axis].index[i].length - 1;
+                        indexing[axis].codes[i] = indexing[axis].codes[i][0 .. insertPos] ~
+                            (cast(int)indexing[axis].index[i].length - 1)  ~ indexing[axis].codes[i][insertPos .. $];
                     }
                 }
             }
@@ -364,12 +370,14 @@ public:
 
                     if(pos > -1)
                     {
-                        indexing[axis].codes[i] ~= pos;
+                        indexing[axis].codes[i] = indexing[axis].codes[i][0 .. insertPos] ~
+                            pos ~ indexing[axis].codes[i][insertPos .. $];
                     }
                     else
                     {
                         indexing[axis].index[i] ~= next[i];
-                        indexing[axis].codes[i] ~= cast(int)indexing[axis].index[i].length - 1;
+                        indexing[axis].codes[i] = indexing[axis].codes[i][0 .. insertPos] ~
+                            (cast(int)indexing[axis].index[i].length - 1)  ~ indexing[axis].codes[i][insertPos .. $];
                     }
                 }
                 else
@@ -378,12 +386,14 @@ public:
                     try
                     {
                         int ele = to!int(next[i]);
-                        indexing[axis].codes[i] ~= ele;
+                        indexing[axis].codes[i] = indexing[axis].codes[i][0 .. insertPos] ~
+                            ele ~ indexing[axis].codes[i][insertPos .. $];
                     }
                     catch(ConvException e)
                     {
                         indexing[axis].index[i] = to!(string[])(indexing[axis].codes[i]);
-                        indexing[axis].index[i] ~= next[i];
+                        indexing[axis].index[i] = indexing[axis].index[i][0 .. insertPos] ~
+                            next[i] ~ indexing[axis].index[i][insertPos .. $];
                         indexing[axis].codes[i] = [];
                         foreach(j; 0 .. indexing[axis].index[i].length)
                             indexing[axis].codes[i] ~= cast(int)j;
@@ -394,8 +404,12 @@ public:
         }
         else
         {
-            foreach(i; 0 .. next.length)
-                extend!axis(next[i]);
+            if(insertPos == indexing[axis].codes[0].length)
+                foreach(i; 0 .. next.length)
+                    extend!axis(next[i]);
+            else
+                foreach_reverse(i; 0 .. next.length)
+                    extend!axis(next[i], insertPos);
         }
         optimize();
     }
@@ -582,6 +596,64 @@ unittest
     assert(inx.column.codes == [[0,1,0,0], [1,0,1,1]]);
 }
 
+// Extending index specifying position of insertion
+unittest
+{
+    Index inx;
+    inx.setIndex([["Hello", "Hi"], ["Hi", "Hello"]], ["Index", "Index"],
+        [["Hello", "Hi"], ["Hi", "Hello"]], ["Index", "Index"]);
+    inx.extend!0(["Hello", "Hi"], 1);
+    assert(inx.row.index == [["Hello", "Hi"], ["Hello", "Hi"]]);
+    assert(inx.row.codes == [[0, 0, 1], [1, 1, 0]]);
+    inx.extend!1(["Hello", "Hi"], 1);
+    assert(inx.column.index == [["Hello", "Hi"], ["Hello", "Hi"]]);
+    assert(inx.column.codes == [[0, 0, 1], [1, 1, 0]]);
+}
+
+// Extending specifying position - requires conversion of codes to index
+unittest
+{
+    Index inx;
+    inx.setIndex([1,2,3], ["Index"], [1,2,3]);
+    assert(inx.row.codes == [[1,2,3]]);
+    assert(inx.row.index == [[]]);
+    assert(inx.column.codes == [[1,2,3]]);
+    assert(inx.column.index == [[]]);
+
+    // Appending string to integer row.index
+    inx.extend!0(["Hello"], 2);
+    assert(inx.row.index == [["1","2","3","Hello"]]);
+    assert(inx.row.codes == [[0,1,3,2]]);
+
+    // Appending integer to integer row.index
+    inx.extend!1([4], 1);
+    assert(inx.column.index == [[]]);
+    assert(inx.column.codes == [[1,4,2,3]]);
+
+    // Appending string to integer row.index
+    inx.extend!1(["Hello"], 3);
+    assert(inx.column.index == [["1","2","3","4","Hello"]]);
+    assert(inx.column.codes == [[0,3,1,4,2]]);
+
+    // Checking if optimize() is working
+    inx.extend!1(["Arrow"], 0);
+    assert(inx.column.index == [["1","2","3","4","Arrow","Hello"]]);
+    assert(inx.column.codes == [[4,0,3,1,5,2]]);
+}
+
+// Extending row.index with 2D array with position of insertion
+unittest
+{
+    Index inx;
+    inx.setIndex([["Hello", "Hi"], ["Hi", "Hello"]], ["Index", "Index"],
+        [["Hello", "Hi"], ["Hi", "Hello"]], ["Index", "Index"]);
+    inx.extend!0([["Hello", "Hi"], ["Hello", "Hi"]], 1);
+    assert(inx.row.index == [["Hello", "Hi"], ["Hello", "Hi"]]);
+    assert(inx.row.codes == [[0,0,0,1], [1,1,1,0]]);
+    inx.extend!1([["Hello", "Hi"], ["Hello", "Hi"]], 1);
+    assert(inx.column.index == [["Hello", "Hi"], ["Hello", "Hi"]]);
+    assert(inx.column.codes == [[0,0,0,1], [1,1,1,0]]);
+}
 
 // Test for code generation
 unittest
