@@ -472,9 +472,10 @@ public:
         }
 
         import std.stdio: writeln;
+        import std.array: replace;
         if(!getStr)
         {
-            writeln(dispstr.data);
+            writeln(dispstr.data.replace("  \n", "\n"));
             // writeln(RowType.length);
             // writeln(gaps.data);
             // writeln(left,"\t", right);
@@ -482,7 +483,7 @@ public:
             writeln("Dataframe Dimension: [ ", totalHeight," X ", totalWidth, " ]");
             writeln("Data Dimension: [ ", rows," X ", cols, " ]");
         }
-        return ((getStr)? dispstr.data: "");
+        return ((getStr)? dispstr.data.replace("  \n", "\n"): "");
     }
 
     /++
@@ -1342,6 +1343,64 @@ public:
 
         return ret;
     }
+
+    /++
+    auto indexToData(int position, Dtype...)(int indexLevel, string[] dataIndex)
+    Description: Convers a level of indexing to data
+    @params: position - position to insert data at
+    @params: DataType - Data type for the new data column
+    @params: indexLevel - Index level to convert to data
+    @params: dataIndex - Index for the new data column
+    +/
+    auto indexToData(int position, DataType)(int indexLevel, string[] dataIndex)
+        if(position <= RowType.length)
+    {
+        DataFrame!(true, RowType[0 .. position], DataType, RowType[position .. $]) ret;
+        ret.indx = indx;
+        ret.indx.extend!1(dataIndex, position);
+
+        ret.indx.row.index = ret.indx.row.index[0 .. indexLevel] ~ ret.indx.row.index[indexLevel + 1 .. $];
+        ret.indx.row.codes = ret.indx.row.codes[0 .. indexLevel] ~ ret.indx.row.codes[indexLevel + 1 .. $];
+        ret.indx.row.titles = ret.indx.row.titles[0 .. indexLevel] ~ ret.indx.row.titles[indexLevel + 1 .. $];
+
+        ret.indx.optimize();
+
+        static foreach(i; 0 .. RowType.length + 1)
+        {
+            static if(i < position)
+                ret.data[i] = data[i];
+            else static if(i == position)
+            {
+                import std.conv: to;
+                import std.array: array;
+                import std.algorithm: map;
+
+                toArr!DataType newData;
+                if(indx.row.index[indexLevel].length == 0)
+                    newData = to!(toArr!DataType)(indx.row.codes[indexLevel]);
+                else
+                    newData = to!(toArr!DataType)(indx.row.codes[indexLevel].map!(e => indx.row.index[indexLevel][e]).array());
+
+                ret.data[i] = newData;
+            }
+            else
+                ret.data[i] = data[i - 1];
+        }
+
+        ret.rows = rows;
+        return ret;
+    }
+
+    auto groupBy(int[] dataLevels = [])(int[] indexLevels = [])
+    {
+        import magpie.group: Group;
+        import magpie.helper: dropper;
+
+        Group!(dropper!(dataLevels, RowType)) grp;
+        grp.createGroup!(dataLevels)(this, indexLevels);
+
+        return grp;
+    }
 }
 
 // Testing DataFrame Definition - O(n + log(n))
@@ -1527,12 +1586,12 @@ unittest
     inx.setIndex([1, 2, 3, 4, 5], ["Index"]);
     df.setFrameIndex(inx);
     string ret = df.display(true, 200);
-    assert(ret == "Index  0    1  \n"
-        ~ "1      nan  0  \n"
-        ~ "2      nan  0  \n"
-        ~ "3      nan  0  \n"
-        ~ "4      nan  0  \n"
-        ~ "5      nan  0  \n"
+    assert(ret == "Index  0    1\n"
+        ~ "1      nan  0\n"
+        ~ "2      nan  0\n"
+        ~ "3      nan  0\n"
+        ~ "4      nan  0\n"
+        ~ "5      nan  0\n"
     );
 }
 
@@ -1869,9 +1928,9 @@ unittest
     df.data[0] = [1, 2];
     df.data[1] = [1, 2];
     string ret = df.display(true, 200);
-    assert(ret == "Index1  Hello  Hi  \n"
-        ~ "Hello   1      1   \n"
-        ~ "Hi      2      2   \n"
+    assert(ret == "Index1  Hello  Hi\n"
+        ~ "Hello   1      1 \n"
+        ~ "Hi      2      2 \n"
     );
 }
 
@@ -1892,10 +1951,10 @@ unittest
     df.data[1] = [1, 2];
     string ret = df.display(true, 200);
 
-    assert(ret == "Also Index  Hello  Hi  \n"
-        ~ "Index1      \n"
-        ~ "Hello       1      1   \n"
-        ~ "Hi          2      2   \n"
+    assert(ret == "Also Index  Hello  Hi\n"
+        ~ "Index1    \n"
+        ~ "Hello       1      1 \n"
+        ~ "Hi          2      2 \n"
     );
 }
 
@@ -1916,9 +1975,9 @@ unittest
     df.data[1] = [1, 2];
     string ret = df.display(true, 200);
 
-    assert(ret == "Index1  Index2  Hello  Hi  \n"
-        ~ "Hello   Hello   1      1   \n"
-        ~ "Hi      Hi      2      2   \n"
+    assert(ret == "Index1  Index2  Hello  Hi\n"
+        ~ "Hello   Hello   1      1 \n"
+        ~ "Hi      Hi      2      2 \n"
     );
 }
 // Multi Indexed column.index
@@ -1938,10 +1997,10 @@ unittest
     df.data[1] = [1, 2];
     string ret = df.display(true, 200);
 
-    assert(ret == "        Hello  Hi  \n"
-        ~ "Index1  Hello  Hi  \n"
-        ~ "Hello   1      1   \n"
-        ~ "Hi      2      2   \n"
+    assert(ret == "        Hello  Hi\n"
+        ~ "Index1  Hello  Hi\n"
+        ~ "Hello   1      1 \n"
+        ~ "Hi      2      2 \n"
     );
 }
 
@@ -1962,11 +2021,11 @@ unittest
     df.data[1] = [1, 2];
     string ret = df.display(true, 200);
 
-    assert(ret == "CIndex1  Hello  Hi  \n"
-        ~ "CIndex2  Hello  Hi  \n"
-        ~ "Index1   \n"
-        ~ "Hello    1      1   \n"
-        ~ "Hi       2      2   \n"
+    assert(ret == "CIndex1  Hello  Hi\n"
+        ~ "CIndex2  Hello  Hi\n"
+        ~ "Index1 \n"
+        ~ "Hello    1      1 \n"
+        ~ "Hi       2      2 \n"
     );
 }
 
@@ -1993,9 +2052,9 @@ unittest
     }
 
     string ret = df.display(true, 200);
-    assert(ret == "Index1  0         1         2         3         4         5         6         7         ...  11        12        13        14        15        16        17        18        19        \n"
-        ~ "Hello   12222222  12222222  12222222  12222222  12222222  12222222  12222222  12222222  ...  12222222  12222222  12222222  12222222  12222222  12222222  12222222  12222222  12222222  \n"
-        ~ "Hi      12222222  12222222  12222222  12222222  12222222  12222222  12222222  12222222  ...  12222222  12222222  12222222  12222222  12222222  12222222  12222222  12222222  12222222  \n"
+    assert(ret == "Index1  0         1         2         3         4         5         6         7         ...  11        12        13        14        15        16        17        18        19      \n"
+        ~ "Hello   12222222  12222222  12222222  12222222  12222222  12222222  12222222  12222222  ...  12222222  12222222  12222222  12222222  12222222  12222222  12222222  12222222  12222222\n"
+        ~ "Hi      12222222  12222222  12222222  12222222  12222222  12222222  12222222  12222222  ...  12222222  12222222  12222222  12222222  12222222  12222222  12222222  12222222  12222222\n"
     );
 }
 
@@ -2023,57 +2082,57 @@ unittest
     df.data[1] = arr;
     string ret = df.display(true, 200);
 
-    assert(ret == "Index1  Hello  Hi  \n"
-        ~ "0       0      0   \n"
-        ~ "1       1      1   \n"
-        ~ "2       2      2   \n"
-        ~ "3       3      3   \n"
-        ~ "4       4      4   \n"
-        ~ "5       5      5   \n"
-        ~ "6       6      6   \n"
-        ~ "7       7      7   \n"
-        ~ "8       8      8   \n"
-        ~ "9       9      9   \n"
-        ~ "10      10     10  \n"
-        ~ "11      11     11  \n"
-        ~ "12      12     12  \n"
-        ~ "13      13     13  \n"
-        ~ "14      14     14  \n"
-        ~ "15      15     15  \n"
-        ~ "16      16     16  \n"
-        ~ "17      17     17  \n"
-        ~ "18      18     18  \n"
-        ~ "19      19     19  \n"
-        ~ "20      20     20  \n"
-        ~ "21      21     21  \n"
-        ~ "22      22     22  \n"
-        ~ "23      23     23  \n"
-        ~ "......  .....  ..  \n"
-        ~ "75      75     75  \n"
-        ~ "76      76     76  \n"
-        ~ "77      77     77  \n"
-        ~ "78      78     78  \n"
-        ~ "79      79     79  \n"
-        ~ "80      80     80  \n"
-        ~ "81      81     81  \n"
-        ~ "82      82     82  \n"
-        ~ "83      83     83  \n"
-        ~ "84      84     84  \n"
-        ~ "85      85     85  \n"
-        ~ "86      86     86  \n"
-        ~ "87      87     87  \n"
-        ~ "88      88     88  \n"
-        ~ "89      89     89  \n"
-        ~ "90      90     90  \n"
-        ~ "91      91     91  \n"
-        ~ "92      92     92  \n"
-        ~ "93      93     93  \n"
-        ~ "94      94     94  \n"
-        ~ "95      95     95  \n"
-        ~ "96      96     96  \n"
-        ~ "97      97     97  \n"
-        ~ "98      98     98  \n"
-        ~ "99      99     99  \n"
+    assert(ret == "Index1  Hello  Hi\n"
+        ~ "0       0      0 \n"
+        ~ "1       1      1 \n"
+        ~ "2       2      2 \n"
+        ~ "3       3      3 \n"
+        ~ "4       4      4 \n"
+        ~ "5       5      5 \n"
+        ~ "6       6      6 \n"
+        ~ "7       7      7 \n"
+        ~ "8       8      8 \n"
+        ~ "9       9      9 \n"
+        ~ "10      10     10\n"
+        ~ "11      11     11\n"
+        ~ "12      12     12\n"
+        ~ "13      13     13\n"
+        ~ "14      14     14\n"
+        ~ "15      15     15\n"
+        ~ "16      16     16\n"
+        ~ "17      17     17\n"
+        ~ "18      18     18\n"
+        ~ "19      19     19\n"
+        ~ "20      20     20\n"
+        ~ "21      21     21\n"
+        ~ "22      22     22\n"
+        ~ "23      23     23\n"
+        ~ "......  .....  ..\n"
+        ~ "75      75     75\n"
+        ~ "76      76     76\n"
+        ~ "77      77     77\n"
+        ~ "78      78     78\n"
+        ~ "79      79     79\n"
+        ~ "80      80     80\n"
+        ~ "81      81     81\n"
+        ~ "82      82     82\n"
+        ~ "83      83     83\n"
+        ~ "84      84     84\n"
+        ~ "85      85     85\n"
+        ~ "86      86     86\n"
+        ~ "87      87     87\n"
+        ~ "88      88     88\n"
+        ~ "89      89     89\n"
+        ~ "90      90     90\n"
+        ~ "91      91     91\n"
+        ~ "92      92     92\n"
+        ~ "93      93     93\n"
+        ~ "94      94     94\n"
+        ~ "95      95     95\n"
+        ~ "96      96     96\n"
+        ~ "97      97     97\n"
+        ~ "98      98     98\n"
+        ~ "99      99     99\n"
     );
 }
 
@@ -2093,11 +2152,11 @@ unittest
     df.data[0] = [1, 2];
     df.data[1] = [1, 2];
     string ret = df.display(true, 200);
-    assert(ret == "                        Hello  Hi     \n"
-        ~ "                        1      2      \n"
-        ~ "Index1  Index2  Index3  Hello  Hello  \n"
-        ~ "Hello   Hello   1       1      1      \n"
-        ~ "Hi      Hello   24      2      2      \n"
+    assert(ret == "                        Hello  Hi   \n"
+        ~ "                        1      2    \n"
+        ~ "Index1  Index2  Index3  Hello  Hello\n"
+        ~ "Hello   Hello   1       1      1    \n"
+        ~ "Hi      Hello   24      2      2    \n"
     );
 }
 
@@ -2117,12 +2176,12 @@ unittest
     df.data[0] = [1, 2];
     df.data[1] = [1, 2];
     string ret = df.display(true, 200);
-    assert(ret == "                Hey     Hello  Hi     \n"
-        ~ "                Hey     1      2      \n"
-        ~ "                Hey     Hello  Hello  \n"
-        ~ "Index1  Index2  Index3  \n"
-        ~ "Hello   Hello   1       1      1      \n"
-        ~ "Hi      Hello   24      2      2      \n"
+    assert(ret == "                Hey     Hello  Hi   \n"
+        ~ "                Hey     1      2    \n"
+        ~ "                Hey     Hello  Hello\n"
+        ~ "Index1  Index2  Index3\n"
+        ~ "Hello   Hello   1       1      1    \n"
+        ~ "Hi      Hello   24      2      2    \n"
     );
 
     // df.to_csv("");
@@ -2145,11 +2204,11 @@ unittest
     df.data[0] = [1, 2];
     df.data[1] = [1, 2];
     string ret = df.display(true, 200);
-    assert(ret == "                        Hello  Hi     \n"
-        ~ "                        1      2      \n"
-        ~ "Index1  Index2  Index3  Hello  Hello  \n"
-        ~ "Hi      Hello   1       1      1      \n"
-        ~ "                24      2      2      \n"
+    assert(ret == "                        Hello  Hi   \n"
+        ~ "                        1      2    \n"
+        ~ "Index1  Index2  Index3  Hello  Hello\n"
+        ~ "Hi      Hello   1       1      1    \n"
+        ~ "                24      2      2    \n"
     );
 }
 
@@ -2171,11 +2230,11 @@ unittest
     df.data[1] = [1, 2];
     string ret = df.display(true, 200);
 
-    assert(ret == "                        Hello  Hi     \n"
-        ~ "                        1      2      \n"
-        ~ "Index1  Index2  Index3  Hello  Hello  \n"
-        ~ "Hi      Hello   1       1      1      \n"
-        ~ "Hello   Hello   24      2      2      \n"
+    assert(ret == "                        Hello  Hi   \n"
+        ~ "                        1      2    \n"
+        ~ "Index1  Index2  Index3  Hello  Hello\n"
+        ~ "Hi      Hello   1       1      1    \n"
+        ~ "Hello   Hello   24      2      2    \n"
     );
 
     // df.to_csv("", true, false);
@@ -2581,11 +2640,11 @@ unittest
     df.data[0] = [1, 2, 3];
     df.data[1] = [1, 2, 3];
     df.rows = 3;
-    assert(df.display(true, 200) == "Data1L1  Data2L1  \n"
-        ~ "Data1L2  Data2L2  \n"
-        ~ "1        1        \n"
-        ~ "2        2        \n"
-        ~ "3        3        \n"
+    assert(df.display(true, 200) == "Data1L1  Data2L1\n"
+        ~ "Data1L2  Data2L2\n"
+        ~ "1        1      \n"
+        ~ "2        2      \n"
+        ~ "3        3      \n"
     );
 }
 
@@ -2889,10 +2948,10 @@ unittest
     auto drow = df.drop!(0, [1]);
     assert(drow.rows == 1);
     assert(drow.data[0][0] == 1 && drow.data[1][0] == 16);
-    assert(drow.display(true, 200) == "       CL1  Hello  Hi     \n"
-        ~ "       CL2  Hi     Hello  \n"
-        ~ "RL1    RL2  \n"
-        ~ "Hello  Hi   1      16     \n"
+    assert(drow.display(true, 200) == "       CL1  Hello  Hi   \n"
+        ~ "       CL2  Hi     Hello\n"
+        ~ "RL1    RL2\n"
+        ~ "Hello  Hi   1      16   \n"
     );
 
     // Checking if df is untouched
@@ -2904,10 +2963,10 @@ unittest
     drow = df.drop!(0, [0]);
     assert(drow.rows == 1);
     assert(drow.data[0][0] == 4 && drow.data[1][0] == 256);
-    assert(drow.display(true, 200) == "     CL1    Hello  Hi     \n"
-        ~ "     CL2    Hi     Hello  \n"
-        ~ "RL1  RL2    \n"
-        ~ "Hi   Hello  4      256    \n"
+    assert(drow.display(true, 200) == "     CL1    Hello  Hi   \n"
+        ~ "     CL2    Hi     Hello\n"
+        ~ "RL1  RL2  \n"
+        ~ "Hi   Hello  4      256  \n"
     );
 
     assert(df.data[0] == [1.0, 4.0]);
@@ -2918,11 +2977,11 @@ unittest
     auto dcol = df.drop!(1, [0]);
     assert(dcol.cols == 1);
     assert(dcol.data[0] == [16, 256]);
-    assert(dcol.display(true, 200) == "       CL1    Hi     \n"
-        ~ "       CL2    Hello  \n"
-        ~ "RL1    RL2    \n"
-        ~ "Hello  Hi     16     \n"
-        ~ "Hi     Hello  256    \n"
+    assert(dcol.display(true, 200) == "       CL1    Hi   \n"
+        ~ "       CL2    Hello\n"
+        ~ "RL1    RL2  \n"
+        ~ "Hello  Hi     16   \n"
+        ~ "Hi     Hello  256  \n"
     );
 
     assert(df.data[0] == [1.0, 4.0]);
@@ -2933,11 +2992,11 @@ unittest
     dcol = df.drop!(1, [1]);
     assert(dcol.cols == 1);
     assert(dcol.data[0] == [1, 4]);
-    assert(dcol.display(true, 200) == "       CL1    Hello  \n"
-        ~ "       CL2    Hi     \n"
-        ~ "RL1    RL2    \n"
-        ~ "Hello  Hi     1      \n"
-        ~ "Hi     Hello  4      \n"
+    assert(dcol.display(true, 200) == "       CL1    Hello\n"
+        ~ "       CL2    Hi   \n"
+        ~ "RL1    RL2  \n"
+        ~ "Hello  Hi     1    \n"
+        ~ "Hi     Hello  4    \n"
     );
 
     assert(df.data[0] == [1.0, 4.0]);
@@ -2964,10 +3023,10 @@ unittest
     auto drows = df.drop!(0, [1, 2]);
     assert(drows.rows == 1);
     assert(drows.data[0][0] == 1 && drows.data[1][0] == 16 && drows.data[2][0] == 1);
-    assert(drows.display(true, 200) == "       CL1  Hello  Hi     Hey  \n"
-        ~ "       CL2  Hi     Hello  Hey  \n"
-        ~ "RL1    RL2  \n"
-        ~ "Hello  Hi   1      16     1    \n"
+    assert(drows.display(true, 200) == "       CL1  Hello  Hi     Hey\n"
+        ~ "       CL2  Hi     Hello  Hey\n"
+        ~ "RL1    RL2\n"
+        ~ "Hello  Hi   1      16     1  \n"
     );
 
     const string str2 = df.display(true, 200);
@@ -2976,10 +3035,10 @@ unittest
     drows = df.drop!(0, [0, 2]);
     assert(drows.rows == 1);
     assert(drows.data[0][0] == 4 && drows.data[1][0] == 256 && drows.data[2][0] == 4);
-    assert(drows.display(true, 200) == "     CL1    Hello  Hi     Hey  \n"
-        ~ "     CL2    Hi     Hello  Hey  \n"
-        ~ "RL1  RL2    \n"
-        ~ "Hi   Hello  4      256    4    \n"
+    assert(drows.display(true, 200) == "     CL1    Hello  Hi     Hey\n"
+        ~ "     CL2    Hi     Hello  Hey\n"
+        ~ "RL1  RL2  \n"
+        ~ "Hi   Hello  4      256    4  \n"
     );
 
     const string str3 = df.display(true, 200);
@@ -2988,12 +3047,12 @@ unittest
     auto dcols = df.drop!(1, [1, 2]);
     assert(dcols.cols == 1);
     assert(dcols.data[0] == [1, 4, 16]);
-    assert(dcols.display(true, 200) == "       CL1    Hello  \n"
-        ~ "       CL2    Hi     \n"
-        ~ "RL1    RL2    \n"
-        ~ "Hello  Hi     1      \n"
-        ~ "Hi     Hello  4      \n"
-        ~ "Hey    Hey    16     \n"
+    assert(dcols.display(true, 200) == "       CL1    Hello\n"
+        ~ "       CL2    Hi   \n"
+        ~ "RL1    RL2  \n"
+        ~ "Hello  Hi     1    \n"
+        ~ "Hi     Hello  4    \n"
+        ~ "Hey    Hey    16   \n"
     );
 
     const string str4 = df.display(true, 200);
@@ -3002,12 +3061,12 @@ unittest
     auto dcols2 = df.drop!(1, [0, 1]);
     assert(dcols2.cols == 1);
     assert(dcols2.data[0] == [1, 4, 16]);
-    assert(dcols2.display(true, 200) == "       CL1    Hey  \n"
-        ~ "       CL2    Hey  \n"
-        ~ "RL1    RL2    \n"
-        ~ "Hello  Hi     1    \n"
-        ~ "Hi     Hello  4    \n"
-        ~ "Hey    Hey    16   \n"
+    assert(dcols2.display(true, 200) == "       CL1    Hey\n"
+        ~ "       CL2    Hey\n"
+        ~ "RL1    RL2  \n"
+        ~ "Hello  Hi     1  \n"
+        ~ "Hi     Hello  4  \n"
+        ~ "Hey    Hey    16 \n"
     );
 
     const string str5 = df.display(true, 200);
@@ -3035,11 +3094,11 @@ unittest
     assert(extended.cols == 1);
     assert(extended.data[0] == [16, 256]);
 
-    assert(extended.display(true, 200) == "              CL1  Hi     \n"
-        ~ "              CL2  Hello  \n"
-        ~ "RL1    RL2    Hi   \n"
-        ~ "Hello  Hi     1    16     \n"
-        ~ "Hi     Hello  4    256    \n"
+    assert(extended.display(true, 200) == "              CL1  Hi   \n"
+        ~ "              CL2  Hello\n"
+        ~ "RL1    RL2    Hi \n"
+        ~ "Hello  Hi     1    16   \n"
+        ~ "Hi     Hello  4    256  \n"
     );
 
     const string str2 = df.display(true, 200);
@@ -3052,13 +3111,55 @@ unittest
     assert(extended.cols == 1);
     assert(extended.data[0] == [1, 4]);
 
-    assert(extended.display(true, 200) == "              CL1    Hello  \n"
-        ~ "              CL2    Hi     \n"
-        ~ "RL1    RL2    Hello  \n"
-        ~ "Hello  Hi     16     1      \n"
-        ~ "Hi     Hello  256    4      \n"
+    assert(extended.display(true, 200) == "              CL1    Hello\n"
+        ~ "              CL2    Hi   \n"
+        ~ "RL1    RL2    Hello\n"
+        ~ "Hello  Hi     16     1    \n"
+        ~ "Hi     Hello  256    4    \n"
     );
 
     const string str3 = df.display(true, 200);
     assert(str1 == str3);
+}
+
+// Converting a level of index to a Data level
+unittest
+{
+    Index inx;
+    DataFrame!(double, 2) df;
+    inx.setIndex([["Hello", "Hi"], ["Hi", "Hello"]], ["RL1", "RL2"],
+                [["Hello", "Hi"], ["Hi", "Hello"]], ["CL1", "CL2"]);
+    df.setFrameIndex(inx);
+    // df.display();
+
+    df.assign!1(0, [1.0, 4.0]);
+    df.assign!1(1, [16.0, 256.0]);
+    const string str1 = df.display(true, 200);
+
+    auto extended = df.columnToIndex!(0);
+    // Putting it back in place should give same DataFrame back
+    const string str2 = extended.indexToData!(0, double)(2, ["Hello", "Hi"]).display(true, 200);
+
+    // The final DataFrame should be same as the original one
+    assert(str1 == str2);
+}
+
+// Gropby on DataFrame Struct - Part of xample ported over from group.d
+unittest
+{
+    DataFrame!(int, 5) df;
+    Index inx;
+    inx.setIndex([["Hello", "Hi", "Hey"], ["Hi", "Hello", "Hey"], ["Hey", "Hello", "Hi"]], ["1", "2", "3"]);
+    df.setFrameIndex(inx);
+    df.assign!1(2, [1,2,3]);
+    df.assign!1(4, [1,2,3]);
+    // string str1 = df.display(true, 200);
+
+    auto grp = df.groupBy!([2])([0, 1]);
+
+    import magpie.group: Group;
+    Group!(int, int, int, int) grpBy;
+    grpBy.createGroup!([2])(df, [0, 1]);
+
+    assert(grp.display(true, 200) == grpBy.display(true, 200));
 }

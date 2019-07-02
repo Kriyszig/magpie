@@ -373,54 +373,54 @@ unittest
     gp.createGroup!([2])(df, [0, 1]);
 
     // Full Group
-    assert(gp.display(true, 200) == "3    0  1  3  4  \n"
-        ~ "Hey  0  0  0  1  \n\n"
-        ~ "3      0  1  3  4  \n"
-        ~ "Hello  0  0  0  2  \n\n"
-        ~ "3   0  1  3  4  \n"
-        ~ "Hi  0  0  0  3  \n\n"
+    assert(gp.display(true, 200) == "3    0  1  3  4\n"
+        ~ "Hey  0  0  0  1\n\n"
+        ~ "3      0  1  3  4\n"
+        ~ "Hello  0  0  0  2\n\n"
+        ~ "3   0  1  3  4\n"
+        ~ "Hi  0  0  0  3\n\n"
     );
 
     // Single Group
-    assert(gp.display(["Hello", "Hi", "1"], true, 200) == "3    0  1  3  4  \n"
-        ~ "Hey  0  0  0  1  \n\n"
+    assert(gp.display(["Hello", "Hi", "1"], true, 200) == "3    0  1  3  4\n"
+        ~ "Hey  0  0  0  1\n\n"
     );
 
     // Array of groups
-    assert(gp.display([["Hello", "Hi", "1"], ["Hi", "Hello", "2"]], true, 200) == "3    0  1  3  4  \n"
-        ~ "Hey  0  0  0  1  \n\n"
-        ~ "3      0  1  3  4  \n"
-        ~ "Hello  0  0  0  2  \n\n"
+    assert(gp.display([["Hello", "Hi", "1"], ["Hi", "Hello", "2"]], true, 200) == "3    0  1  3  4\n"
+        ~ "Hey  0  0  0  1\n\n"
+        ~ "3      0  1  3  4\n"
+        ~ "Hello  0  0  0  2\n\n"
     );
 
     // Array of groups
-    assert(gp.display([["Hello", "Hi", "1"], ["Hi", "Hello", "2"], ["Hey", "Hey", "3"]], true, 200) == "3    0  1  3  4  \n"
-        ~ "Hey  0  0  0  1  \n\n"
-        ~ "3      0  1  3  4  \n"
-        ~ "Hello  0  0  0  2  \n\n"
-        ~ "3   0  1  3  4  \n"
-        ~ "Hi  0  0  0  3  \n\n"
+    assert(gp.display([["Hello", "Hi", "1"], ["Hi", "Hello", "2"], ["Hey", "Hey", "3"]], true, 200) == "3    0  1  3  4\n"
+        ~ "Hey  0  0  0  1\n\n"
+        ~ "3      0  1  3  4\n"
+        ~ "Hello  0  0  0  2\n\n"
+        ~ "3   0  1  3  4\n"
+        ~ "Hi  0  0  0  3\n\n"
     );
 
     // Single Group - integer indexes
-    assert(gp.display([0], true, 200) == "3    0  1  3  4  \n"
-        ~ "Hey  0  0  0  1  \n\n"
+    assert(gp.display([0], true, 200) == "3    0  1  3  4\n"
+        ~ "Hey  0  0  0  1\n\n"
     );
 
     // Array of groups - integer indexes
-    assert(gp.display([0, 1], true, 200) == "3    0  1  3  4  \n"
-        ~ "Hey  0  0  0  1  \n\n"
-        ~ "3      0  1  3  4  \n"
-        ~ "Hello  0  0  0  2  \n\n"
+    assert(gp.display([0, 1], true, 200) == "3    0  1  3  4\n"
+        ~ "Hey  0  0  0  1\n\n"
+        ~ "3      0  1  3  4\n"
+        ~ "Hello  0  0  0  2\n\n"
     );
 
     // Array of groups - integer indexes
-    assert(gp.display([0, 1, 2], true, 200) == "3    0  1  3  4  \n"
-        ~ "Hey  0  0  0  1  \n\n"
-        ~ "3      0  1  3  4  \n"
-        ~ "Hello  0  0  0  2  \n\n"
-        ~ "3   0  1  3  4  \n"
-        ~ "Hi  0  0  0  3  \n\n"
+    assert(gp.display([0, 1, 2], true, 200) == "3    0  1  3  4\n"
+        ~ "Hey  0  0  0  1\n\n"
+        ~ "3      0  1  3  4\n"
+        ~ "Hello  0  0  0  2\n\n"
+        ~ "3   0  1  3  4\n"
+        ~ "Hi  0  0  0  3\n\n"
     );
 }
 
@@ -443,36 +443,36 @@ unittest
     assert(gp.data[0] == [380.0, 370.0, 24.0, 26.0]);
 
     // Display full
-    assert(gp.display(true, 200) == "Type     Max-Speed  \n"
-        ~ "Captive  380        \n"
-        ~ "Wild     370        \n\n"
-        ~ "Type     Max-Speed  \n"
-        ~ "Captive  24         \n"
-        ~ "Wild     26         \n\n"
+    assert(gp.display(true, 200) == "Type     Max-Speed\n"
+        ~ "Captive  380      \n"
+        ~ "Wild     370      \n\n"
+        ~ "Type     Max-Speed\n"
+        ~ "Captive  24       \n"
+        ~ "Wild     26       \n\n"
     );
 
     // Display Falcon
-    assert(gp.display(["Falcon"], true, 200) == "Type     Max-Speed  \n"
-        ~ "Captive  380        \n"
-        ~ "Wild     370        \n\n"
+    assert(gp.display(["Falcon"], true, 200) == "Type     Max-Speed\n"
+        ~ "Captive  380      \n"
+        ~ "Wild     370      \n\n"
     );
 
     // Display Parrot
-    assert(gp.display(["Parrot"], true, 200) == "Type     Max-Speed  \n"
-        ~ "Captive  24         \n"
-        ~ "Wild     26         \n\n"
+    assert(gp.display(["Parrot"], true, 200) == "Type     Max-Speed\n"
+        ~ "Captive  24       \n"
+        ~ "Wild     26       \n\n"
     );
 
     // Display Falcon - Integer Index
-    assert(gp.display([0], true, 200) == "Type     Max-Speed  \n"
-        ~ "Captive  380        \n"
-        ~ "Wild     370        \n\n"
+    assert(gp.display([0], true, 200) == "Type     Max-Speed\n"
+        ~ "Captive  380      \n"
+        ~ "Wild     370      \n\n"
     );
 
     // Display Parrot - Integer Index
-    assert(gp.display([1], true, 200) == "Type     Max-Speed  \n"
-        ~ "Captive  24         \n"
-        ~ "Wild     26         \n\n"
+    assert(gp.display([1], true, 200) == "Type     Max-Speed\n"
+        ~ "Captive  24       \n"
+        ~ "Wild     26       \n\n"
     );
 }
 
@@ -519,44 +519,44 @@ unittest
     // gp1.display();
 
     // Combine one group
-    assert(gp1.combine([0]).display(true, 200) == "GroupL1  Type     Max-Speed  \n"
-        ~ "Falcon   Captive  380        \n"
-        ~ "Falcon   Wild     370        \n"
+    assert(gp1.combine([0]).display(true, 200) == "GroupL1  Type     Max-Speed\n"
+        ~ "Falcon   Captive  380      \n"
+        ~ "Falcon   Wild     370      \n"
     );
 
     // Combine both the groups
-    assert(gp1.combine([0, 1]).display(true, 200) == "GroupL1  Type     Max-Speed  \n"
-        ~ "Falcon   Captive  380        \n"
-        ~ "Falcon   Wild     370        \n"
-        ~ "Parrot   Captive  24         \n"
-        ~ "Parrot   Wild     26         \n"
+    assert(gp1.combine([0, 1]).display(true, 200) == "GroupL1  Type     Max-Speed\n"
+        ~ "Falcon   Captive  380      \n"
+        ~ "Falcon   Wild     370      \n"
+        ~ "Parrot   Captive  24       \n"
+        ~ "Parrot   Wild     26       \n"
     );
 
     // Cobine all - overload
-    assert(gp1.combine().display(true, 200) == "GroupL1  Type     Max-Speed  \n"
-        ~ "Falcon   Captive  380        \n"
-        ~ "Falcon   Wild     370        \n"
-        ~ "Parrot   Captive  24         \n"
-        ~ "Parrot   Wild     26         \n"
+    assert(gp1.combine().display(true, 200) == "GroupL1  Type     Max-Speed\n"
+        ~ "Falcon   Captive  380      \n"
+        ~ "Falcon   Wild     370      \n"
+        ~ "Parrot   Captive  24       \n"
+        ~ "Parrot   Wild     26       \n"
     );
 
-    assert(gp1.combine(["Falcon"]).display(true, 200) == "GroupL1  Type     Max-Speed  \n"
-        ~ "Falcon   Captive  380        \n"
-        ~ "Falcon   Wild     370        \n"
+    assert(gp1.combine(["Falcon"]).display(true, 200) == "GroupL1  Type     Max-Speed\n"
+        ~ "Falcon   Captive  380      \n"
+        ~ "Falcon   Wild     370      \n"
     );
 
     // Combine both the groups
-    assert(gp1.combine([["Falcon"], ["Parrot"]]).display(true, 200) == "GroupL1  Type     Max-Speed  \n"
-        ~ "Falcon   Captive  380        \n"
-        ~ "Falcon   Wild     370        \n"
-        ~ "Parrot   Captive  24         \n"
-        ~ "Parrot   Wild     26         \n"
+    assert(gp1.combine([["Falcon"], ["Parrot"]]).display(true, 200) == "GroupL1  Type     Max-Speed\n"
+        ~ "Falcon   Captive  380      \n"
+        ~ "Falcon   Wild     370      \n"
+        ~ "Parrot   Captive  24       \n"
+        ~ "Parrot   Wild     26       \n"
     );
 
     // Just Parrot
-    assert(gp1.combine(["Parrot"]).display(true, 200) == "GroupL1  Type     Max-Speed  \n"
-        ~ "Parrot   Captive  24         \n"
-        ~ "Parrot   Wild     26         \n"
+    assert(gp1.combine(["Parrot"]).display(true, 200) == "GroupL1  Type     Max-Speed\n"
+        ~ "Parrot   Captive  24       \n"
+        ~ "Parrot   Wild     26       \n"
     );
 }
 
@@ -573,38 +573,38 @@ unittest
     gp.createGroup!([2])(df, [0, 1]);
 
     // Complete Group
-    assert(gp.combine().display(true, 200) == "GroupL1  GroupL2  GroupL3  3      0  1  3  4  \n"
-        ~ "Hello    Hi       1        Hey    0  0  0  1  \n"
-        ~ "Hi       Hello    2        Hello  0  0  0  2  \n"
-        ~ "Hey      Hey      3        Hi     0  0  0  3  \n"
+    assert(gp.combine().display(true, 200) == "GroupL1  GroupL2  GroupL3  3      0  1  3  4\n"
+        ~ "Hello    Hi       1        Hey    0  0  0  1\n"
+        ~ "Hi       Hello    2        Hello  0  0  0  2\n"
+        ~ "Hey      Hey      3        Hi     0  0  0  3\n"
     );
 
     // Single Group
-    assert(gp.combine([0]).display(true, 200) == "GroupL1  GroupL2  GroupL3  3    0  1  3  4  \n"
-        ~ "Hello    Hi       1        Hey  0  0  0  1  \n"
+    assert(gp.combine([0]).display(true, 200) == "GroupL1  GroupL2  GroupL3  3    0  1  3  4\n"
+        ~ "Hello    Hi       1        Hey  0  0  0  1\n"
     );
 
     // 2 Groups combine
-    assert(gp.combine([0, 1]).display(true, 200) == "GroupL1  GroupL2  GroupL3  3      0  1  3  4  \n"
-        ~ "Hello    Hi       1        Hey    0  0  0  1  \n"
-        ~ "Hi       Hello    2        Hello  0  0  0  2  \n"
+    assert(gp.combine([0, 1]).display(true, 200) == "GroupL1  GroupL2  GroupL3  3      0  1  3  4\n"
+        ~ "Hello    Hi       1        Hey    0  0  0  1\n"
+        ~ "Hi       Hello    2        Hello  0  0  0  2\n"
     );
 
     // Complete group again
-    assert(gp.combine([0, 1, 2]).display(true, 200) == "GroupL1  GroupL2  GroupL3  3      0  1  3  4  \n"
-        ~ "Hello    Hi       1        Hey    0  0  0  1  \n"
-        ~ "Hi       Hello    2        Hello  0  0  0  2  \n"
-        ~ "Hey      Hey      3        Hi     0  0  0  3  \n"
+    assert(gp.combine([0, 1, 2]).display(true, 200) == "GroupL1  GroupL2  GroupL3  3      0  1  3  4\n"
+        ~ "Hello    Hi       1        Hey    0  0  0  1\n"
+        ~ "Hi       Hello    2        Hello  0  0  0  2\n"
+        ~ "Hey      Hey      3        Hi     0  0  0  3\n"
     );
 
     // Groups using string array
-    assert(gp.combine(["Hello", "Hi", "1"]).display(true, 200) == "GroupL1  GroupL2  GroupL3  3    0  1  3  4  \n"
-        ~ "Hello    Hi       1        Hey  0  0  0  1  \n"
+    assert(gp.combine(["Hello", "Hi", "1"]).display(true, 200) == "GroupL1  GroupL2  GroupL3  3    0  1  3  4\n"
+        ~ "Hello    Hi       1        Hey  0  0  0  1\n"
     );
 
     // Groups using 2D string array
-    assert(gp.combine([["Hello", "Hi", "1"], ["Hi", "Hello", "2"]]).display(true, 200) == "GroupL1  GroupL2  GroupL3  3      0  1  3  4  \n"
-        ~ "Hello    Hi       1        Hey    0  0  0  1  \n"
-        ~ "Hi       Hello    2        Hello  0  0  0  2  \n"
+    assert(gp.combine([["Hello", "Hi", "1"], ["Hi", "Hello", "2"]]).display(true, 200) == "GroupL1  GroupL2  GroupL3  3      0  1  3  4\n"
+        ~ "Hello    Hi       1        Hey    0  0  0  1\n"
+        ~ "Hi       Hello    2        Hello  0  0  0  2\n"
     );
 }
