@@ -22,6 +22,43 @@ struct Group(GrpRowType...)
     /// Index for group
     Index grpIndex;
 
+private:
+    int positionInGroup(int axis)(string[] index, int grpPos)
+    {
+        import std.array: appender;
+        import std.algorithm: countUntil;
+        import std.conv: to;
+        auto codes = appender!(int[]);
+
+        foreach(i; 0 .. grpIndex.indexing[axis].codes.length)
+        {
+            if(grpIndex.indexing[axis].index[i].length == 0)
+                codes.put(to!int(index[i]));
+            else
+            {
+                int indxpos = cast(int)countUntil(grpIndex.indexing[axis].index[i], index[i]);
+                if(indxpos < 0)
+                    return -1;
+                codes.put(indxpos);
+            }
+        }
+
+        foreach(i; 0 .. (axis == 0)? elementCountTill[grpPos +1] - elementCountTill[grpPos]: GrpType.length)
+        {
+            bool flag = true;
+            foreach(j; 0 .. grpIndex.indexing[axis].codes.length)
+            {
+                if(grpIndex.indexing[axis].codes[j][i + ((axis == 0)? elementCountTill[grpPos]: 0)] != codes.data[j])
+                    flag = false;
+            }
+
+            if(flag)
+                return cast(int)i;
+        }
+
+        return -1;
+    }
+
 public:
     /++
     int getGroupPosition(string[] grpTitles)
@@ -317,6 +354,115 @@ public:
 
         return combine(pos);
     }
+
+    /++
+    Index operation of the form gp[size_t, size_t, size_t]
+    +/
+    auto opIndex(size_t i1, size_t i2, size_t i3)
+    {
+        static foreach(i; 0 .. GrpRowType.length)
+            if(i == i3)
+                return data[i][elementCountTill[i1] + i2];
+        
+        assert(0);
+    }
+
+    /++
+    Index operation of the form gp[["Grp Index"], ["Row-Index"], ["Column-Index"]]
+    +/
+    auto opIndex(T, U, V)(T i1, U i2, V i3)
+        if((is(T == string) || is(T == string[]))
+        && (is(U == string) || is(U == string[]))
+        && (is(V == string) || is(V == string[])))
+    {
+        int[3] pos;
+        static if(is(T == string))
+            pos[0] = getGroupPosition([i1]);
+        else
+            pos[0] = getGroupPosition(i1);
+        assert(pos[0] > -1, "Index out of bound");
+
+        static if(is(U == string))
+            pos[1] = positionInGroup!(0)([i2], pos[0]);
+        else
+            pos[1] = positionInGroup!(0)(i2, pos[0]);
+        assert(pos[1] > -1, "Index out of bound");
+
+        static if(is(V == string))
+            pos[2] = positionInGroup!(1)([i3], pos[0]);
+        else
+            pos[2] = positionInGroup!(1)(i3, pos[0]);
+        assert(pos[2] > -1, "Index out of bound");
+
+        static foreach(i; 0 .. GrpRowType.length)
+            if(i == pos[2])
+                return data[i][elementCountTill[pos[0]] + pos[1]];
+
+        assert(0);
+    }
+
+    /++
+    opIndex that returns Axis for column/row binary operations
+    +/
+    auto opIndex(Args...)(Args args)
+        if(Args.length > 0 && Args.length < 4)
+    {
+        static assert(is(Args[0] == string[]) || is(Args[0] == string), "Group Index must be an integer or array of string");
+        static assert(is(Args[1] == string[]) || is(Args[1] == string), "Index must be an integer or array of string");
+
+        int[2] pos;
+        static if(is(Args[0] == string))
+        {
+            int grpPos = getGroupPosition([args[0]]);
+            assert(grpPos > -1, "Index out of bound");
+            pos[0] = grpPos;
+        }
+        else
+        {
+            int grpPos = getGroupPosition(args[0]);
+            assert(grpPos > -1, "Index out of bound");
+            pos[0] = grpPos;
+        }
+
+        static if(is(Args[1] == string))
+        {
+            int axisPos = positionInGroup!(3 - Args.length)([args[1]], pos[0]);
+            assert(axisPos > -1, "Index out of bound");
+            pos[1] = axisPos;
+        }
+        else
+        {
+            int axisPos = positionInGroup!(3 - Args.length)(args[1], pos[0]);
+            assert(axisPos > -1, "Index out of bound");
+            pos[1] = axisPos;
+        }
+
+        import magpie.axis: Axis, DataType;
+        static if(3 - Args.length)
+        {
+            Axis!(void) ret;
+            static foreach(i; 0 .. GrpRowType.length)
+            {
+                if(i == pos[1])
+                {
+                    foreach(j; data[i][elementCountTill[pos[0]] .. elementCountTill[pos[0] + 1]])
+                        ret.data ~= DataType(j);
+                }
+            }
+
+            return ret;
+        }
+        else
+        {
+            Axis!(GrpRowType) ret;
+            static foreach(i; 0 .. GrpRowType.length)
+            {
+                ret.data[i] = data[i][elementCountTill[pos[0]] + pos[1]];
+            }
+
+            return ret;
+        }
+    }
 }
 
 // Basic groubBy operation done manually
@@ -607,4 +753,126 @@ unittest
         ~ "Hello    Hi       1        Hey    0  0  0  1\n"
         ~ "Hi       Hello    2        Hello  0  0  0  2\n"
     );
+}
+
+// Index operation
+unittest
+{
+    DataFrame!(int, 5) df;
+    Index inx;
+    inx.setIndex([["Hello", "Hi", "Hey"], ["Hi", "Hello", "Hey"], ["Hey", "Hello", "Hi"]], ["1", "2", "3"]);
+    df.setFrameIndex(inx);
+    df.assign!1(2, [1,2,3]);
+    df.assign!1(4, [1,2,3]);
+
+    Group!(int, int, int, int) gp;
+    gp.createGroup!([2])(df, [0, 1]);
+
+    assert(gp[["Hello", "Hi", "1"], ["4"]].data == [1]);
+    assert(gp[["Hello", "Hi", "1"], ["3"]].data == [0]);
+
+    assert(gp[["Hi", "Hello", "2"], ["4"]].data == [2]);
+    assert(gp[["Hi", "Hello", "2"], ["3"]].data == [0]);
+
+    assert(gp[["Hey", "Hey", "3"], ["4"]].data == [3]);
+    assert(gp[["Hey", "Hey", "3"], ["3"]].data == [0]);
+
+    assert(gp[["Hello", "Hi", "1"], ["Hey"], 0].data.length == 4);
+    assert(gp[["Hello", "Hi", "1"], ["Hey"], 0].data[3] == 1);
+
+    assert(gp[["Hi", "Hello", "2"], ["Hello"], 0].data.length == 4);
+    assert(gp[["Hi", "Hello", "2"], ["Hello"], 0].data[3] == 2);
+    
+    assert(gp[["Hey", "Hey", "3"], ["Hi"], 0].data.length == 4);
+    assert(gp[["Hey", "Hey", "3"], ["Hi"], 0].data[3] == 3);
+}
+
+// Index operation
+unittest
+{
+    DataFrame!(double) df1;
+    Index inx1;
+    inx1.constructFromLevels!(0)([["Falcon", "Parrot"], ["Captive", "Wild"]], ["Animal", "Type"]);
+    inx1.constructFromLevels!(1)([["Max-Speed"]]);
+    df1.setFrameIndex(inx1);
+    df1.assign!1(0, [380.0, 370.0, 24.0, 26.0]);
+    // df.display();
+
+    Group!(double) gp;
+    gp.createGroup(df1, [0]);
+    assert(gp[["Falcon"], ["Max-Speed"]].data == [380.0, 370.0]);
+    assert(gp[["Parrot"], ["Max-Speed"]].data == [24.0, 26.0]);
+
+    assert(gp[["Falcon"], ["Captive"], 0].data[0] == 380);
+    assert(gp[["Falcon"], ["Wild"], 0].data[0] == 370);
+    assert(gp[["Parrot"], ["Captive"], 0].data[0] == 24);
+    assert(gp[["Parrot"], ["Wild"], 0].data[0] == 26);
+
+    // No need to pass array if the level of indexing or grouping is 1
+    assert(gp["Falcon", "Max-Speed"].data == [380.0, 370.0]);
+    assert(gp["Parrot", "Max-Speed"].data == [24.0, 26.0]);
+
+    assert(gp["Falcon", "Captive", 0].data[0] == 380);
+    assert(gp["Falcon", "Wild", 0].data[0] == 370);
+    assert(gp["Parrot", "Captive", 0].data[0] == 24);
+    assert(gp["Parrot", "Wild", 0].data[0] == 26);
+}
+
+// Element access using indexes
+unittest
+{
+    DataFrame!(double) df1;
+    Index inx1;
+    inx1.constructFromLevels!(0)([["Falcon", "Parrot"], ["Captive", "Wild"]], ["Animal", "Type"]);
+    inx1.constructFromLevels!(1)([["Max-Speed"]]);
+    df1.setFrameIndex(inx1);
+    df1.assign!1(0, [380.0, 370.0, 24.0, 26.0]);
+    // df.display();
+
+    Group!(double) gp;
+    gp.createGroup(df1, [0]);
+
+    assert(gp["Falcon", "Captive", "Max-Speed"] == 380);
+    assert(gp[0, 0, 0] == 380);
+    assert(gp["Falcon", "Wild", "Max-Speed"] == 370);
+    assert(gp[0, 1, 0] == 370);
+
+    assert(gp["Parrot", "Captive", "Max-Speed"] == 24);
+    assert(gp[1, 0, 0] == 24);
+    assert(gp["Parrot", "Wild", "Max-Speed"] == 26);
+    assert(gp[1, 1, 0] == 26);
+}
+
+// Element access using index
+unittest
+{
+    DataFrame!(int, 5) df;
+    Index inx;
+    inx.setIndex([["Hello", "Hi", "Hey"], ["Hi", "Hello", "Hey"], ["Hey", "Hello", "Hi"]], ["1", "2", "3"]);
+    df.setFrameIndex(inx);
+    df.assign!1(2, [1,2,3]);
+    df.assign!1(4, [1,2,3]);
+
+    Group!(int, int, int, int) gp;
+    gp.createGroup!([2])(df, [0, 1]);
+
+    assert(gp[["Hello", "Hi", "1"], ["Hey"], ["4"]] == 1);
+    assert(gp[0, 0, 3] == 1);
+    assert(gp[["Hello", "Hi", "1"], ["Hey"], ["3"]] == 0);
+    assert(gp[0, 0, 2] == 0);
+
+    assert(gp[["Hi", "Hello", "2"], ["Hello"], ["4"]] == 2);
+    assert(gp[1, 0, 3] == 2);
+    assert(gp[["Hi", "Hello", "2"], ["Hello"], ["3"]] == 0);
+    assert(gp[1, 0, 2] == 0);
+
+    assert(gp[["Hey", "Hey", "3"], ["Hi"], ["4"]] == 3);
+    assert(gp[2, 0, 3] == 3);
+    assert(gp[["Hey", "Hey", "3"], ["Hi"], ["3"]] == 0);
+    assert(gp[2, 0, 2] == 0);
+
+    // Checking different variations
+    assert(gp[["Hi", "Hello", "2"], "Hello", ["3"]] == 0);
+    assert(gp[["Hi", "Hello", "2"], ["Hello"], "3"] == 0);
+    assert(gp[["Hi", "Hello", "2"], "Hello", "3"] == 0);
 }
