@@ -1,5 +1,6 @@
 module magpie.group;
 
+import magpie.axis: Axis, DataType;
 import magpie.dataframe: DataFrame;
 import magpie.index: Index;
 import magpie.helper: dropper, transposed, toArr, vectorize;
@@ -363,7 +364,7 @@ public:
         static foreach(i; 0 .. GrpRowType.length)
             if(i == i3)
                 return data[i][elementCountTill[i1] + i2];
-        
+
         assert(0);
     }
 
@@ -437,7 +438,6 @@ public:
             pos[1] = axisPos;
         }
 
-        import magpie.axis: Axis, DataType;
         static if(3 - Args.length)
         {
             Axis!(void) ret;
@@ -461,6 +461,146 @@ public:
             }
 
             return ret;
+        }
+    }
+
+    /// Binary Operation on DataFrame Columns
+    void opIndexAssign(T...)(Axis!T elements, string[] groupTitle, string[] index, int axis = 1)
+    {
+        int[2] pos;
+        int p = getGroupPosition(groupTitle);
+        assert(p > -1, "Group index out of bound");
+        pos[0] = p;
+
+        if(axis)
+        {
+            p = positionInGroup!(1)(index, pos[0]);
+            assert(p > -1, "Index out of bound");
+            pos[1] = p;
+        }
+        else
+        {
+            p = positionInGroup!(0)(index, pos[0]);
+            assert(p > -1, "Index out of bound");
+            pos[1] = p;
+        }
+
+        static if(is(T[0] == void))
+        {
+            assert(elements.data.length == elementCountTill[pos[0] + 1] - elementCountTill[pos[0]],
+                "Size of data doesn't match size of group column");
+            static foreach(i; 0.. GrpRowType.length)
+            {
+                if(i == pos[1])
+                {
+                    foreach(j; elementCountTill[pos[0]] .. elementCountTill[pos[0] + 1])
+                    {
+                        import std.variant: VariantException;
+                        try
+                        {
+                            data[i][j] = elements.data[j - elementCountTill[pos[0]]].get!(GrpRowType[i]);
+                        }
+                        catch(VariantException e)
+                        {
+                            data[i][j] = cast(GrpRowType[i])elements.data[j - elementCountTill[pos[0]]].get!(double);
+                        }
+                    }
+                }
+            }
+        }
+        else
+        {
+            assert(elements.data.length == GrpRowType.length, "Size of data doesn't match size of group column");
+            static foreach(i; 0.. GrpRowType.length)
+            {
+                static foreach(i; 0 .. GrpRowType.length)
+                    data[i][elementCountTill[pos[0]] + pos[1]] = elements.data[i];
+            }
+        }
+    }
+
+    /// Short Hand Binary operation
+    void opIndexOpAssign(string op, T...)(Axis!T elements, string[] groupTitle, string[] index, int axis = 1)
+    {
+       /*
+        * This code looks very much like the code above
+        * Initially this could be written as ofIndexAssign(opIndex[...indexes] + element, ...indexes)
+        * The problem here is that opIndex will create a new Axis struct. This additional allocation
+        * can be avoided by rewriting the implementation above to account for everything.
+        */
+
+        int[2] pos;
+        int p = getGroupPosition(groupTitle);
+        assert(p > -1, "Group index out of bound");
+        pos[0] = p;
+
+        if(axis)
+        {
+            p = positionInGroup!(1)(index, pos[0]);
+            assert(p > -1, "Index out of bound");
+            pos[1] = p;
+        }
+        else
+        {
+            p = positionInGroup!(0)(index, pos[0]);
+            assert(p > -1, "Index out of bound");
+            pos[1] = p;
+        }
+
+        static if(is(T[0] == void))
+        {
+            assert(elements.data.length == elementCountTill[pos[0] + 1] - elementCountTill[pos[0]],
+                "Size of data doesn't match size of group column");
+            static foreach(i; 0.. GrpRowType.length)
+            {
+                if(i == pos[1])
+                {
+                    foreach(j; elementCountTill[pos[0]] .. elementCountTill[pos[0] + 1])
+                    {
+                        import std.variant: VariantException;
+                        try
+                        {
+                            static if(op == "+")
+                                data[i][j] += elements.data[j - elementCountTill[pos[0]]].get!(GrpRowType[i]);
+                            else static if(op == "-")
+                                data[i][j] -= elements.data[j - elementCountTill[pos[0]]].get!(GrpRowType[i]);
+                            else static if(op == "*")
+                                data[i][j] *= elements.data[j - elementCountTill[pos[0]]].get!(GrpRowType[i]);
+                            else static if(op == "/")
+                                data[i][j] /= elements.data[j - elementCountTill[pos[0]]].get!(GrpRowType[i]);
+                        }
+                        catch(VariantException e)
+                        {
+                            static if(op == "+")
+                                data[i][j] += cast(GrpRowType[i])elements.data[j - elementCountTill[pos[0]]].get!(double);
+                            else static if(op == "-")
+                                data[i][j] -= cast(GrpRowType[i])elements.data[j - elementCountTill[pos[0]]].get!(double);
+                            else static if(op == "*")
+                                data[i][j] *= cast(GrpRowType[i])elements.data[j - elementCountTill[pos[0]]].get!(double);
+                            else static if(op == "/")
+                                data[i][j] /= cast(GrpRowType[i])elements.data[j - elementCountTill[pos[0]]].get!(double);
+                        }
+                    }
+                }
+            }
+        }
+        else
+        {
+            assert(elements.data.length == GrpRowType.length, "Size of data doesn't match size of group column");
+            static foreach(i; 0.. GrpRowType.length)
+            {
+                static foreach(i; 0 .. GrpRowType.length)
+                {
+                    static if(op == "+")
+                        data[i][elementCountTill[pos[0]] + pos[1]] += elements.data[i];
+                    else static if(op == "-")
+                        data[i][elementCountTill[pos[0]] + pos[1]] -= elements.data[i];
+                    else static if(op == "*")
+                        data[i][elementCountTill[pos[0]] + pos[1]] *= elements.data[i];
+                    else static if(op == "/")
+                        data[i][elementCountTill[pos[0]] + pos[1]] /= elements.data[i];
+                }
+            }
         }
     }
 }
@@ -782,7 +922,7 @@ unittest
 
     assert(gp[["Hi", "Hello", "2"], ["Hello"], 0].data.length == 4);
     assert(gp[["Hi", "Hello", "2"], ["Hello"], 0].data[3] == 2);
-    
+
     assert(gp[["Hey", "Hey", "3"], ["Hi"], 0].data.length == 4);
     assert(gp[["Hey", "Hey", "3"], ["Hi"], 0].data[3] == 3);
 }
@@ -875,4 +1015,79 @@ unittest
     assert(gp[["Hi", "Hello", "2"], "Hello", ["3"]] == 0);
     assert(gp[["Hi", "Hello", "2"], ["Hello"], "3"] == 0);
     assert(gp[["Hi", "Hello", "2"], "Hello", "3"] == 0);
+}
+
+// Assignment operation on rows
+unittest
+{
+    DataFrame!(double) df1;
+    Index inx1;
+    inx1.constructFromLevels!(0)([["Falcon", "Parrot"], ["Captive", "Wild"]], ["Animal", "Type"]);
+    inx1.constructFromLevels!(1)([["Max-Speed"]]);
+    df1.setFrameIndex(inx1);
+    df1.assign!1(0, [380.0, 370.0, 24.0, 26.0]);
+    // df.display();
+
+    Group!(double) gp;
+    gp.createGroup(df1, [0]);
+
+    // Row assignment within the same group
+    gp[["Falcon"], ["Captive"], 0] = gp[["Falcon"], ["Wild"], 0];
+    assert(gp[0, 0, 0] == gp[0, 1, 0]);
+
+    // Row assignment within the same group
+    gp[["Parrot"], ["Captive"], 0] = gp[["Parrot"], ["Wild"], 0];
+    assert(gp[1, 0, 0] == gp[1, 1, 0]);
+
+    // Row assignment cross group
+    gp[["Parrot"], ["Captive"], 0] = gp[["Falcon"], ["Wild"], 0];
+    assert(gp[0, 0, 0] == gp[1, 0, 0]);
+}
+
+unittest
+{
+    DataFrame!(int, 5) df;
+    Index inx;
+    inx.setIndex([["Hello", "Hi", "Hey"], ["Hi", "Hello", "Hey"], ["Hey", "Hello", "Hi"]], ["1", "2", "3"]);
+    df.setFrameIndex(inx);
+    df.assign!1(2, [1,2,3]);
+    df.assign!1(4, [1,2,3]);
+
+    Group!(int, int, int, int) gp;
+    gp.createGroup!([2])(df, [0, 1]);
+
+    gp[["Hello", "Hi", "1"], ["3"]] = gp[["Hello", "Hi", "1"], ["4"]];
+    assert(gp[["Hello", "Hi", "1"], ["3"]].data == [1]);
+
+    gp[["Hello", "Hi", "1"], ["3"]] = gp[["Hello", "Hi", "1"], ["0"]] + gp[["Hello", "Hi", "1"], ["3"]] + gp[["Hello", "Hi", "1"], ["4"]];
+    assert(gp[["Hello", "Hi", "1"], ["3"]].data == [2]);
+
+    gp[["Hello", "Hi", "1"], ["3"]] = gp[["Hello", "Hi", "1"], ["4"]] + gp[["Hi", "Hello", "2"], ["4"]];
+    assert(gp[["Hello", "Hi", "1"], ["3"]].data == [3]);
+}
+
+// Short hand operations
+unittest
+{
+    DataFrame!(int, 5) df;
+    Index inx;
+    inx.setIndex([["Hello", "Hi", "Hey"], ["Hi", "Hello", "Hey"], ["Hey", "Hello", "Hi"]], ["1", "2", "3"]);
+    df.setFrameIndex(inx);
+    df.assign!1(2, [1,2,3]);
+    df.assign!1(4, [1,2,3]);
+
+    Group!(int, int, int, int) gp;
+    gp.createGroup!([2])(df, [0, 1]);
+
+    gp[["Hello", "Hi", "1"], ["3"]] += gp[["Hello", "Hi", "1"], ["4"]];
+    assert(gp[["Hello", "Hi", "1"], ["3"]].data == [1]);
+
+    gp[["Hello", "Hi", "1"], ["3"]] -= gp[["Hello", "Hi", "1"], ["0"]] + gp[["Hello", "Hi", "1"], ["3"]] + gp[["Hello", "Hi", "1"], ["4"]];
+    assert(gp[["Hello", "Hi", "1"], ["3"]].data == [-1]);
+
+    gp[["Hello", "Hi", "1"], ["3"]] *= gp[["Hello", "Hi", "1"], ["4"]] + gp[["Hi", "Hello", "2"], ["4"]];
+    assert(gp[["Hello", "Hi", "1"], ["3"]].data == [-3]);
+
+    gp[["Hello", "Hi", "1"], ["3"]] /= gp[["Hello", "Hi", "1"], ["3"]];
+    assert(gp[["Hello", "Hi", "1"], ["3"]].data == [1]);
 }
