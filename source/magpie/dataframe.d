@@ -36,38 +36,7 @@ struct DataFrame(FrameFields...)
 private:
     int getPosition(int axis)(string[] index)
     {
-        import std.array: appender;
-        import std.algorithm: countUntil;
-        import std.conv: to;
-        auto codes = appender!(int[]);
-
-        foreach(i; 0 .. indx.indexing[axis].codes.length)
-        {
-            if(indx.indexing[axis].index[i].length == 0)
-                codes.put(to!int(index[i]));
-            else
-            {
-                int indxpos = cast(int)countUntil(indx.indexing[axis].index[i], index[i]);
-                if(indxpos < 0)
-                    return -1;
-                codes.put(indxpos);
-            }
-        }
-
-        foreach(i; 0 .. (axis == 0)? rows: cols)
-        {
-            bool flag = true;
-            foreach(j; 0 .. indx.indexing[axis].codes.length)
-            {
-                if(indx.indexing[axis].codes[j][i] != codes.data[j])
-                    flag = false;
-            }
-
-            if(flag)
-                return cast(int)i;
-        }
-
-        return -1;
+        return indx.getPosition!(axis)(index);
     }
 
 public:
@@ -1156,6 +1125,13 @@ public:
     void opIndexAssign(T...)(Axis!T elements, string[] index, int axis = 1)
         if(T.length == RowType.length || T.length == 1)
     {
+        opIndexOpAssign!("")(elements, index, axis);
+    }
+
+    /// Short Hand operations
+    void opIndexOpAssign(string op, T...)(Axis!T elements, string[] index, int axis = 1)
+        if(T.length == RowType.length || T.length == 1)
+    {
         static if(is(T[0] == void))
         {
             assert(elements.data.length == rows, "Length of Axis.data is not equal to number of rows");
@@ -1168,11 +1144,29 @@ public:
                         import std.variant: VariantException;
                         try
                         {
-                            data[i][j] = elements.data[j].get!(RowType[i]);
+                            static if(op == "")
+                                data[i][j] = elements.data[j].get!(RowType[i]);
+                            else static if(op == "+")
+                                data[i][j] += elements.data[j].get!(RowType[i]);
+                            else static if(op == "-")
+                                data[i][j] -= elements.data[j].get!(RowType[i]);
+                            else static if(op == "*")
+                                data[i][j] *= elements.data[j].get!(RowType[i]);
+                            else static if(op == "/")
+                                data[i][j] /= elements.data[j].get!(RowType[i]);
                         }
                         catch(VariantException e)
                         {
-                            data[i][j] = cast(RowType[i])elements.data[j].get!(double);
+                            static if(op == "")
+                                data[i][j] = cast(RowType[i])elements.data[j].get!(double);
+                            else static if(op == "+")
+                                data[i][j] += cast(RowType[i])elements.data[j].get!(double);
+                            else static if(op == "-")
+                                data[i][j] -= cast(RowType[i])elements.data[j].get!(double);
+                            else static if(op == "*")
+                                data[i][j] *= cast(RowType[i])elements.data[j].get!(double);
+                            else static if(op == "/")
+                                data[i][j] /= cast(RowType[i])elements.data[j].get!(double);
                         }
                     }
         }
@@ -1182,7 +1176,18 @@ public:
             int pos = getPosition!0(index);
             assert(pos > -1, "Index not found");
             static foreach(i; 0 .. RowType.length)
-                data[i][pos] = elements.data[i];
+            {
+                static if(op == "")
+                    data[i][pos] = elements.data[i];
+                else static if(op == "+")
+                    data[i][pos] += elements.data[i];
+                else static if(op == "-")
+                    data[i][pos] -= elements.data[i];
+                else static if(op == "*")
+                    data[i][pos] *= elements.data[i];
+                else static if(op == "/")
+                    data[i][pos] /= elements.data[i];
+            }
         }
     }
 

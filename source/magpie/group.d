@@ -464,71 +464,15 @@ public:
         }
     }
 
-    /// Binary Operation on DataFrame Columns
+    /// Binary Operation on DataFrame rows/columns
     void opIndexAssign(T...)(Axis!T elements, string[] groupTitle, string[] index, int axis = 1)
     {
-        int[2] pos;
-        int p = getGroupPosition(groupTitle);
-        assert(p > -1, "Group index out of bound");
-        pos[0] = p;
-
-        if(axis)
-        {
-            p = positionInGroup!(1)(index, pos[0]);
-            assert(p > -1, "Index out of bound");
-            pos[1] = p;
-        }
-        else
-        {
-            p = positionInGroup!(0)(index, pos[0]);
-            assert(p > -1, "Index out of bound");
-            pos[1] = p;
-        }
-
-        static if(is(T[0] == void))
-        {
-            assert(elements.data.length == elementCountTill[pos[0] + 1] - elementCountTill[pos[0]],
-                "Size of data doesn't match size of group column");
-            static foreach(i; 0.. GrpRowType.length)
-            {
-                if(i == pos[1])
-                {
-                    foreach(j; elementCountTill[pos[0]] .. elementCountTill[pos[0] + 1])
-                    {
-                        import std.variant: VariantException;
-                        try
-                        {
-                            data[i][j] = elements.data[j - elementCountTill[pos[0]]].get!(GrpRowType[i]);
-                        }
-                        catch(VariantException e)
-                        {
-                            data[i][j] = cast(GrpRowType[i])elements.data[j - elementCountTill[pos[0]]].get!(double);
-                        }
-                    }
-                }
-            }
-        }
-        else
-        {
-            assert(elements.data.length == GrpRowType.length, "Size of data doesn't match size of group column");
-            static foreach(i; 0.. GrpRowType.length)
-            {
-                static foreach(i; 0 .. GrpRowType.length)
-                    data[i][elementCountTill[pos[0]] + pos[1]] = elements.data[i];
-            }
-        }
+        opIndexOpAssign!("")(elements, groupTitle, index, axis);
     }
 
     /// Short Hand Binary operation
     void opIndexOpAssign(string op, T...)(Axis!T elements, string[] groupTitle, string[] index, int axis = 1)
     {
-       /*
-        * This code looks very much like the code above
-        * Initially this could be written as ofIndexAssign(opIndex[...indexes] + element, ...indexes)
-        * The problem here is that opIndex will create a new Axis struct. This additional allocation
-        * can be avoided by rewriting the implementation above to account for everything.
-        */
-
         int[2] pos;
         int p = getGroupPosition(groupTitle);
         assert(p > -1, "Group index out of bound");
@@ -568,6 +512,8 @@ public:
                                 data[i][j] *= elements.data[j - elementCountTill[pos[0]]].get!(GrpRowType[i]);
                             else static if(op == "/")
                                 data[i][j] /= elements.data[j - elementCountTill[pos[0]]].get!(GrpRowType[i]);
+                            else static if(op == "")
+                                data[i][j] = elements.data[j - elementCountTill[pos[0]]].get!(GrpRowType[i]);
                         }
                         catch(VariantException e)
                         {
@@ -579,6 +525,8 @@ public:
                                 data[i][j] *= cast(GrpRowType[i])elements.data[j - elementCountTill[pos[0]]].get!(double);
                             else static if(op == "/")
                                 data[i][j] /= cast(GrpRowType[i])elements.data[j - elementCountTill[pos[0]]].get!(double);
+                            else static if(op == "")
+                                data[i][j] = cast(GrpRowType[i])elements.data[j - elementCountTill[pos[0]]].get!(double);
                         }
                     }
                 }
@@ -599,6 +547,8 @@ public:
                         data[i][elementCountTill[pos[0]] + pos[1]] *= elements.data[i];
                     else static if(op == "/")
                         data[i][elementCountTill[pos[0]] + pos[1]] /= elements.data[i];
+                    else static if(op == "")
+                        data[i][elementCountTill[pos[0]] + pos[1]] = elements.data[i];
                 }
             }
         }

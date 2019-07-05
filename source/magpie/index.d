@@ -74,6 +74,8 @@ public:
     {
         foreach(i; 0 .. 2)
         {
+            if(indexing[i].index.length != indexing[i].codes.length)
+                indexing[i].codes.length = indexing[i].index.length;
             foreach(j; 0 .. indexing[i].index.length)
             {
                 if(indexing[i].index[j].length > 0 && indexing[i].codes[j].length == 0)
@@ -412,6 +414,48 @@ public:
                     extend!axis(next[i], insertPos);
         }
         optimize();
+    }
+
+    /++
+    int getPosition(int axis)(string[] index)
+    Description: Get position of a particual index within the struct
+    @params: axis - 0 to search row Index, 1 to search column index
+    @params: index - index to search for
+    +/
+    int getPosition(int axis)(string[] index)
+    {
+        import std.array: appender;
+        import std.algorithm: countUntil;
+        import std.conv: to;
+        auto codes = appender!(int[]);
+
+        foreach(i; 0 .. indexing[axis].codes.length)
+        {
+            if(indexing[axis].index[i].length == 0)
+                codes.put(to!int(index[i]));
+            else
+            {
+                int indxpos = cast(int)countUntil(indexing[axis].index[i], index[i]);
+                if(indxpos < 0)
+                    return -1;
+                codes.put(indxpos);
+            }
+        }
+
+        foreach(i; 0 .. indexing[axis].codes[0].length)
+        {
+            bool flag = true;
+            foreach(j; 0 .. indexing[axis].codes.length)
+            {
+                if(indexing[axis].codes[j][i] != codes.data[j])
+                    flag = false;
+            }
+
+            if(flag)
+                return cast(int)i;
+        }
+
+        return -1;
     }
 }
 

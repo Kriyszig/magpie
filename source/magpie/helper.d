@@ -1,5 +1,7 @@
 module magpie.helper;
 
+import magpie.index: Index;
+
 import std.meta: AliasSeq, Repeat;
 import std.range.primitives: ElementType;
 import std.traits: isStaticArray;
@@ -118,9 +120,9 @@ int[] vectorize(T)(T[] values)
 }
 
 /// Transposes an array of integer
-int[][] transposed(int[][] data)
+T[][] transposed(T)(T[][] data)
 {
-    int[][] ret;
+    T[][] ret;
     ret.length = data[0].length;
     foreach(i, eleu; data)
     {
@@ -136,6 +138,156 @@ int[][] transposed(int[][] data)
 
 /// Template to get array from type
 alias toArr(T) = T[];
+
+/// Get unique indexes for merge
+string[][] ensureUnique(int axis)(Index i1, Index i2, string lsuffix = "x_", string rsuffix = "y_")
+{
+    assert(i1.indexing[axis].codes.length == i2.indexing[axis].codes.length, "Index level mismatch for union");
+    
+    import std.algorithm: countUntil;
+    string[][] unique;
+
+    unique.length = i1.indexing[axis].codes[0].length + i1.indexing[axis].codes[0].length;
+
+    foreach(i; 0 .. i1.indexing[axis].codes[0].length)
+    {
+        string[] indx;
+        indx.length = i1.indexing[axis].codes.length;
+
+        foreach(j; 0 .. i1.indexing[axis].codes.length)
+        {
+            if(i1.indexing[axis].index[j].length == 0)
+            {
+                import std.conv: to;
+                indx[j] = to!string(i1.indexing[axis].codes[j][i]);
+            }
+            else
+                indx[j] = i1.indexing[axis].index[j][i1.indexing[axis].codes[j][i]];
+        }
+
+        // Making an asuumption that there is no conflicting indexes within the same Index struct
+        unique[i] = indx;
+    }
+
+    foreach(i; 0 .. i2.indexing[axis].codes[0].length)
+    {
+        string[] indx;
+        indx.length = i2.indexing[axis].codes.length;
+
+        foreach(j; 0 .. i2.indexing[axis].codes.length)
+        {
+            if(i2.indexing[axis].index[j].length == 0)
+            {
+                import std.conv: to;
+                indx[j] = to!string(i2.indexing[axis].codes[j][i]);
+            }
+            else
+                indx[j] = i2.indexing[axis].index[j][i2.indexing[axis].codes[j][i]];
+        }
+
+        // Making an asuumption that there is no conflicting indexes within the same Index struct
+        const int p = cast(int)countUntil(unique, indx);
+        if(p < 0)
+            unique[i + i1.indexing[axis].codes[0].length] = indx;
+        else
+        {
+            foreach(j; 0 .. unique[p].length)
+                unique[p][j] = lsuffix ~ unique[p][j];
+
+            foreach(j; 0 .. indx.length)
+                indx[j] = rsuffix ~ indx[j];
+
+            unique[i + i1.indexing[axis].codes[0].length] = indx;
+        }
+    }
+
+    return unique;
+}
+
+/// Returns the union of indexes in the order they appear
+string[][] indexUnion(int axis)(Index i1, Index i2)
+{
+    assert(i1.indexing[axis].codes.length == i2.indexing[axis].codes.length, "Index level mismatch for union");
+    
+    import std.algorithm: countUntil;
+    string[][] unique;
+
+    foreach(i; 0 .. i1.indexing[axis].codes[0].length)
+    {
+        string[] indx;
+        indx.length = i1.indexing[axis].codes.length;
+
+        foreach(j; 0 .. i1.indexing[axis].codes.length)
+        {
+            if(i1.indexing[axis].index[j].length == 0)
+            {
+                import std.conv: to;
+                indx[j] = to!string(i1.indexing[axis].codes[j][i]);
+            }
+            else
+                indx[j] = i1.indexing[axis].index[j][i1.indexing[axis].codes[j][i]];
+        }
+
+        // Making an asuumption that there is no conflicting indexes within the same Index struct
+        unique ~= indx;
+    }
+
+    foreach(i; 0 .. i2.indexing[axis].codes[0].length)
+    {
+        string[] indx;
+        indx.length = i2.indexing[axis].codes.length;
+
+        foreach(j; 0 .. i2.indexing[axis].codes.length)
+        {
+            if(i2.indexing[axis].index[j].length == 0)
+            {
+                import std.conv: to;
+                indx[j] = to!string(i2.indexing[axis].codes[j][i]);
+            }
+            else
+                indx[j] = i2.indexing[axis].index[j][i2.indexing[axis].codes[j][i]];
+        }
+
+        // Making an asuumption that there is no conflicting indexes within the same Index struct
+        const int p = cast(int)countUntil(unique, indx);
+        if(p < 0)
+            unique ~= indx;
+    }
+
+    return unique;
+}
+
+/// find set of indexes that occur in both structures
+string[][] indexIntersection(int axis)(Index i1, Index i2)
+{
+    assert(i1.indexing[axis].codes.length == i2.indexing[axis].codes.length, "Index level mismatch for union");
+    
+    import std.algorithm: countUntil;
+    string[][] intersect;
+
+    foreach(i; 0 .. i1.indexing[axis].codes[0].length)
+    {
+        string[] indx;
+        indx.length = i1.indexing[axis].codes.length;
+
+        foreach(j; 0 .. i1.indexing[axis].codes.length)
+        {
+            if(i1.indexing[axis].index[j].length == 0)
+            {
+                import std.conv: to;
+                indx[j] = to!string(i1.indexing[axis].codes[j][i]);
+            }
+            else
+                indx[j] = i1.indexing[axis].index[j][i1.indexing[axis].codes[j][i]];
+        }
+
+        // Making an asuumption that there is no conflicting indexes within the same Index struct
+        if(i2.getPosition!(axis)(indx) > -1)
+            intersect ~= indx;
+    }
+
+    return intersect;
+}
 
 // Community suggested way ot intialize a DataFrame
 unittest
@@ -173,6 +325,7 @@ unittest
     assert(dropper([0, 3, 5], [1, 2, 3, 4, 5, 6]) == [2, 3, 5]);
 }
 
+// Vectorize test
 unittest
 {
     double[] arr = [1.2, 2.7, 1.2, 5.6, 1.2, 5.6];
@@ -194,6 +347,7 @@ unittest
     assert(varr2d[1 .. $] == [0, 1, 0, 2]);
 }
 
+// Transposed test
 unittest
 {
     int[][] a = [[1, 2, 3], [4, 5, 6]];
@@ -201,4 +355,56 @@ unittest
 
     int[][] b = [[1, 2, 3], [4, 5, 6], [7, 8, 9]];
     assert(transposed(b) == [[1, 4, 7], [2, 5, 8], [3, 6, 9]]);
+}
+
+// Ensuring unque indexes on merge
+unittest
+{
+    Index i1;
+    Index i2;
+
+    i1.setIndex([["Hello", "Hi"], ["Hi", "Hello"]], ["1", "@"]);
+    i2.setIndex([["Hey", "Yo"], ["Yo", "Hey"]], ["!", "2"]);
+
+    assert(ensureUnique!0(i1, i2) == [["Hello", "Hi"], ["Hi", "Hello"], ["Hey", "Yo"], ["Yo", "Hey"]]);
+    
+    i2.setIndex([["Hey", "Hello"], ["Hi", "Hi"]], ["!", "@"]);
+    assert(ensureUnique!0(i1, i2) == [["x_Hello", "x_Hi"], ["Hi", "Hello"], ["Hey", "Hi"], ["y_Hello", "y_Hi"]]);
+}
+
+// Index union
+unittest
+{
+    Index i1;
+    Index i2;
+
+    i1.setIndex([["Hello", "Hi"], ["Hi", "Hello"]], ["1", "@"]);
+    i2.setIndex([["Hi", "Hello"], ["Yo", "Hi"]], ["!", "2"]);
+
+    assert(indexUnion!0(i1, i2).length == 3);
+    assert(indexUnion!0(i1, i2) == [["Hello", "Hi"], ["Hi", "Hello"], ["Hi", "Yo"]]);
+}
+
+// Index Intersection
+unittest
+{
+    Index i1;
+    Index i2;
+
+    i1.setIndex([["Hello", "Hi"], ["Hi", "Hello"]], ["1", "@"]);
+    i2.setIndex([["Hi", "Hello"], ["Yo", "Hi"]], ["!", "2"]);
+
+    assert(indexIntersection!0(i1, i2) == [["Hello", "Hi"]]);
+}
+
+// Index Intersection
+unittest
+{
+    Index i1;
+    Index i2;
+
+    i1.setIndex([["Hello", "Hi", "Hey"], ["Hi", "Hello", "Hey"], ["Hey", "Hi", "Hello"]], ["1", "@"]);
+    i2.setIndex([["Hi", "Hello"], ["Hello", "Hi"], ["Hi", "Hey"]], ["!", "2"]);
+
+    assert(indexIntersection!0(i1, i2) == [["Hello", "Hi", "Hey"], ["Hi", "Hello", "Hi"]]);
 }
