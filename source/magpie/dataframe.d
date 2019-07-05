@@ -220,10 +220,21 @@ public:
                 {
                     if(j == dataIndex)
                     {
-                        size_t maxsize = data[j].map!(e => to!string(e).length).reduce!max;
-                        if(maxsize > maxGap)
+                        size_t maxsize1 = 0, maxsize2 = 0;
+                        if(top > indx.column.index.length + extra)
+                            maxsize1 = data[j][0 .. top - indx.column.index.length - extra].map!(e => to!string(e).length).reduce!max;
+                        if(bottom > data[j].length)
+                            maxsize2 = data[j].map!(e => to!string(e).length).reduce!max;
+                        else if(bottom > 0)
+                            maxsize2 = data[j][$ - bottom .. $].map!(e => to!string(e).length).reduce!max;
+
+                        if(maxsize1 > maxGap)
                         {
-                            maxGap = maxsize;
+                            maxGap = maxsize1;
+                        }
+                        if(maxsize2 > maxGap)
+                        {
+                            maxGap = maxsize2;
                         }
                     }
                 }
@@ -768,6 +779,86 @@ public:
     }
 
     /++
+    from_csv rebuild for faster read
+    +/
+    void fastCSV(string path, size_t indexDepth, size_t columnDepth, char sep = ',')
+    {
+        import std.array: array, split;
+        import std.algorithm: map;
+        import std.stdio: File;
+        import std.string: chomp;
+
+        File csvfile = File(path, "r");
+        string[][] lines = csvfile.byLineCopy().map!(chomp).map!(e => e.split(",")).array();
+        int totalLines = cast(int)lines.length;
+        csvfile.close();
+
+        indx.row.titles.length = indexDepth;
+        indx.row.index.length = indexDepth;
+        indx.column.index.length = columnDepth;
+        indx.row.codes.length = indexDepth;
+        indx.column.codes.length = columnDepth;
+        indx.row.titles = lines[columnDepth - 1][0 .. indexDepth];
+
+        foreach(i, ele; lines[0 .. columnDepth])
+            indx.column.index[i] = ele[indexDepth .. $];
+
+        foreach(i, ele; lines[columnDepth .. $])
+        {
+            if(ele.length == 0)
+                continue;
+
+            foreach(j; 0 .. indexDepth)
+            {
+                ++indx.row.index[j].length;
+                indx.row.index[j][i] = ele[j];
+            }
+
+            static foreach(j; 0 .. RowType.length)
+            {
+                import std.conv: to;
+                ++data[j].length;
+                if(ele[indexDepth + j].length == 0)
+                    data[j][i] =  RowType[j].init;
+                else
+                    data[j][i] = to!(RowType[j])(ele[indexDepth + j]);
+            }
+        }
+
+        rows = totalLines - columnDepth;
+        if(indx.row.index.length == 0)
+        {
+            indx.row.index.length = 1;
+            indx.row.codes.length = 1;
+            indx.row.codes[0].length = rows;
+            foreach(i; 0 .. rows)
+                indx.row.codes[0][i] = cast(int)i;
+
+            indx.row.titles = ["Index"];
+        }
+
+        if(indx.column.index.length == 0)
+        {
+            indx.column.index.length = 1;
+            indx.column.codes.length = 1;
+            indx.column.codes[0].length = rows;
+            foreach(i; 0 .. rows)
+                indx.column.codes[0][i] = cast(int)i;
+
+            indx.row.titles.length = indx.row.codes.length;
+            foreach(i; 0 .. indx.row.titles.length)
+            {
+                import std.conv: to;
+                indx.row.titles[i] = "Index" ~ to!(string)(i + 1);
+            }
+        }
+
+        indx.generateCodes();
+        indx.optimize();
+
+    }
+
+    /++
     RowType[i2] at(size_t i1, size_t i2)()
     Description: Getting the element directly from its index
     @param: ii - Row index
@@ -1066,7 +1157,7 @@ public:
     df[["CIndex1"]] = df[["CIndex2"]] + df[["CIndex3"]];
     df[["RIndex1"], 0] = df[["RIndex2"], 0] + df[["RIndex3"], 0];
     +/
-    auto opIndexAssign(T...)(Axis!T elements, string[] index, int axis = 1)
+    void opIndexAssign(T...)(Axis!T elements, string[] index, int axis = 1)
         if(T.length == RowType.length || T.length == 1)
     {
         static if(is(T[0] == void))
@@ -1097,6 +1188,164 @@ public:
             static foreach(i; 0 .. RowType.length)
                 data[i][pos] = elements.data[i];
         }
+    }
+
+    /++
+    void apply(alias Fn, int axis, T)(T index)
+    Description: Applies a function on a particular row or column
+    @params: Fn - Function
+    @params: axis - 0 for rows, 1 for columns
+    @params: index - integer or string indexes of rows
+    +/
+    void apply(alias Fn, int axis, T)(T index)
+        if(is(T == int[]) || is(T == string[][]))
+    {
+        if(index.length == 0)
+            return;
+
+        static if(is(T == string[][]))
+            foreach(i; index)
+                assert(i.length == indx.indexing[axis].codes.length, "Index level mismatch");
+
+        int[] pos;
+        static if(is(T == int[]))
+            pos = index;
+        else
+        {
+            pos.length = index.length;
+            foreach(i, ele; index)
+                pos[i] = getPosition!(axis)(ele);
+        }
+
+        static if(axis == 0)
+        {
+            static foreach(i; 0 .. RowType.length)
+            {
+                foreach(j; pos)
+                    data[i][j] = cast(RowType[i])Fn(data[i][j]);
+            }
+        }
+        else
+        {
+            static foreach(i; 0 .. RowType.length)
+            {
+                import std.algorithm: countUntil;
+                if(countUntil(pos, i) > -1)
+                    foreach(j; 0 .. rows)
+                        data[i][j] = cast(RowType[i])Fn(data[i][j]);
+            }
+        }
+    }
+
+    /++
+    void apply(alias Fn, int axis, T)(T index)
+    Description: apply overload - apply to all data
+    @params: Fn - Function
+    @params: axis - 0 for rows, 1 for columns
+    +/
+    void apply(alias Fn)()
+    {
+        static foreach(i; 0 .. RowType.length)
+            foreach(j; 0 .. rows)
+                data[i][j] = cast(RowType[i])Fn(data[i][j]);
+    }
+
+    /++
+    auto drop(int axis, int[] positions)() @property
+    Description: Drop a row/column from DataFrame
+    @params: axis - 0 for dropping row, 1 for dropping columns
+    @params: positions - integer array of positions of all the rows/colmns to be dropped
+    +/
+    auto drop(int axis, int[] positions)() @property
+    {
+        import magpie.helper: dropper;
+        import std.algorithm: reduce, max, min;
+
+        static if(positions.length == 0)
+        {
+            return this;
+        }
+        else static if(axis == 0)
+        {
+            assert(positions.reduce!min > -1 && positions.reduce!max < rows, "Index out of bound");
+
+            DataFrame!(true, RowType) ret;
+            ret.indx = Index();
+            ret.indx.indexing[1] = indx.indexing[1];
+            ret.indx.row.titles = indx.row.titles;
+
+            foreach(i; 0 .. indx.indexing[0].codes.length)
+            {
+                ret.indx.row.index ~= indx.row.index[i];
+                ret.indx.row.codes ~= dropper(positions, indx.row.codes[i]);
+            }
+
+            static foreach(i; 0 .. RowType.length)
+                ret.data[i] = dropper(positions, data[i]);
+
+            ret.rows = rows - positions.length;
+            return ret;
+        }
+        else
+        {
+            assert(positions.reduce!min > -1 && positions.reduce!max < cols, "Index out of bound");
+            DataFrame!(true, dropper!(positions, RowType)) ret;
+            ret.indx = indx;
+            ret.indx = Index();
+            ret.indx.indexing[0] = indx.indexing[0];
+            ret.indx.column.titles = indx.column.titles;
+
+            foreach(i; 0 .. indx.indexing[1].codes.length)
+            {
+                ret.indx.column.index ~= indx.column.index[i];
+                ret.indx.column.codes ~= dropper(positions, indx.column.codes[i]);
+            }
+
+            auto retdata = dropper!(positions, data);
+            static foreach(i; 0 .. ret.RowType.length)
+                ret.data[i] = retdata[i];
+
+            ret.rows = rows;
+            return ret;
+        }
+    }
+
+    /++
+    auto columnToIndex(int position)() @property
+    Description: Converts a column into row index level
+    @params: position - integral index of column to be converted to index
+    +/
+    auto columnToIndex(int position)() @property
+    {
+        assert(position > -1 && position < cols, "Index out of bound");
+
+        import std.conv: to;
+        auto ret = this.drop!(1, [position]);
+        static if(is(RowType[position] == string))
+        {
+            ret.indx.row.index ~= data[position];
+            ret.indx.row.codes ~= [[]];
+        }
+        else static if(is(RowType[position] == int))
+        {
+            ret.indx.row.index ~= [[]];
+            ret.indx.row.codes ~= data[position];
+        }
+        else
+        {
+            ret.indx.row.index ~= to!(string[])(data[position]);
+            ret.indx.row.codes ~= [[]];
+        }
+
+        if(indx.column.index[$ - 1].length == 0)
+            ret.indx.row.titles ~= to!(string)(indx.column.codes[$ - 1][position]);
+        else
+            ret.indx.row.titles ~= indx.column.index[$ - 1][indx.column.codes[$ - 1][position]];
+
+        ret.indx.generateCodes();
+        ret.indx.optimize();
+
+        return ret;
     }
 }
 
@@ -2350,6 +2599,28 @@ unittest
     f2.close();
 }
 
+// Parsing of dataset 1
+unittest
+{
+    DataFrame!(int, 9, double, int, 4) df;
+    df.fastCSV("./test/fromcsv/dataset1.csv", 0, 1);
+    // df.display();
+    df.to_csv("./test/tocsv/ex5p1.csv", false);
+
+    import std.stdio: File;
+    File f1 = File("./test/fromcsv/dataset1.csv", "r");
+    File f2 = File("./test/tocsv/ex5p1.csv", "r");
+
+    while(!f1.eof())
+    {
+        assert(f1.readln() == f2.readln());
+    }
+    assert(f1.eof() && f2.eof());
+
+    f1.close();
+    f2.close();
+}
+
 // Parsing dataset 1 considering first column as index
 unittest
 {
@@ -2361,6 +2632,28 @@ unittest
     import std.stdio: File;
     File f1 = File("./test/fromcsv/dataset1.csv", "r");
     File f2 = File("./test/tocsv/ex3p2.csv", "r");
+
+    while(!f1.eof())
+    {
+        assert(f1.readln() == f2.readln());
+    }
+    assert(f1.eof() && f2.eof());
+
+    f1.close();
+    f2.close();
+}
+
+// fastCSV dataset1
+unittest
+{
+    DataFrame!(int, 8, double, int, 4) df;
+    df.fastCSV("./test/fromcsv/dataset1.csv", 1, 1);
+    // df.display();
+    df.to_csv("./test/tocsv/ex5p2.csv");
+
+    import std.stdio: File;
+    File f1 = File("./test/fromcsv/dataset1.csv", "r");
+    File f2 = File("./test/tocsv/ex5p2.csv", "r");
 
     while(!f1.eof())
     {
@@ -2398,6 +2691,36 @@ unittest
 
     f1.close();
     f2.close();
+}
+
+// fastCSV dataset2
+unittest
+{
+
+    DataFrame!(double, 23) df;
+    df.fastCSV("./test/fromcsv/dataset2.csv", 2, 1);
+    // df.display();
+    df.to_csv("./test/tocsv/ex5p3.csv");
+
+    import std.stdio: File;
+    import std.string: chomp;
+    import std.array: split;
+
+    File f1 = File("./test/fromcsv/dataset2.csv", "r");
+    File f2 = File("./test/tocsv/ex5p3.csv", "r");
+
+    while(!f1.eof())
+    {
+        auto lf1 = chomp(f1.readln()).split(",");
+        auto lf2 = chomp(f2.readln()).split(",");
+        if(lf1.length > 0)
+            assert(lf1[0 .. 3] == lf2[0 .. 3]);
+    }
+    assert(f1.eof() && f2.eof());
+
+    f1.close();
+    f2.close();
+
 }
 
 // Partially parsing the complete columns of dataset2
@@ -2493,4 +2816,237 @@ unittest
     // df.display();
     assert(df.data[0][0] == 42);
     assert(df.data[1][1] == 17);
+}
+
+// Apply
+unittest
+{
+    Index inx;
+    DataFrame!(double, 2) df;
+    inx.setIndex([["Hello", "Hi"], ["Hi", "Hello"]], ["RL1", "RL2"],
+                [["Hello", "Hi"], ["Hi", "Hello"]], ["CL1", "CL2"]);
+    df.setFrameIndex(inx);
+    // df.display();
+
+    df.assign!1(0, [1.0, 4.0]);
+    df.assign!1(1, [16.0, 256.0]);
+    // df.display();
+
+    import std.math: sqrt;
+    df.apply!(sqrt, 1)([1]);
+    assert(df.data[1] == [4, 16]);
+
+    df.apply!(sqrt, 1)([["Hi", "Hello"]]);
+    assert(df.data[1] == [2, 4]);
+
+    df.apply!(sqrt, 0)([1]);
+    assert(df.data[0][1] == 2 && df.data[1][1] == 2);
+
+    df.assign!0(1, 16.0, 16.0);
+    df.apply!(sqrt, 0)([["Hi", "Hello"]]);
+    assert(df.data[0][1] == 4 && df.data[1][1] == 4);
+
+    df.assign!1(0, [16.0, 16.0]);
+    df.assign!1(1, [16.0, 16.0]);
+    // df.display();
+
+    // Apply to the entire DataFrame
+    df.apply!(sqrt)();
+    assert(df.data[0] == [4, 4] && df.data[1] == [4, 4]);
+
+    df.apply!(sqrt)();
+    assert(df.data[0] == [2, 2] && df.data[1] == [2, 2]);
+}
+
+// Drop
+unittest
+{
+    Index inx;
+    DataFrame!(double, 2) df;
+    inx.setIndex([["Hello", "Hi"], ["Hi", "Hello"]], ["RL1", "RL2"],
+                [["Hello", "Hi"], ["Hi", "Hello"]], ["CL1", "CL2"]);
+    df.setFrameIndex(inx);
+    // df.display();
+
+    df.assign!1(0, [1.0, 4.0]);
+    df.assign!1(1, [16.0, 256.0]);
+    const string str1 = df.display(true, 200);
+
+
+    // Dropping a row
+    auto drow = df.drop!(0, [1]);
+    assert(drow.rows == 1);
+    assert(drow.data[0][0] == 1 && drow.data[1][0] == 16);
+    assert(drow.display(true, 200) == "       CL1  Hello  Hi     \n"
+        ~ "       CL2  Hi     Hello  \n"
+        ~ "RL1    RL2  \n"
+        ~ "Hello  Hi   1      16     \n"
+    );
+
+    // Checking if df is untouched
+    assert(df.data[0] == [1.0, 4.0]);
+    assert(df.data[1] == [16.0, 256.0]);
+    const string str2 = df.display(true, 200);
+    assert(str1 == str2);
+
+    drow = df.drop!(0, [0]);
+    assert(drow.rows == 1);
+    assert(drow.data[0][0] == 4 && drow.data[1][0] == 256);
+    assert(drow.display(true, 200) == "     CL1    Hello  Hi     \n"
+        ~ "     CL2    Hi     Hello  \n"
+        ~ "RL1  RL2    \n"
+        ~ "Hi   Hello  4      256    \n"
+    );
+
+    assert(df.data[0] == [1.0, 4.0]);
+    assert(df.data[1] == [16.0, 256.0]);
+    const string str3 = df.display(true, 200);
+    assert(str1 == str3);
+
+    auto dcol = df.drop!(1, [0]);
+    assert(dcol.cols == 1);
+    assert(dcol.data[0] == [16, 256]);
+    assert(dcol.display(true, 200) == "       CL1    Hi     \n"
+        ~ "       CL2    Hello  \n"
+        ~ "RL1    RL2    \n"
+        ~ "Hello  Hi     16     \n"
+        ~ "Hi     Hello  256    \n"
+    );
+
+    assert(df.data[0] == [1.0, 4.0]);
+    assert(df.data[1] == [16.0, 256.0]);
+    const string str4 = df.display(true, 200);
+    assert(str1 == str4);
+
+    dcol = df.drop!(1, [1]);
+    assert(dcol.cols == 1);
+    assert(dcol.data[0] == [1, 4]);
+    assert(dcol.display(true, 200) == "       CL1    Hello  \n"
+        ~ "       CL2    Hi     \n"
+        ~ "RL1    RL2    \n"
+        ~ "Hello  Hi     1      \n"
+        ~ "Hi     Hello  4      \n"
+    );
+
+    assert(df.data[0] == [1.0, 4.0]);
+    assert(df.data[1] == [16.0, 256.0]);
+    const string str5 = df.display(true, 200);
+    assert(str1 == str5);
+}
+
+// Drop - multiple with heterogeneous
+unittest
+{
+    Index inx;
+    DataFrame!(int, double[2]) df;
+    inx.setIndex([["Hello", "Hi", "Hey"], ["Hi", "Hello", "Hey"]], ["RL1", "RL2"],
+                [["Hello", "Hi", "Hey"], ["Hi", "Hello", "Hey"]], ["CL1", "CL2"]);
+    df.setFrameIndex(inx);
+    // df.display();
+
+    df.assign!1(0, [1, 4, 16]);
+    df.assign!1(1, [16.0, 256.0, 225.0]);
+    df.assign!1(2, [1.0, 4.0, 16.0]);
+    const string str1 = df.display(true, 200);
+
+    auto drows = df.drop!(0, [1, 2]);
+    assert(drows.rows == 1);
+    assert(drows.data[0][0] == 1 && drows.data[1][0] == 16 && drows.data[2][0] == 1);
+    assert(drows.display(true, 200) == "       CL1  Hello  Hi     Hey  \n"
+        ~ "       CL2  Hi     Hello  Hey  \n"
+        ~ "RL1    RL2  \n"
+        ~ "Hello  Hi   1      16     1    \n"
+    );
+
+    const string str2 = df.display(true, 200);
+    assert(str1 == str2);
+
+    drows = df.drop!(0, [0, 2]);
+    assert(drows.rows == 1);
+    assert(drows.data[0][0] == 4 && drows.data[1][0] == 256 && drows.data[2][0] == 4);
+    assert(drows.display(true, 200) == "     CL1    Hello  Hi     Hey  \n"
+        ~ "     CL2    Hi     Hello  Hey  \n"
+        ~ "RL1  RL2    \n"
+        ~ "Hi   Hello  4      256    4    \n"
+    );
+
+    const string str3 = df.display(true, 200);
+    assert(str1 == str3);
+
+    auto dcols = df.drop!(1, [1, 2]);
+    assert(dcols.cols == 1);
+    assert(dcols.data[0] == [1, 4, 16]);
+    assert(dcols.display(true, 200) == "       CL1    Hello  \n"
+        ~ "       CL2    Hi     \n"
+        ~ "RL1    RL2    \n"
+        ~ "Hello  Hi     1      \n"
+        ~ "Hi     Hello  4      \n"
+        ~ "Hey    Hey    16     \n"
+    );
+
+    const string str4 = df.display(true, 200);
+    assert(str1 == str4);
+
+    auto dcols2 = df.drop!(1, [0, 1]);
+    assert(dcols2.cols == 1);
+    assert(dcols2.data[0] == [1, 4, 16]);
+    assert(dcols2.display(true, 200) == "       CL1    Hey  \n"
+        ~ "       CL2    Hey  \n"
+        ~ "RL1    RL2    \n"
+        ~ "Hello  Hi     1    \n"
+        ~ "Hi     Hello  4    \n"
+        ~ "Hey    Hey    16   \n"
+    );
+
+    const string str5 = df.display(true, 200);
+    assert(str1 == str5);
+}
+
+// columntoIndex
+unittest
+{
+    Index inx;
+    DataFrame!(double, 2) df;
+    inx.setIndex([["Hello", "Hi"], ["Hi", "Hello"]], ["RL1", "RL2"],
+                [["Hello", "Hi"], ["Hi", "Hello"]], ["CL1", "CL2"]);
+    df.setFrameIndex(inx);
+    // df.display();
+
+    df.assign!1(0, [1.0, 4.0]);
+    df.assign!1(1, [16.0, 256.0]);
+    const string str1 = df.display(true, 200);
+
+    auto extended = df.columnToIndex!(0);
+    assert(extended.indx.row.codes.length == 3);
+    assert(extended.indx.row.index[2] == []);
+    assert(extended.indx.row.codes[2] == [1, 4]);
+    assert(extended.cols == 1);
+    assert(extended.data[0] == [16, 256]);
+
+    assert(extended.display(true, 200) == "              CL1  Hi     \n"
+        ~ "              CL2  Hello  \n"
+        ~ "RL1    RL2    Hi   \n"
+        ~ "Hello  Hi     1    16     \n"
+        ~ "Hi     Hello  4    256    \n"
+    );
+
+    const string str2 = df.display(true, 200);
+    assert(str1 == str2);
+
+    extended = df.columnToIndex!(1);
+    assert(extended.indx.row.codes.length == 3);
+    assert(extended.indx.row.index[2] == []);
+    assert(extended.indx.row.codes[2] == [16, 256]);
+    assert(extended.cols == 1);
+    assert(extended.data[0] == [1, 4]);
+
+    assert(extended.display(true, 200) == "              CL1    Hello  \n"
+        ~ "              CL2    Hi     \n"
+        ~ "RL1    RL2    Hello  \n"
+        ~ "Hello  Hi     16     1      \n"
+        ~ "Hi     Hello  256    4      \n"
+    );
+
+    const string str3 = df.display(true, 200);
+    assert(str1 == str3);
 }

@@ -37,6 +37,39 @@ template getArgsList(args...)
         alias getArgsList = AliasSeq!();
 }
 
+private template dropper_internal(int[] pos, int rem, Types...)
+{
+    static if(pos.length == 0)
+    {
+        alias dropper_internal = Types;
+    }
+    else
+    {
+        alias dropper_internal = AliasSeq!(Types[0 .. pos[0] - rem],
+            dropper_internal!(pos[1 .. $], pos[0] + 1 ,Types[pos[0] - rem + 1 .. $]));
+    }
+}
+
+/// Template to evaluate RowType - removes elements in Types according to the positions in pos. pos must be ascending
+template dropper(int[] pos, Types...)
+{
+    alias dropper = dropper_internal!(pos, 0, Types);
+}
+
+/// drops values at a set of position from given array
+T[] dropper(T)(int[] pos, T[] values)
+{
+    T[] dropper_internal(T)(int[] pos, int rem, T[] values)
+    {
+        if(pos.length == 0)
+            return values;
+        else
+            return values[0 .. pos[0] - rem] ~ dropper_internal(pos[1 .. $], pos[0] + 1, values[pos[0] - rem + 1 .. $]);
+    }
+
+    return dropper_internal(pos, 0, values);
+}
+
 /// Function to sort indexes in ascending order and switch the code to keep the effective positions same
 void sortIndex(string[] index, int[] codes)
 {
@@ -68,6 +101,22 @@ void sortIndex(string[] index, int[] codes)
     }
 }
 
+/// Does exactly what generateCode does in Index but for any general ndarray
+int[] vectorize(T)(T[] values)
+{
+    int[T] elementPos;
+    int[] pos;
+    int totalUnique = 0;
+
+    foreach(i; values)
+    {
+        ++pos.length;
+        pos[$ - 1] = elementPos.require(cast(immutable)i, { return totalUnique++; }());
+    }
+
+    return totalUnique ~ pos;
+}
+
 // Community suggested way ot intialize a DataFrame
 unittest
 {
@@ -85,4 +134,42 @@ unittest
     sortIndex(indx, codes);
     assert(indx == ["a", "b", "c", "d"]);
     assert(codes == [1, 2, 0, 3]);
+}
+
+// Testing dropper
+unittest
+{
+    assert(is(dropper!([1, 4], int, long, int, long, byte, float, bool) == AliasSeq!(int, int, long, float, bool)));
+    assert(is(dropper!([0, 4], int, long, int, long, double) == AliasSeq!(long, int, long)));
+    assert(is(dropper!([1, 3, 5], int, long, int, long, double, float, bool) == AliasSeq!(int, int, double, bool)));
+    assert(is(dropper!([0, 2, 3, 5], int, uint, byte, ubyte, long, ulong, bool) == AliasSeq!(uint, long, bool)));
+}
+
+// Testing dropper for arrays
+unittest
+{
+    assert(dropper([1, 4], [1, 2, 3, 4, 5, 6]) == [1, 3, 4, 6]);
+    assert(dropper([0, 5], [1, 2, 3, 4, 5, 6]) == [2, 3, 4, 5]);
+    assert(dropper([0, 3, 5], [1, 2, 3, 4, 5, 6]) == [2, 3, 5]);
+}
+
+unittest
+{
+    double[] arr = [1.2, 2.7, 1.2, 5.6, 1.2, 5.6];
+    auto varr = vectorize(arr);
+    assert(varr.length == arr.length + 1);
+    assert(varr[0] == 3);
+    assert(varr[1 .. $] == [0, 1, 0, 2, 0, 2]);
+
+    string[] arrs = ["Hello", "Hi", "Hello", "Hi"];
+    auto varrs = vectorize(arrs);
+    assert(varrs.length == arrs.length + 1);
+    assert(varrs[0] == 2);
+    assert(varrs[1 .. $] == [0, 1, 0, 1]);
+
+    int[][] arr2d = [[1, 2], [2, 4], [1, 2], [3, 6]];
+    auto varr2d = vectorize(arr2d);
+    assert(varr2d.length == arr2d.length + 1);
+    assert(varr2d[0] == 3);
+    assert(varr2d[1 .. $] == [0, 1, 0, 2]);
 }

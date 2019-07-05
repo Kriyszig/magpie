@@ -18,68 +18,68 @@ index.setIndex([0,1,2,3,4,5], ["Row Index"], [0,1,2], ["Column Index"]);
 df.setFrameIndex(index);
 df.display();
 /*
- *  Column Index  0  1  2    
- *  Row Index     
- *  0             0  0  nan  
- *  1             0  0  nan  
- *  2             0  0  nan  
- *  3             0  0  nan  
- *  4             0  0  nan  
+ *  Column Index  0  1  2
+ *  Row Index
+ *  0             0  0  nan
+ *  1             0  0  nan
+ *  2             0  0  nan
+ *  3             0  0  nan
+ *  4             0  0  nan
  *  5             0  0  nan
  */
 
 df.assign!1(2, [1.0, 2.0, 3.0, 4.0, 5.0, 6.0]);
 df.display();
 /*
- *  Column Index  0  1  2  
- *  Row Index     
- *  0             0  0  1  
- *  1             0  0  2  
- *  2             0  0  3  
- *  3             0  0  4  
- *  4             0  0  5  
+ *  Column Index  0  1  2
+ *  Row Index
+ *  0             0  0  1
+ *  1             0  0  2
+ *  2             0  0  3
+ *  3             0  0  4
+ *  4             0  0  5
  *  5             0  0  6
  */
 
 df.assign!1(1, [1, 2, 3]);
 df.display();
 /*
- *  Column Index  0  1  2  
- *  Row Index     
- *  0             0  1  1  
- *  1             0  2  2  
- *  2             0  3  3  
- *  3             0  0  4  
- *  4             0  0  5  
+ *  Column Index  0  1  2
+ *  Row Index
+ *  0             0  1  1
+ *  1             0  2  2
+ *  2             0  3  3
+ *  3             0  0  4
+ *  4             0  0  5
  *  5             0  0  6
  */
 
 df.assign!0(0, 4, 5, 1.6);
 df.display();
 /*
- *  Column Index  0  1  2    
- *  Row Index     
- *  0             4  5  1.6  
- *  1             0  2  2    
- *  2             0  3  3    
- *  3             0  0  4    
- *  4             0  0  5    
- *  5             0  0  6  
+ *  Column Index  0  1  2
+ *  Row Index
+ *  0             4  5  1.6
+ *  1             0  2  2
+ *  2             0  3  3
+ *  3             0  0  4
+ *  4             0  0  5
+ *  5             0  0  6
  */
 
 index.extend!0([6]);
 df.setFrameIndex(index);
 df.display();
 /*
- *  Column Index  0  1  2    
- *  Row Index     
- *  0             4  5  1.6  
- *  1             0  2  2    
- *  2             0  3  3    
- *  3             0  0  4    
- *  4             0  0  5    
- *  5             0  0  6    
- *  6             0  0  nan 
+ *  Column Index  0  1  2
+ *  Row Index
+ *  0             4  5  1.6
+ *  1             0  2  2
+ *  2             0  3  3
+ *  3             0  0  4
+ *  4             0  0  5
+ *  5             0  0  6
+ *  6             0  0  nan
  */
 ```
 
@@ -133,7 +133,7 @@ struct DataFrame(Fields)
     size_t cols = RowType.length;
 
     Index indx;
-    FrameType data; 
+    FrameType data;
 }
 ```
 - Index is defined as folows:
@@ -162,7 +162,9 @@ struct Index
 * [Index](#Index)
 * [Access](#Access)
 * [Assignment](#Assignment)
+* [Apply](#Apply)
 * [Binary Operations](#BinaryOps)
+* [Drop](#Drop)
 * [I/O](#I/O)
 
 ### Index
@@ -208,7 +210,7 @@ inx.setIndex([["Hello", "Hi"], ["Hi", "Hello"]], ["RL1", "RL2"],
              [["Hello", "Hi"], ["Hi", "Hello"]], ["CL1", "CL2"]);
 /*
  *  The basic skeleton:
- *  
+ *
  *         CL1    Hello  Hi
  *         CL2    Hi     Hello
  *  RL1    Rl2
@@ -238,7 +240,7 @@ inx.constructFromPairs([["Hello", "Hi"], ["Hi", "Hello"], ["Hey", "Hey"]],
                         ["CL1", "CL2"]);
 /*
  *  The basic skeleton:
- *  
+ *
  *         CL1    Hello  Hi     Hey
  *         CL2    Hi     Hello  Hey
  *  RL1    Rl2
@@ -266,7 +268,7 @@ auto z = zip([1, 2, 3, 4], ["Hello", "Hi", "Hello", "Hi"]);
 inx.constructFromZip!(0, 2)(z, ["Index1", "Index2"]);
 /*
  *  The basic skeleton:
- * 
+ *
  *  Index1  Index2
  *  1       Hello
  *  2       Hi
@@ -278,7 +280,7 @@ auto zc = zip([1, 2, 3, 4], ["Hello", "Ho", "Hello", "Ho"]);
 inx.constructFromZip!(1, 2)(zc);
 /*
  *  The basic skeleton:
- *  
+ *
                     1      2   3      4
  *                  Hello  Hi  Hello  Hi
  *  Index1  Index2
@@ -308,7 +310,7 @@ inx.constructFromLevels!0([["Air", "Water"],
 
 /*
  *  The basic skeleton:
- * 
+ *
  *  Index1  Index2          Index3
  *  Air     Transportation  Net Income
  *  Air     Transportation  Gross Income
@@ -321,8 +323,8 @@ inx.constructFromLevels!1([["Air", "Water"], ["Transportation", "What_to_put_her
 /*
  *  The basic skeleton:
  *                                        Air             Air             Air               Air               Water           Water           Water               Water
- *                                        Transportation  Transportation  What_to put_here  What_to_put_here  Transportation  Transportation  What_to put_here  What_to_put_here 
- *  Index1  Index2          Index3        Net Income      Gross Income    Net Income        Gross Income      Net Income      Gross Income    Net Income        Gross Income      
+ *                                        Transportation  Transportation  What_to put_here  What_to_put_here  Transportation  Transportation  What_to put_here  What_to_put_here
+ *  Index1  Index2          Index3        Net Income      Gross Income    Net Income        Gross Income      Net Income      Gross Income    Net Income        Gross Income
  *  Air     Transportation  Net Income
  *  Air     Transportation  Gross Income
  *  Water   Transportation  Net Income
@@ -347,7 +349,7 @@ inx.setIndex([["Hello", "Hi"], ["Hi", "Hello"]], ["RL1", "RL2"],
              [["Hello", "Hi"], ["Hi", "Hello"]], ["CL1", "CL2"]);
 /*
  *  The basic skeleton:
- *  
+ *
  *         CL1    Hello  Hi
  *         CL2    Hi     Hello
  *  RL1    Rl2
@@ -360,15 +362,53 @@ inx.extend!1(["Yo", "Yo"]);
 
 /*
  *  The basic skeleton:
- *  
+ *
  *         CL1    Hello  Hi     Yo
  *         CL2    Hi     Hello  Yo
  *  RL1    Rl2
  *  Hello  Hi
  *  Hi     Hello
- *  Hey    Hey 
+ *  Hey    Hey
  */
 ```
+
+#### `columnToIndex(position)() @property`
+
+Convert a column to an indexing level
+
+* position - integral position of column to convert to index
+
+Usage:
+```d
+Index inx;
+DataFrame!(double, 2) df;
+inx.setIndex([["Hello", "Hi"], ["Hi", "Hello"]], ["RL1", "RL2"],
+            [["Hello", "Hi"], ["Hi", "Hello"]], ["CL1", "CL2"]);
+df.setFrameIndex(inx);
+
+df.assign!1(0, [1.0, 4.0]);
+df.assign!1(1, [16.0, 256.0]);
+df.display();
+/*
+ *        CL1    Hello  Hi
+ *        CL2    Hi     Hello
+ * RL1    RL2
+ * Hello  Hi     1      16
+ * Hi     Hello  4      256
+ */
+
+auto extended = df.columnToIndex!(0);
+extended.display();
+/*
+ *               CL1  Hi
+ *               CL2  Hello
+ * RL1    RL2    Hi
+ * Hello  Hi     1    16
+ * Hi     Hello  4    256
+ */
+```
+Note: The index from the bottom most level will be used as the new indexing level title.
+
 ### Access
 
 In addition to array like access to elements, some of the other ways to access elements are:
@@ -436,18 +476,18 @@ DataFrame!(int, 2, double) df;
 df.setFrameIndex(inx);  // If column index isn't specified, default indexing takes over
 df.display();
 /*
- *  rindex  0  1  2    
- *  1       0  0  nan  
- *  2       0  0  nan  
+ *  rindex  0  1  2
+ *  1       0  0  nan
+ *  2       0  0  nan
  *  3       0  0  nan
  */
 
 df = [[1.0], [1.0, 2.0], [1.0, 2.0, 3.5]];
 df.display();
 /*
- *  rindex  0  1  2    
- *  1       1  0  nan  
- *  2       1  2  nan  
+ *  rindex  0  1  2
+ *  1       1  0  nan
+ *  2       1  2  nan
  *  3       1  2  3.5
  */
 
@@ -455,9 +495,9 @@ df.display();
 df[0, 0] = 42;
 df.display();
 /*
- *  rindex  0   1  2    
- *  1       42  0  nan  
- *  2       1   2  nan  
+ *  rindex  0   1  2
+ *  1       42  0  nan
+ *  2       1   2  nan
  *  3       1   2  3.5
  */
 
@@ -465,9 +505,9 @@ df.display();
 df[["2"], ["1"]] = 17;
 df.display();
 /*
- *  rindex  0   1   2    
- *  1       42  0   nan  
- *  2       1   17  nan  
+ *  rindex  0   1   2
+ *  1       42  0   nan
+ *  2       1   17  nan
  *  3       1   2   3.5
  */
 ```
@@ -495,10 +535,10 @@ DataFrame!(double, int) df;
 df.setFrameIndex(inx);
 df.display();
 /*
- *                Hello  Hi     
- *  Index  Index  Hi     Hello  
- *  Hello  Hi     nan    0      
- *  Hi     Hello  nan    0    
+ *                Hello  Hi
+ *  Index  Index  Hi     Hello
+ *  Hello  Hi     nan    0
+ *  Hi     Hello  nan    0
  */
 
 df.RowType ele;
@@ -509,72 +549,126 @@ ele[1] = 4;
 df.assign!0(["Hi", "Hello"], ele);
 df.display();
 /*
- *                Hello  Hi     
- *  Index  Index  Hi     Hello  
- *  Hello  Hi     nan    0      
- *  Hi     Hello  1.77   4    
+ *                Hello  Hi
+ *  Index  Index  Hi     Hello
+ *  Hello  Hi     nan    0
+ *  Hi     Hello  1.77   4
  */
 
 // Without RowType
 df.assign!0(["Hi", "Hello"], 1.688, 6);
 df.display();
 /*
- *                Hello  Hi     
- *  Index  Index  Hi     Hello  
- *  Hello  Hi     nan    0      
- *  Hi     Hello  1.688  6  
+ *                Hello  Hi
+ *  Index  Index  Hi     Hello
+ *  Hello  Hi     nan    0
+ *  Hi     Hello  1.688  6
  */
 
 // Assigning usig direct index
 df.assign!0(1, 1.588, 6);
 df.display();
 /*
- *                Hello  Hi     
- *  Index  Index  Hi     Hello  
- *  Hello  Hi     nan    0      
- *  Hi     Hello  1.588  6  
+ *                Hello  Hi
+ *  Index  Index  Hi     Hello
+ *  Hello  Hi     nan    0
+ *  Hi     Hello  1.588  6
  */
 
 // Assigning column
 df.assign!1(["Hello", "Hi"], [1.2, 3.6]);
 df.display();
 /*
- *                Hello  Hi     
- *  Index  Index  Hi     Hello  
- *  Hello  Hi     1.2    0      
- *  Hi     Hello  3.6    6  
+ *                Hello  Hi
+ *  Index  Index  Hi     Hello
+ *  Hello  Hi     1.2    0
+ *  Hi     Hello  3.6    6
  */
 
 // Assigning columns using direct index
 df.assign!1(0, [1.26, 4.6]);
 df.display();
 /*
- *                Hello  Hi     
- *  Index  Index  Hi     Hello  
- *  Hello  Hi     1.26   0     
- *  Hi     Hello  4.6    6  
+ *                Hello  Hi
+ *  Index  Index  Hi     Hello
+ *  Hello  Hi     1.26   0
+ *  Hi     Hello  4.6    6
  */
 
 // Partial Assignment - rows
 df.assign!0(1, 3.588);
 df.display();
 /*
- *                Hello  Hi     
- *  Index  Index  Hi     Hello  
- *  Hello  Hi     1.26   0     
- *  Hi     Hello  3.588  6  
+ *                Hello  Hi
+ *  Index  Index  Hi     Hello
+ *  Hello  Hi     1.26   0
+ *  Hi     Hello  3.588  6
  */
 
 // Partial Assignment - columns
 df.assign!1(0, [2.26]);
 df.display();
 /*
- *                Hello  Hi     
- *  Index  Index  Hi     Hello  
- *  Hello  Hi     2.26   0     
- *  Hi     Hello  4.6    6  
+ *                Hello  Hi
+ *  Index  Index  Hi     Hello
+ *  Hello  Hi     2.26   0
+ *  Hi     Hello  4.6    6
  */
 ```
+### Apply
+
+#### `apply(Fn, axis)(index)`
+
+Applies a function to all the elements of row/column
+* Axis - 0 for row, 1 for column
+* Fn - Function to apply
+* index - single dimensional array of integer index or two dimeensional array of string index.
+
+Usage:
+
+```d
+import magpie.dataframe: DataFrame;
+import magpie.index: Index;
+
+Index inx;
+DataFrame!(double, 2) df;
+inx.setIndex([["Hello", "Hi"], ["Hi", "Hello"]], ["RL1", "RL2"],
+            [["Hello", "Hi"], ["Hi", "Hello"]], ["CL1", "CL2"]);
+df.setFrameIndex(inx);
+
+df.assign!1(0, [1.0, 4.0]);
+df.assign!1(1, [16.0, 256.0]);
+df.display();
+/*
+ *        CL1    Hello  Hi
+ *        CL2    Hi     Hello
+ * RL1    RL2
+ * Hello  Hi     1      16
+ * Hi     Hello  4      256
+ */
+
+import std.math: sqrt;
+df.apply!(sqrt, 1)([1]);
+df.display();
+/*
+ *        CL1    Hello  Hi
+ *        CL2    Hi     Hello
+ * RL1    RL2
+ * Hello  Hi     1      4
+ * Hi     Hello  4      16
+ */
+
+df.apply!(sqrt, 0)([1]);
+df.display();
+/*
+ *        CL1    Hello  Hi
+ *        CL2    Hi     Hello
+ * RL1    RL2
+ * Hello  Hi     1      4
+ * Hi     Hello  2      4
+ */
+```
+
 
 ### BinaryOps
 
@@ -598,8 +692,8 @@ df.setFrameIndex(inx);
 df.display();
 /*
  *  Index  Index  0  1  2
- *  Hello  Hi     0  0  0   
- *  Hi     Hello  0  0  0  
+ *  Hello  Hi     0  0  0
+ *  Hi     Hello  0  0  0
  */
 
 df.assign!1(0, [1, 4]);
@@ -608,30 +702,81 @@ df.assign!1(2, [1, 8]);
 df.display();
 /*
  *  Index  Index  0  1  2
- *  Hello  Hi     1  1  1   
- *  Hi     Hello  4  6  8  
+ *  Hello  Hi     1  1  1
+ *  Hi     Hello  4  6  8
  */
 
 df[["0"]] = df[["1"]] + df[["2"]];
 df.display();
 /*
  *  Index  Index  0   1  2
- *  Hello  Hi     2   1  1   
- *  Hi     Hello  14  6  8  
+ *  Hello  Hi     2   1  1
+ *  Hi     Hello  14  6  8
  */
 
 df[["Hello", "Hi"], 0] = df[["Hi", "Hello"], 0];
 df.display();
 /*
  *  Index  Index  0   1  2
- *  Hello  Hi     14  6  8   
- *  Hi     Hello  14  6  8  
+ *  Hello  Hi     14  6  8
+ *  Hi     Hello  14  6  8
+ */
 ```
 Note:
 * For now, binary operations only work with string based indexes.
 * The first argument is always an array of string [even if level of indexing is 1]
 * Don't specify axis for column binary operation. Using column binary operations as `df[["0"], 1]` will not work.
 
+### Drop
+
+#### `drop(axis, positions)() @property`
+
+`drop` can drop a row/column from the DataFrame
+
+* axis - 0 to drop a row, 1 to drop a column
+* positions - integer array of positions to drop
+
+Usage:
+```d
+import magpie.dataframe: DataFrame;
+import magpie.index: Index;
+
+Index inx;
+DataFrame!(double, 2) df;
+inx.setIndex([["Hello", "Hi"], ["Hi", "Hello"]], ["RL1", "RL2"],
+            [["Hello", "Hi"], ["Hi", "Hello"]], ["CL1", "CL2"]);
+df.setFrameIndex(inx);
+
+df.assign!1(0, [1.0, 4.0]);
+df.assign!1(1, [16.0, 256.0]);
+df.display();
+/*
+ *        CL1    Hello  Hi
+ *        CL2    Hi     Hello
+ * RL1    RL2
+ * Hello  Hi     1      16
+ * Hi     Hello  4      256
+ */
+
+auto drow = df.drop!(0, [1]);
+drow.display();
+/*
+ *        CL1  Hello  Hi
+ *        CL2  Hi     Hello
+ * RL1    RL2
+ * Hello  Hi   1      16
+ */
+
+auto dcol = df.drop!(1, [1]);
+dcol.display();
+/*
+ *        CL1    Hello
+ *        CL2    Hi
+ * RL1    RL2
+ * Hello  Hi     1
+ * Hi     Hello  4
+ */
+```
 
 ### I/O
 
@@ -656,10 +801,10 @@ DataFrame!(double, int) df;
 df.setFrameIndex(inx);
 df.display();
 /*
- *                Hello  Hi     
- *  Index  Index  Hi     Hello  
- *  Hello  Hi     nan    0      
- *  Hi     Hello  nan    0    
+ *                Hello  Hi
+ *  Index  Index  Hi     Hello
+ *  Hello  Hi     nan    0
+ *  Hi     Hello  nan    0
  */
 
  string display_string = df.display(true);  // If set to false, will return an empty string
@@ -681,7 +826,8 @@ Usage:
 df.to_csv("./test.csv");
 ```
 
-#### `from_csv(string path, int indexDepth = 1, int columnDepth = 1,int[] columns = [], char sep = ',')` (Development)
+#### `from_csv(string path, int indexDepth = 1, int columnDepth = 1,int[] columns = [], char sep = ',')`
+<b>Will be eventually replaced with fastCSV</b>
 
 Parsing of CSV file into a DataFrame
 
@@ -694,14 +840,36 @@ Usage:
 
 ```d
 import magpie.dataframe: DataFrame;
-import magpie.index: Index;
 
 DataFrame!(double, int, 2, double) df;
 df.from_csv("any.csv", 1, 1);
-/* Thie assumes any.csv has 1 column dedicated to row indexes 
+/* Thie assumes any.csv has 1 column dedicated to row indexes
  * and 1 row dedicated to column indexes
  */
 ```
+
+#### `fastCSV(string path, size_t indexDepth, size_t columnDepth, char sep = ',')` (Alpha)
+
+Faster parser for CSV files
+
+* indexDepth - How many columns from left do row index span
+* columnDepth - How many rows from top column index span
+* columns - indexes of columns to selectively parse
+* sep - Data Seperator
+
+Usage:
+```d
+import magpie.dataframe: DataFrame;
+
+DataFrame!(double, int, 2, double) df;
+df.fastCSV("any.csv", 1, 1);
+/* Thie assumes any.csv has 1 column dedicated to row indexes
+ * and 1 row dedicated to column indexes
+ */
+```
+<b>Note:</b> This redesign is still in an alpha stage. It doesn't support CSV with titles for column indexing levels. That said it is light years ahead of `from_csv`.
+
+You can see the bechmarks [here](https://github.com/Kriyszig/fastCSV). Adding a large CSV file to this repository wasn't practical. Hence, fastCSV tests on large CSV file were ported out of this repository.
 
 ##### Dataset Sources
 

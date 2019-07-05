@@ -85,20 +85,8 @@ public:
                     int current = 0;
                     foreach(k; 0 .. indexing[i].index[j].length)
                     {
-                        import core.exception: RangeError;
-                        try
-                        {
-                            int p = pos[indexing[i].index[j][k]];
-                            codes ~= [p];
-                        }
-                        catch(RangeError e)
-                        {
-                            index ~= indexing[i].index[j][k];
-                            pos[indexing[i].index[j][k]] = current;
-                            codes ~= current;
-
-                            ++current;
-                        }
+                        codes ~= pos.require(indexing[i].index[j][k],
+                            { index ~= indexing[i].index[j][k]; return current++; }());
                     }
 
                     indexing[i].index[j] = index;
