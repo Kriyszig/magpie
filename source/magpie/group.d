@@ -587,8 +587,8 @@ unittest
     df.setFrameIndex(inx);
     df.assign!1(2, [1,2,3]);
 
-    Group!(int, int, int, int) gp;
-    gp.createGroup!([2])(df, [0, 1]);
+    auto gp = df.groupBy!([2])([0, 1]);
+    // gp.display();
     assert(gp.getGroupPosition(["Hello", "Hi", "1"]) == 0);
     assert(gp.getGroupPosition(["Hi", "Hello", "2"]) == 1);
     assert(gp.getGroupPosition(["Hey", "Hey", "3"]) == 2);
@@ -748,7 +748,7 @@ unittest
     inx1.constructFromLevels!(1)([["Max-Speed"]]);
     df1.setFrameIndex(inx1);
     df1.assign!1(0, [380.0, 370.0, 24.0, 26.0]);
-    // df.display();
+    // df1.display();
 
     Group!(double) gp1;
     gp1.createGroup(df1, [0]);

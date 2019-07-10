@@ -165,6 +165,7 @@ struct Index
 * [Apply](#Apply)
 * [Binary Operations](#BinaryOps)
 * [Drop](#Drop)
+* [Group By](#GroupBy)
 * [I/O](#I/O)
 
 ### Index
@@ -775,6 +776,178 @@ dcol.display();
  * RL1    RL2
  * Hello  Hi     1
  * Hi     Hello  4
+ */
+```
+
+### GroupBy
+
+`DataFrame.groupBy(dataLevels)(indexLevels)`
+
+Group DataFrame based on na arbitrary number of columns. This includes grouping based on row indexes and data columns.
+
+* dataLevels - Integral indexes of data columns to be considered for grouping
+* indexLevels - Integral indexes of row indexing level to consider for grouping
+
+Returns: A `Group` object
+
+#### Usage
+```d
+DataFrame!(int, 5) df;
+Index inx;
+inx.setIndex([["Hello", "Hi", "Hey"], ["Hi", "Hello", "Hey"], ["Hey", "Hello", "Hi"]], ["1", "2", "3"]);
+df.setFrameIndex(inx);
+df.assign!1(2, [1,2,3]);
+
+auto gp = df.groupBy!([2])([0, 1]);
+gp.display();
+/*
+ * Group: ["Hello", "Hi", "1"]
+ * Group Dimension: [ 1 X 4 ]
+ * 3    0  1  3  4
+ * Hey  0  0  0  0
+ * 
+ * Group: ["Hi", "Hello", "2"]
+ * Group Dimension: [ 1 X 4 ]
+ * 3      0  1  3  4
+ * Hello  0  0  0  0
+ * 
+ * Group: ["Hey", "Hey", "3"]
+ * Group Dimension: [ 1 X 4 ]
+ * 3   0  1  3  4
+ * Hi  0  0  0  0
+ */
+```
+
+#### Operations on `Group`
+
+`display`
+
+* Displays the contents of group on the terminal
+* Usage: `Group.display()`
+
+`getGroups`
+
+* Returns a `string[][]` containing all the groups
+
+Usage: 
+```d
+DataFrame!(double) df;
+Index inx;
+inx.constructFromLevels!(0)([["Falcon", "Parrot"], ["Captive", "Wild"]], ["Animal", "Type"]);
+inx.constructFromLevels!(1)([["Max-Speed"]]);
+df.setFrameIndex(inx);
+df.assign!1(0, [380.0, 370.0, 24.0, 26.0]);
+
+auto grp = df.groupBy([0]);
+assert(grp.getGroups == [["Falcon"], ["Parrot"]]);
+```
+
+`combine`
+
+Combines one or more group into a `DataFrame`
+
+`auto combine(groupIndex)`
+
+* groupIndex - Array of Integral or string index of groups
+
+```d
+DataFrame!(double) df;
+Index inx;
+inx.constructFromLevels!(0)([["Falcon", "Parrot"], ["Captive", "Wild"]], ["Animal", "Type"]);
+inx.constructFromLevels!(1)([["Max-Speed"]]);
+df.setFrameIndex(inx);
+df.assign!1(0, [380.0, 370.0, 24.0, 26.0]);
+/*
+ * Animal  Type     Max-Speed
+ * Falcon  Captive  380      
+ * Falcon  Wild     370      
+ * Parrot  Captive  24       
+ * Parrot  Wild     26       
+ * 
+ * Dataframe Dimension: [ 5 X 3 ]
+ * Data Dimension: [ 4 X 1 ]
+ */
+
+auto grp = df.groupBy([0]);
+grp.display();
+/*
+ * Group: ["Falcon"]
+ * Group Dimension: [ 2 X 1 ]
+ * Type     Max-Speed
+ * Captive  380      
+ * Wild     370      
+ * 
+ * Group: ["Parrot"]
+ * Group Dimension: [ 2 X 1 ]
+ * Type     Max-Speed
+ * Captive  24       
+ * Wild     26
+ */
+
+grp.combine([0, 1]).display();
+/*
+ * GroupL1  Type     Max-Speed
+ * Falcon   Captive  380      
+ * Falcon   Wild     370      
+ * Parrot   Captive  24       
+ * Parrot   Wild     26       
+ * 
+ * Dataframe Dimension: [ 5 X 3 ]
+ * Data Dimension: [ 4 X 1 ]
+ */
+```
+
+#### Binary Operations on Group
+
+Binary Operations on `Group` are carried out in the same was as that of a `DataFrame`. An `Axis` structure is used to obtain the values.
+#### Usage
+
+```d
+DataFrame!(int, 5) df;
+Index inx;
+inx.setIndex([["Hello", "Hi", "Hey"], ["Hi", "Hello", "Hey"], ["Hey", "Hello", "Hi"]], ["1", "2", "3"]);
+df.setFrameIndex(inx);
+df.assign!1(2, [1,2,3]);
+df.assign!1(4, [1,2,3]);
+
+auto gp = df.groupBy!([2])(df, [0, 1]);
+gp.display();
+/*
+ * Group: ["Hello", "Hi", "1"]
+ * Group Dimension: [ 1 X 4 ]
+ * 3    0  1  3  4
+ * Hey  0  0  0  1
+ * 
+ * Group: ["Hi", "Hello", "2"]
+ * Group Dimension: [ 1 X 4 ]
+ * 3      0  1  3  4
+ * Hello  0  0  0  2
+ * 
+ * Group: ["Hey", "Hey", "3"]
+ * Group Dimension: [ 1 X 4 ]
+ * 3   0  1  3  4
+ * Hi  0  0  0  3
+ */
+
+gp[["Hello", "Hi", "1"], ["3"]] = gp[["Hello", "Hi", "1"], ["4"]];
+gp[["Hello", "Hi", "1"], ["3"]] = gp[["Hello", "Hi", "1"], ["0"]] + gp[["Hello", "Hi", "1"], ["3"]] + gp[["Hello", "Hi", "1"], ["4"]];
+
+gp.display();
+/*
+ * Group: ["Hello", "Hi", "1"]
+ * Group Dimension: [ 1 X 4 ]
+ * 3    0  1  3  4
+ * Hey  0  0  2  1
+ * 
+ * Group: ["Hi", "Hello", "2"]
+ * Group Dimension: [ 1 X 4 ]
+ * 3      0  1  3  4
+ * Hello  0  0  0  2
+ * 
+ * Group: ["Hey", "Hey", "3"]
+ * Group Dimension: [ 1 X 4 ]
+ * 3   0  1  3  4
+ * Hi  0  0  0  3
  */
 ```
 
