@@ -727,6 +727,7 @@ Note:
 * For now, binary operations only work with string based indexes.
 * The first argument is always an array of string [even if level of indexing is 1]
 * Don't specify axis for column binary operation. Using column binary operations as `df[["0"], 1]` will not work.
+* When assigning a column containing floating point number to integral one, there won't be any implicit conversion made. Please use `convertTo` function of `Axis` to convert result to the desired type before assignment.
 
 ### Drop
 

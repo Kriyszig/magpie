@@ -159,7 +159,6 @@ public:
         }
 
         generateCodes();
-        optimize();
     }
 
     /++
@@ -228,7 +227,6 @@ public:
         }
 
         generateCodes();
-        optimize();
     }
 
     /++
@@ -263,7 +261,6 @@ public:
             indexing[axis].titles = titles;
 
         generateCodes();
-        optimize();
     }
 
     /++
@@ -292,7 +289,6 @@ public:
 
         // Generating codes and optimizing first because constructing levels is just repeating code [Index remains untouched]
         generateCodes();
-        optimize();
 
         foreach(i; 1 .. indexing[axis].index.length)
         {
@@ -334,28 +330,26 @@ public:
         {
 
             assert(next.length == indexing[axis].codes.length, "Index depth mismatch");
-            foreach(i; 0 .. indexing[axis].codes.length)
+            foreach(i, ref ele; indexing[axis].codes)
             {
                 if(indexing[axis].index[i].length == 0)
-                    indexing[axis].codes[i] = indexing[axis].codes[i][0 .. insertPos] ~
-                    next[i] ~ indexing[axis].codes[i][insertPos .. $];
+                    ele = ele[0 .. insertPos] ~ next[i] ~ ele[insertPos .. $];
                 else
                 {
                     import std.conv: to, ConvException;
                     import std.algorithm: countUntil;
-                    string ele = to!string(next[i]);
-                    int pos = cast(int)countUntil(indexing[axis].index[i], ele);
+                    string newele = to!string(next[i]);
+                    int pos = cast(int)countUntil(indexing[axis].index[i], newele);
 
                     if(pos > -1)
                     {
-                        indexing[axis].codes[i] = indexing[axis].codes[i][0 .. insertPos] ~
-                        pos ~ indexing[axis].codes[i][insertPos .. $];
+                        ele = ele[0 .. insertPos] ~ pos ~ ele[insertPos .. $];
                     }
                     else
                     {
-                        indexing[axis].index[i] ~= ele;
-                        indexing[axis].codes[i] = indexing[axis].codes[i][0 .. insertPos] ~
-                            (cast(int)indexing[axis].index[i].length - 1)  ~ indexing[axis].codes[i][insertPos .. $];
+                        ++indexing[axis].index[i].length;
+                        indexing[axis].index[i][$ - 1] = newele;
+                        ele = ele[0 .. insertPos] ~ (cast(int)indexing[axis].index[i].length - 1) ~ ele[insertPos .. $];
                     }
                 }
             }
@@ -363,7 +357,7 @@ public:
         else static if(is(T == string[]))
         {
             assert(next.length == indexing[axis].codes.length, "Index depth mismatch");
-            foreach(i; 0 .. indexing[axis].codes.length)
+            foreach(i, ref ele; indexing[axis].codes)
             {
                 if(indexing[axis].index[i].length > 0)
                 {
@@ -372,14 +366,13 @@ public:
 
                     if(pos > -1)
                     {
-                        indexing[axis].codes[i] = indexing[axis].codes[i][0 .. insertPos] ~
-                            pos ~ indexing[axis].codes[i][insertPos .. $];
+                        ele = ele[0 .. insertPos] ~ pos ~ ele[insertPos .. $];
                     }
                     else
                     {
-                        indexing[axis].index[i] ~= next[i];
-                        indexing[axis].codes[i] = indexing[axis].codes[i][0 .. insertPos] ~
-                            (cast(int)indexing[axis].index[i].length - 1)  ~ indexing[axis].codes[i][insertPos .. $];
+                        ++indexing[axis].index[i].length;
+                        indexing[axis].index[i][$ -1] = next[i];
+                        ele = ele[0 .. insertPos] ~ (cast(int)indexing[axis].index[i].length - 1) ~ ele[insertPos .. $];
                     }
                 }
                 else
@@ -387,18 +380,17 @@ public:
                     import std.conv: to, ConvException;
                     try
                     {
-                        int ele = to!int(next[i]);
-                        indexing[axis].codes[i] = indexing[axis].codes[i][0 .. insertPos] ~
-                            ele ~ indexing[axis].codes[i][insertPos .. $];
+                        int newele = to!int(next[i]);
+                        ele = ele[0 .. insertPos] ~ newele ~ ele[insertPos .. $];
                     }
                     catch(ConvException e)
                     {
-                        indexing[axis].index[i] = to!(string[])(indexing[axis].codes[i]);
+                        indexing[axis].index[i] = to!(string[])(ele);
                         indexing[axis].index[i] = indexing[axis].index[i][0 .. insertPos] ~
                             next[i] ~ indexing[axis].index[i][insertPos .. $];
-                        indexing[axis].codes[i] = [];
+                        ele.length = indexing[axis].index[i].length;
                         foreach(j; 0 .. indexing[axis].index[i].length)
-                            indexing[axis].codes[i] ~= cast(int)j;
+                            ele[j] = cast(int)j;
                     }
                 }
             }
@@ -422,7 +414,7 @@ public:
     @params: axis - 0 to search row Index, 1 to search column index
     @params: index - index to search for
     +/
-    int getPosition(int axis)(string[] index)
+    ptrdiff_t getPosition(int axis)(string[] index)
     {
         import std.array: appender;
         import std.algorithm: countUntil;

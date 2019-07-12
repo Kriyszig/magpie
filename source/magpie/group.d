@@ -24,7 +24,7 @@ struct Group(GrpRowType...)
     Index grpIndex;
 
 private:
-    int positionInGroup(int axis)(string[] index, int grpPos)
+    ptrdiff_t positionInGroup(int axis)(string[] index, ptrdiff_t grpPos)
     {
         import std.array: appender;
         import std.algorithm: countUntil;
@@ -54,7 +54,7 @@ private:
             }
 
             if(flag)
-                return cast(int)i;
+                return i;
         }
 
         return -1;
@@ -62,11 +62,11 @@ private:
 
 public:
     /++
-    int getGroupPosition(string[] grpTitles)
+    ptrdiff_t getGroupPosition(string[] grpTitles)
     Description: Get position of a particular group in the sruct
     @params: grpTitles - the group you wnant to search for
     +/
-    int getGroupPosition(string[] grpTitles)
+    ptrdiff_t getGroupPosition(string[] grpTitles)
     {
         foreach(i, ele; groups)
             if(grpTitles == ele)
@@ -174,18 +174,20 @@ public:
         import std.array: appender;
         auto retstr = appender!(string);
 
-        int[] pos;
+        ptrdiff_t[] pos;
         static if(is(T == int))
         {
             import std.algorithm: reduce, max, min;
             assert(groupIndex.reduce!max < groups.length, "Index out of bound");
             assert(groupIndex.reduce!min > -1, "Index out of bound");
-            pos = groupIndex;
+            pos.length = groupIndex.length;
+            foreach(i, ele; groupIndex)
+                pos[i] = ele;
         }
         else static if(is(T == string))
         {
             pos.length = 1;
-            int indxpos = getGroupPosition(groupIndex);
+            ptrdiff_t indxpos = getGroupPosition(groupIndex);
             assert(indxpos > -1, "Group not found");
             pos[0] = indxpos;
         }
@@ -194,15 +196,12 @@ public:
             pos.length = groupIndex.length;
             foreach(i, ele; groupIndex)
             {
-                int indxpos = getGroupPosition(ele);
+                ptrdiff_t indxpos = getGroupPosition(ele);
                 assert(indxpos > -1, "Group not found");
                 pos[i] = indxpos;
             }
         }
-        else
-        {
-            assert(0, "Group Indexes must be an array of integer, 1D array of string or 2D array of string");
-        }
+        else static assert(0, "Group Indexes must be an array of integer, 1D array of string or 2D array of string");
 
         DataFrame!(true, GrpRowType) displayHelper;
         displayHelper.indx.column = grpIndex.column;
@@ -210,17 +209,17 @@ public:
         displayHelper.indx.row.index = grpIndex.row.index;
         displayHelper.indx.row.codes.length = grpIndex.row.codes.length;
 
-        foreach(i; 0 .. pos.length)
+        foreach(i, ele; pos)
         {
             foreach(j; 0 .. displayHelper.indx.row.codes.length)
             {
-                displayHelper.indx.row.codes[j] = grpIndex.row.codes[j][elementCountTill[pos[i]] .. elementCountTill[pos[i] + 1]];
+                displayHelper.indx.row.codes[j] = grpIndex.row.codes[j][elementCountTill[ele] .. elementCountTill[ele + 1]];
             }
 
             static foreach(j; 0 .. GrpRowType.length)
-                displayHelper.data[j] = data[j][elementCountTill[pos[i]] .. elementCountTill[pos[i] + 1]];
+                displayHelper.data[j] = data[j][elementCountTill[ele] .. elementCountTill[ele + 1]];
 
-            displayHelper.rows = elementCountTill[pos[i] + 1] - elementCountTill[pos[i]];
+            displayHelper.rows = elementCountTill[ele + 1] - elementCountTill[ele];
             string display = displayHelper.display(true, termianlw);
 
             if(getStr)
@@ -232,7 +231,7 @@ public:
             {
                 import std.stdio: writeln;
                 writeln("Group: ", groups[i]);
-                writeln("Group Dimension: [ ", elementCountTill[pos[i] + 1] - elementCountTill[pos[i]]," X ", GrpType.length, " ]");
+                writeln("Group Dimension: [ ", elementCountTill[ele + 1] - elementCountTill[ele]," X ", GrpType.length, " ]");
                 writeln(display);
             }
         }
@@ -272,18 +271,20 @@ public:
     +/
     auto combine(T)(T[] groupIndex)
     {
-        int[] pos;
+        ptrdiff_t[] pos;
         static if(is(T == int))
         {
             import std.algorithm: reduce, max, min;
             assert(groupIndex.reduce!max < groups.length, "Index out of bound");
             assert(groupIndex.reduce!min > -1, "Index out of bound");
-            pos = groupIndex;
+            pos.length = groupIndex.length;
+            foreach(i, ele; groupIndex)
+                pos[i] = ele;
         }
         else static if(is(T == string))
         {
             pos.length = 1;
-            int indxpos = getGroupPosition(groupIndex);
+            ptrdiff_t indxpos = getGroupPosition(groupIndex);
             assert(indxpos > -1, "Group not found");
             pos[0] = indxpos;
         }
@@ -292,7 +293,7 @@ public:
             pos.length = groupIndex.length;
             foreach(i, ele; groupIndex)
             {
-                int indxpos = getGroupPosition(ele);
+                ptrdiff_t indxpos = getGroupPosition(ele);
                 assert(indxpos > -1, "Group not found");
                 pos[i] = indxpos;
             }
@@ -318,26 +319,25 @@ public:
         foreach(i; 0 .. grpIndex.row.index.length)
             combinator.indx.row.index[groups[0].length + i] = grpIndex.row.index[i];
 
-        foreach(i; 0 .. pos.length)
+        foreach(i, elei; pos)
         {
-            foreach(j, ele; groups[pos[i]])
+            foreach(j, elej; groups[pos[i]])
             {
-                combinator.indx.row.index[j].length += elementCountTill[pos[i] + 1] - elementCountTill[pos[i]];
+                combinator.indx.row.index[j].length += elementCountTill[elei + 1] - elementCountTill[elei];
                 foreach(k; 0 .. elementCountTill[pos[i] + 1] - elementCountTill[pos[i]])
-                    combinator.indx.row.index[j][$ - 1 - k] = ele;
+                    combinator.indx.row.index[j][$ - 1 - k] = elej;
             }
 
             foreach(j; 0 .. grpIndex.row.index.length)
-                combinator.indx.row.codes[groups[0].length + j] ~= grpIndex.row.codes[j][elementCountTill[pos[i]] .. elementCountTill[pos[i] + 1]];
+                combinator.indx.row.codes[groups[0].length + j] ~= grpIndex.row.codes[j][elementCountTill[elei] .. elementCountTill[elei + 1]];
 
             static foreach(j; 0 .. GrpRowType.length)
-                combinator.data[j] ~= data[j][elementCountTill[pos[i]] .. elementCountTill[pos[i] + 1]];
+                combinator.data[j] ~= data[j][elementCountTill[elei] .. elementCountTill[elei + 1]];
 
-            combinator.rows += elementCountTill[pos[i] + 1] - elementCountTill[pos[i]];
+            combinator.rows += elementCountTill[elei + 1] - elementCountTill[elei];
         }
 
         combinator.indx.generateCodes();
-        combinator.indx.optimize();
 
         return combinator;
     }
@@ -376,7 +376,7 @@ public:
         && (is(U == string) || is(U == string[]))
         && (is(V == string) || is(V == string[])))
     {
-        int[3] pos;
+        ptrdiff_t[3] pos;
         static if(is(T == string))
             pos[0] = getGroupPosition([i1]);
         else
@@ -405,40 +405,39 @@ public:
     /++
     opIndex that returns Axis for column/row binary operations
     +/
-    auto opIndex(Args...)(Args args)
-        if(Args.length > 0 && Args.length < 4)
+    auto opIndex(T, U, Args...)(T groupIndex, U index, Args args)
+        if((is(T == string) || is(T == string[]))
+        && (is(U == string) || is(U == string[]))
+        && (Args.length == 0 || (Args.length == 1 && is(Args[0] == int))))
     {
-        static assert(is(Args[0] == string[]) || is(Args[0] == string), "Group Index must be an integer or array of string");
-        static assert(is(Args[1] == string[]) || is(Args[1] == string), "Index must be an integer or array of string");
-
-        int[2] pos;
-        static if(is(Args[0] == string))
+        ptrdiff_t[2] pos;
+        static if(is(T == string))
         {
-            int grpPos = getGroupPosition([args[0]]);
+            ptrdiff_t grpPos = getGroupPosition([groupIndex]);
             assert(grpPos > -1, "Index out of bound");
             pos[0] = grpPos;
         }
         else
         {
-            int grpPos = getGroupPosition(args[0]);
+            ptrdiff_t grpPos = getGroupPosition(groupIndex);
             assert(grpPos > -1, "Index out of bound");
             pos[0] = grpPos;
         }
 
-        static if(is(Args[1] == string))
+        static if(is(U == string))
         {
-            int axisPos = positionInGroup!(3 - Args.length)([args[1]], pos[0]);
+            ptrdiff_t axisPos = positionInGroup!(1 - Args.length)([index], pos[0]);
             assert(axisPos > -1, "Index out of bound");
             pos[1] = axisPos;
         }
         else
         {
-            int axisPos = positionInGroup!(3 - Args.length)(args[1], pos[0]);
+            ptrdiff_t axisPos = positionInGroup!(1 - Args.length)(index, pos[0]);
             assert(axisPos > -1, "Index out of bound");
             pos[1] = axisPos;
         }
 
-        static if(3 - Args.length)
+        static if(1 - Args.length)
         {
             Axis!(void) ret;
             static foreach(i; 0 .. GrpRowType.length)
@@ -473,8 +472,8 @@ public:
     /// Short Hand Binary operation
     void opIndexOpAssign(string op, T...)(Axis!T elements, string[] groupTitle, string[] index, int axis = 1)
     {
-        int[2] pos;
-        int p = getGroupPosition(groupTitle);
+        ptrdiff_t[2] pos;
+        ptrdiff_t p = getGroupPosition(groupTitle);
         assert(p > -1, "Group index out of bound");
         pos[0] = p;
 
@@ -491,6 +490,7 @@ public:
             pos[1] = p;
         }
 
+        import std.traits: isArray;
         static if(is(T[0] == void))
         {
             assert(elements.data.length == elementCountTill[pos[0] + 1] - elementCountTill[pos[0]],
@@ -501,33 +501,22 @@ public:
                 {
                     foreach(j; elementCountTill[pos[0]] .. elementCountTill[pos[0] + 1])
                     {
-                        import std.variant: VariantException;
-                        try
-                        {
-                            static if(op == "+")
-                                data[i][j] += elements.data[j - elementCountTill[pos[0]]].get!(GrpRowType[i]);
-                            else static if(op == "-")
-                                data[i][j] -= elements.data[j - elementCountTill[pos[0]]].get!(GrpRowType[i]);
-                            else static if(op == "*")
-                                data[i][j] *= elements.data[j - elementCountTill[pos[0]]].get!(GrpRowType[i]);
-                            else static if(op == "/")
-                                data[i][j] /= elements.data[j - elementCountTill[pos[0]]].get!(GrpRowType[i]);
-                            else static if(op == "")
-                                data[i][j] = elements.data[j - elementCountTill[pos[0]]].get!(GrpRowType[i]);
-                        }
-                        catch(VariantException e)
-                        {
-                            static if(op == "+")
-                                data[i][j] += cast(GrpRowType[i])elements.data[j - elementCountTill[pos[0]]].get!(double);
-                            else static if(op == "-")
-                                data[i][j] -= cast(GrpRowType[i])elements.data[j - elementCountTill[pos[0]]].get!(double);
-                            else static if(op == "*")
-                                data[i][j] *= cast(GrpRowType[i])elements.data[j - elementCountTill[pos[0]]].get!(double);
-                            else static if(op == "/")
-                                data[i][j] /= cast(GrpRowType[i])elements.data[j - elementCountTill[pos[0]]].get!(double);
-                            else static if(op == "")
-                                data[i][j] = cast(GrpRowType[i])elements.data[j - elementCountTill[pos[0]]].get!(double);
-                        }
+                        mixin("data[i][j] " ~ op ~ "= elements.data[j - elementCountTill[pos[0]]].get!(GrpRowType[i]);");
+                    }
+                }
+            }
+        }
+        else static if(T.length == 0 && isArray!(T[0]))
+        {
+            assert(elements.data.length == elementCountTill[pos[0] + 1] - elementCountTill[pos[0]],
+                "Size of data doesn't match size of group column");
+            static foreach(i; 0.. GrpRowType.length)
+            {
+                if(i == pos[1])
+                {
+                    foreach(j; elementCountTill[pos[0]] .. elementCountTill[pos[0] + 1])
+                    {
+                        mixin("data[i][j] " ~ op ~ "= elements.data[j - elementCountTill[pos[0]]];");
                     }
                 }
             }
@@ -537,19 +526,7 @@ public:
             assert(elements.data.length == GrpRowType.length, "Size of data doesn't match size of group column");
             static foreach(i; 0.. GrpRowType.length)
             {
-                static foreach(i; 0 .. GrpRowType.length)
-                {
-                    static if(op == "+")
-                        data[i][elementCountTill[pos[0]] + pos[1]] += elements.data[i];
-                    else static if(op == "-")
-                        data[i][elementCountTill[pos[0]] + pos[1]] -= elements.data[i];
-                    else static if(op == "*")
-                        data[i][elementCountTill[pos[0]] + pos[1]] *= elements.data[i];
-                    else static if(op == "/")
-                        data[i][elementCountTill[pos[0]] + pos[1]] /= elements.data[i];
-                    else static if(op == "")
-                        data[i][elementCountTill[pos[0]] + pos[1]] = elements.data[i];
-                }
+                mixin("data[i][elementCountTill[pos[0]] + pos[1]] " ~ op ~ "= elements.data[i];");
             }
         }
     }

@@ -140,7 +140,7 @@ T[][] transposed(T)(T[][] data)
 alias toArr(T) = T[];
 
 /// Get unique indexes for merge
-string[][] ensureUnique(int axis)(Index i1, Index i2, string lsuffix = "x_", string rsuffix = "y_")
+Index ensureUnique(int axis)(Index i1, Index i2, string lsuffix = "x_", string rsuffix = "y_")
 {
     assert(i1.indexing[axis].codes.length == i2.indexing[axis].codes.length, "Index level mismatch for union");
     
@@ -201,11 +201,15 @@ string[][] ensureUnique(int axis)(Index i1, Index i2, string lsuffix = "x_", str
         }
     }
 
-    return unique;
+    Index ret;
+    ret.indexing[axis].index = transposed(unique);
+    ret.generateCodes();
+
+    return ret;
 }
 
 /// Returns the union of indexes in the order they appear
-string[][] indexUnion(int axis)(Index i1, Index i2)
+Index indexUnion(int axis)(Index i1, Index i2)
 {
     assert(i1.indexing[axis].codes.length == i2.indexing[axis].codes.length, "Index level mismatch for union");
     
@@ -254,11 +258,15 @@ string[][] indexUnion(int axis)(Index i1, Index i2)
             unique ~= indx;
     }
 
-    return unique;
+    Index ret;
+    ret.indexing[axis].index = transposed(unique);
+    ret.generateCodes();
+
+    return ret;
 }
 
 /// find set of indexes that occur in both structures
-string[][] indexIntersection(int axis)(Index i1, Index i2)
+Index indexIntersection(int axis)(Index i1, Index i2)
 {
     assert(i1.indexing[axis].codes.length == i2.indexing[axis].codes.length, "Index level mismatch for union");
     
@@ -286,7 +294,11 @@ string[][] indexIntersection(int axis)(Index i1, Index i2)
             intersect ~= indx;
     }
 
-    return intersect;
+    Index ret;
+    ret.indexing[axis].index = transposed(intersect);
+    ret.generateCodes();
+
+    return ret;
 }
 
 // Community suggested way ot intialize a DataFrame
@@ -357,6 +369,7 @@ unittest
     assert(transposed(b) == [[1, 4, 7], [2, 5, 8], [3, 6, 9]]);
 }
 
+
 // Ensuring unque indexes on merge
 unittest
 {
@@ -366,10 +379,14 @@ unittest
     i1.setIndex([["Hello", "Hi"], ["Hi", "Hello"]], ["1", "@"]);
     i2.setIndex([["Hey", "Yo"], ["Yo", "Hey"]], ["!", "2"]);
 
-    assert(ensureUnique!0(i1, i2) == [["Hello", "Hi"], ["Hi", "Hello"], ["Hey", "Yo"], ["Yo", "Hey"]]);
+    auto unique = ensureUnique!0(i1, i2);
+    assert(unique.row.index == [["Hello", "Hey", "Hi", "Yo"], ["Hello", "Hey", "Hi", "Yo"]]);
+    assert(unique.row.codes == [[0, 2, 1, 3], [2, 0, 3, 1]]);
     
     i2.setIndex([["Hey", "Hello"], ["Hi", "Hi"]], ["!", "@"]);
-    assert(ensureUnique!0(i1, i2) == [["x_Hello", "x_Hi"], ["Hi", "Hello"], ["Hey", "Hi"], ["y_Hello", "y_Hi"]]);
+    unique = ensureUnique!0(i1, i2);
+    assert(unique.row.index == [["Hey", "Hi", "x_Hello", "y_Hello"], ["Hello", "Hi", "x_Hi", "y_Hi"]]);
+    assert(unique.row.codes == [[2, 1, 0, 3], [2, 0, 1, 3]]);
 }
 
 // Index union
@@ -381,8 +398,9 @@ unittest
     i1.setIndex([["Hello", "Hi"], ["Hi", "Hello"]], ["1", "@"]);
     i2.setIndex([["Hi", "Hello"], ["Yo", "Hi"]], ["!", "2"]);
 
-    assert(indexUnion!0(i1, i2).length == 3);
-    assert(indexUnion!0(i1, i2) == [["Hello", "Hi"], ["Hi", "Hello"], ["Hi", "Yo"]]);
+    Index indxunion = indexUnion!0(i1, i2);
+    assert(indxunion.row.index == [["Hello", "Hi"], ["Hello", "Hi", "Yo"]]);
+    assert(indxunion.row.codes == [[0, 1, 1], [1, 0, 2]]);
 }
 
 // Index Intersection
@@ -394,7 +412,9 @@ unittest
     i1.setIndex([["Hello", "Hi"], ["Hi", "Hello"]], ["1", "@"]);
     i2.setIndex([["Hi", "Hello"], ["Yo", "Hi"]], ["!", "2"]);
 
-    assert(indexIntersection!0(i1, i2) == [["Hello", "Hi"]]);
+    auto indxintersect =  indexIntersection!0(i1, i2);
+    assert(indxintersect.row.index == [["Hello"], ["Hi"]]);
+    assert(indxintersect.row.codes == [[0], [0]]);
 }
 
 // Index Intersection
@@ -406,5 +426,7 @@ unittest
     i1.setIndex([["Hello", "Hi", "Hey"], ["Hi", "Hello", "Hey"], ["Hey", "Hi", "Hello"]], ["1", "@"]);
     i2.setIndex([["Hi", "Hello"], ["Hello", "Hi"], ["Hi", "Hey"]], ["!", "2"]);
 
-    assert(indexIntersection!0(i1, i2) == [["Hello", "Hi", "Hey"], ["Hi", "Hello", "Hi"]]);
+    auto indxintersect =  indexIntersection!0(i1, i2);
+    assert(indxintersect.row.index == [["Hello", "Hi"], ["Hello", "Hi"], ["Hey", "Hi"]]);
+    assert(indxintersect.row.codes == [[0, 1], [1, 0], [0, 1]]);
 }

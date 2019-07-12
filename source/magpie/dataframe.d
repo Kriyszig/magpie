@@ -34,7 +34,7 @@ struct DataFrame(FrameFields...)
     FrameType data;
 
 private:
-    int getPosition(int axis)(string[] index)
+    ptrdiff_t getPosition(int axis)(string[] index)
     {
         return indx.getPosition!(axis)(index);
     }
@@ -819,8 +819,6 @@ public:
         }
 
         indx.generateCodes();
-        indx.optimize();
-
     }
 
     /++
@@ -865,8 +863,8 @@ public:
         assert(rindx.length == indx.row.codes.length, "Size of row index don't match the index depth");
         assert(cindx.length == indx.column.codes.length, "Size of column index don't match the index depth");
 
-        int i1 = getPosition!0(rindx);
-        int i2 = getPosition!1(cindx);
+        ptrdiff_t i1 = getPosition!0(rindx);
+        ptrdiff_t i2 = getPosition!1(cindx);
 
         assert(i1 > -1 && i2 > -1, "Given headers don't match DataFrame Headers");
         static foreach(i; 0 .. RowType.length)
@@ -884,7 +882,7 @@ public:
     Defaults to -1 if headers don't match
     @params: row.index - Array of row.index
     +/
-    int getRowPosition(string[] indexes)
+    ptrdiff_t getRowPosition(string[] indexes)
     {
         assert(indexes.length == indx.row.codes.length, "Size of row index don't match the indexing depth");
         return getPosition!0(indexes);
@@ -896,7 +894,7 @@ public:
     Defaults to -1 if headers don't match
     @params: row.index - Array of row.index
     +/
-    int getColumnPosition(string[] indexes)
+    ptrdiff_t getColumnPosition(string[] indexes)
     {
         assert(indexes.length == indx.column.codes.length, "Size of column index doesn't match indexing depth");
         return getPosition!1(indexes);
@@ -999,7 +997,7 @@ public:
     void assign(int axis, T, U...)(T index, U values)
         if(U.length > 0)
     {
-        int pos;
+        ptrdiff_t pos;
         static if(is(T == int))
             pos = index;
         else
@@ -1051,8 +1049,8 @@ public:
         if((is(T == string) || is(T == string[]))
         && (is(U == string) || is(U == string[])))
     {
-        int i1 = -1;// getPosition!0(rindx);
-        int i2 = -1;//getPosition!1(cindx);
+        ptrdiff_t i1 = -1;// getPosition!0(rindx);
+        ptrdiff_t i2 = -1;//getPosition!1(cindx);
 
         static if(is(T == string))
             i1 = getPosition!0([rindx]);
@@ -1077,19 +1075,15 @@ public:
     For column: df[["Index"]]
     For row: df[["Index"], 0]
     +/
-    auto opIndex(Args...)(Args args)
-        if(Args.length > 0 && Args.length < 3)
+    auto opIndex(Args...)(string[] index, Args args)
+        if(Args.length == 0 || (Args.length == 1 && is(Args[0] == int)))
     {
-        static assert(is(Args[0] == string[]), "Indexes must be an array of string");
-        static if(Args.length > 1)
-            static assert(is(Args[1] == int), "Use df[Row_Index, 0] to use binary operations on row.\n
-                Note: To use column binary operations, use just df[Column_Index]");
-        const int axis = (Args.length == 1)? 1: 0;
-        int pos = -1;
+        const int axis = 1 - Args.length;
+        ptrdiff_t pos = -1;
         if(axis == 0)
-            pos = getPosition!0(args[0]);
+            pos = getPosition!0(index);
         else
-            pos = getPosition!1(args[0]);
+            pos = getPosition!1(index);
 
         assert(pos > -1, "Index not found");
 
@@ -1132,62 +1126,34 @@ public:
     void opIndexOpAssign(string op, T...)(Axis!T elements, string[] index, int axis = 1)
         if(T.length == RowType.length || T.length == 1)
     {
+        import std.traits: isArray;
         static if(is(T[0] == void))
         {
             assert(elements.data.length == rows, "Length of Axis.data is not equal to number of rows");
-            int pos = getPosition!1(index);
+            ptrdiff_t pos = getPosition!1(index);
             assert(pos > -1, "Index not found");
             static foreach(i; 0 .. RowType.length)
                 if(i == pos)
                     foreach(j; 0 .. elements.data.length)
-                    {
-                        import std.variant: VariantException;
-                        try
-                        {
-                            static if(op == "")
-                                data[i][j] = elements.data[j].get!(RowType[i]);
-                            else static if(op == "+")
-                                data[i][j] += elements.data[j].get!(RowType[i]);
-                            else static if(op == "-")
-                                data[i][j] -= elements.data[j].get!(RowType[i]);
-                            else static if(op == "*")
-                                data[i][j] *= elements.data[j].get!(RowType[i]);
-                            else static if(op == "/")
-                                data[i][j] /= elements.data[j].get!(RowType[i]);
-                        }
-                        catch(VariantException e)
-                        {
-                            static if(op == "")
-                                data[i][j] = cast(RowType[i])elements.data[j].get!(double);
-                            else static if(op == "+")
-                                data[i][j] += cast(RowType[i])elements.data[j].get!(double);
-                            else static if(op == "-")
-                                data[i][j] -= cast(RowType[i])elements.data[j].get!(double);
-                            else static if(op == "*")
-                                data[i][j] *= cast(RowType[i])elements.data[j].get!(double);
-                            else static if(op == "/")
-                                data[i][j] /= cast(RowType[i])elements.data[j].get!(double);
-                        }
-                    }
+                        mixin("data[i][j] " ~ op ~"= elements.data[j].get!(RowType[i]);");
+        }
+        else static if(T.length == 1 && isArray!(T[0]))
+        {
+            assert(elements.data.length == rows, "Length of Axis.data is not equal to number of rows");
+            ptrdiff_t pos = getPosition!1(index);
+            assert(pos > -1, "Index not found");
+            static foreach(i; 0 .. RowType.length)
+                if(i == pos)
+                    foreach(j; 0 .. elements.data.length)
+                        mixin("data[i][j] " ~ op ~"= elements.data[j];");
         }
         else
         {
             assert(elements.data.length == RowType.length, "Length of Axis.data is less than the number of columns");
-            int pos = getPosition!0(index);
+            ptrdiff_t pos = getPosition!0(index);
             assert(pos > -1, "Index not found");
             static foreach(i; 0 .. RowType.length)
-            {
-                static if(op == "")
-                    data[i][pos] = elements.data[i];
-                else static if(op == "+")
-                    data[i][pos] += elements.data[i];
-                else static if(op == "-")
-                    data[i][pos] -= elements.data[i];
-                else static if(op == "*")
-                    data[i][pos] *= elements.data[i];
-                else static if(op == "/")
-                    data[i][pos] /= elements.data[i];
-            }
+                mixin("data[i][pos] " ~ op ~ "= elements.data[i];");
         }
     }
 
@@ -1208,9 +1174,13 @@ public:
             foreach(i; index)
                 assert(i.length == indx.indexing[axis].codes.length, "Index level mismatch");
 
-        int[] pos;
+        ptrdiff_t[] pos;
         static if(is(T == int[]))
-            pos = index;
+        {
+            pos.length = index.length;
+            foreach(i, ele; index)
+                pos[i] = ele;
+        }
         else
         {
             pos.length = index.length;
@@ -1344,7 +1314,6 @@ public:
             ret.indx.row.titles ~= indx.column.index[$ - 1][indx.column.codes[$ - 1][position]];
 
         ret.indx.generateCodes();
-        ret.indx.optimize();
 
         return ret;
     }
@@ -1824,23 +1793,23 @@ unittest
 
     // If for some reason float is assigned to int, it gets explicitly converted
     // Supported only for floating point -> Integral kind
-    df[["0"]] = df[["2"]];
+    df[["0"]] = df[["2"]].convertTo!(int[]);
     assert(df.data[0] == [1, 8]);
 
-    df[["1"]] = df[["2"]] + df[["3"]];
+    df[["1"]] = (df[["2"]] + df[["3"]]).convertTo!(int[]);
     assert(df.data[1] == [11, 13]);
 
-    df[["0"]] = df[["1"]] + df[["2"]] + df[["3"]];
+    df[["0"]] = (df[["1"]] + df[["2"]] + df[["3"]]).convertTo!(int[]);
     assert(df.data[0] == [22, 26]);
 
     df[["3"]] = df[["0"]];
     assert(df.data[3] == [22, 26]);
 
-    df[["0"]] = df[["1"]] + df[["2"]] * df[["3"]];
+    df[["0"]] = (df[["1"]] + df[["2"]] * df[["3"]]).convertTo!(int[]);
     foreach(i; 0 .. 2)
         assert(df.data[0][i] == cast(int)(df.data[1][i] + df.data[2][i] * df.data[3][i]));
 
-    df[["0"]] = df[["1"]] - df[["2"]] / df[["3"]];
+    df[["0"]] = (df[["1"]] - df[["2"]] / df[["3"]]).convertTo!(int[]);
     foreach(i; 0 .. 2)
         assert(df.data[0][i] == cast(int)(df.data[1][i] - df.data[2][i] / df.data[3][i]));
 

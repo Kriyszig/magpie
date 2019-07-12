@@ -8,6 +8,20 @@ module magpie.operation;
 
 import magpie.dataframe: DataFrame;
 
+/// Enums for joins
+enum JoinTypes
+{
+    left = 0,
+    right = 1,
+    outer = 2,
+    inner = 3,
+}
+
+alias Left = JoinTypes.left;
+alias Right = JoinTypes.right;
+alias Inner = JoinTypes.inner;
+alias Outer = JoinTypes.outer;
+
 /++
 Description: Merges two DataFrames based on indexes
 @params: type - Type of join: Inner, Outer, Left, Right
@@ -16,7 +30,7 @@ Description: Merges two DataFrames based on indexes
 @params: lsuffix - Suffix to add in case there is an index collision between left and right DataFrame
 @parmas: rsuffix - Suffix to add in case there is an index collision between left and right DataFrame
 +/
-auto merge(string type = "", T, U)(T df1, U df2, string lsuffix = "x_", string rsuffix = "y_")
+auto merge(JoinTypes type = Inner, T, U)(T df1, U df2, string lsuffix = "x_", string rsuffix = "y_")
 {
 
     assert(df1.indx.row.codes.length == df2.indx.row.codes.length,
@@ -48,10 +62,7 @@ auto merge(string type = "", T, U)(T df1, U df2, string lsuffix = "x_", string r
     DataFrame!(true, df1.RowType, df2.RowType) combinator;
 
     import magpie.helper: ensureUnique, transposed;
-    combinator.indx.column.index = transposed(ensureUnique!1(df1.indx, df2.indx, lsuffix, rsuffix));
-
-    combinator.indx.generateCodes();
-    combinator.indx.optimize();
+    combinator.indx.column = ensureUnique!1(df1.indx, df2.indx, lsuffix, rsuffix).column;
 
     string[] unpack(size_t i)
     {
@@ -73,7 +84,7 @@ auto merge(string type = "", T, U)(T df1, U df2, string lsuffix = "x_", string r
         return indx;
     }
 
-    static if(type == "left")
+    static if(type == JoinTypes.left)
     {
         combinator.indx.row = df1.indx.row;
         static foreach(i; 0 .. df1.RowType.length)
@@ -84,7 +95,7 @@ auto merge(string type = "", T, U)(T df1, U df2, string lsuffix = "x_", string r
         foreach(i; 0 .. combinator.indx.row.codes[0].length)
         {
             string[] indx = unpack(i);
-            const int pos = df2.indx.getPosition!0(indx);
+            ptrdiff_t pos = df2.indx.getPosition!0(indx);
 
             if(pos > -1)
             {
@@ -98,7 +109,7 @@ auto merge(string type = "", T, U)(T df1, U df2, string lsuffix = "x_", string r
         combinator.rows = df1.rows;
         return combinator;
     }
-    else static if(type == "right")
+    else static if(type == JoinTypes.right)
     {
         combinator.indx.row = df2.indx.row;
         static foreach(i; 0 .. df2.RowType.length)
@@ -109,7 +120,7 @@ auto merge(string type = "", T, U)(T df1, U df2, string lsuffix = "x_", string r
         foreach(i; 0 .. combinator.indx.row.codes[0].length)
         {
             string[] indx = unpack(i);
-            const int pos = df1.indx.getPosition!0(indx);
+            ptrdiff_t pos = df1.indx.getPosition!0(indx);
 
             if(pos > -1)
             {
@@ -121,14 +132,12 @@ auto merge(string type = "", T, U)(T df1, U df2, string lsuffix = "x_", string r
         combinator.rows = df2.rows;
         return combinator;
     }
-    else static if(type == "outer")
+    else static if(type == JoinTypes.outer)
     {
         import magpie.helper: indexUnion;
-        combinator.indx.row.index = transposed(indexUnion!0(df1.indx, df2.indx));
+        combinator.indx.row = indexUnion!0(df1.indx, df2.indx).row;
         combinator.indx.row.titles = df1.indx.row.titles;
 
-        combinator.indx.generateCodes();
-        combinator.indx.optimize();
         combinator.rows = combinator.indx.row.codes[0].length;
 
         static foreach(i; 0 .. combinator.RowType.length)
@@ -138,7 +147,7 @@ auto merge(string type = "", T, U)(T df1, U df2, string lsuffix = "x_", string r
         {
             string[] indx = unpack(i);
 
-            int pos = df1.indx.getPosition!0(indx);
+            ptrdiff_t pos = df1.indx.getPosition!0(indx);
             if(pos > -1)
             {
                 static foreach(j; 0 .. df1.RowType.length)
@@ -155,14 +164,12 @@ auto merge(string type = "", T, U)(T df1, U df2, string lsuffix = "x_", string r
 
         return combinator;
     }
-    else static if(type == "inner" || type == "")
+    else static if(type == JoinTypes.inner)
     {
         import magpie.helper: indexIntersection;
-        combinator.indx.row.index = transposed(indexIntersection!0(df1.indx, df2.indx));
+        combinator.indx.row = indexIntersection!0(df1.indx, df2.indx).row;
         combinator.indx.row.titles = df1.indx.row.titles;
 
-        combinator.indx.generateCodes();
-        combinator.indx.optimize();
         combinator.rows = combinator.indx.row.codes[0].length;
 
         static foreach(i; 0 .. combinator.RowType.length)
@@ -172,7 +179,7 @@ auto merge(string type = "", T, U)(T df1, U df2, string lsuffix = "x_", string r
         {
             string[] indx = unpack(i);
 
-            int pos = df1.indx.getPosition!0(indx);
+            ptrdiff_t pos = df1.indx.getPosition!0(indx);
             if(pos > -1)
             {
                 static foreach(j; 0 .. df1.RowType.length)
@@ -209,7 +216,7 @@ unittest
     df2.setFrameIndex(i2);
     df2.assign!1(0, [1.0, 2.0]);
 
-    assert(merge!("left")(df1, df2).display(true, 200) == "       Hello  Hi  Hello  Hi \n"
+    assert(merge!(JoinTypes.right)(df1, df2).display(true, 200) == "       Hello  Hi  Hello  Hi \n"
         ~ "I1                Hey    Hey\n"
         ~ "Hello  1      0   1      nan\n"
         ~ "Hi     2      0   2      nan\n"
@@ -233,7 +240,7 @@ unittest
     df2.setFrameIndex(i2);
     df2.assign!1(0, [1.0, 2.0]);
 
-    assert(merge!("left")(df1, df2).display(true, 200) == "       Hello  Hi  Hello  Hi \n"
+    assert(merge!(JoinTypes.left)(df1, df2).display(true, 200) == "       Hello  Hi  Hello  Hi \n"
         ~ "I1                Hey    Hey\n"
         ~ "Hello  1      0   1      nan\n"
         ~ "Hey    2      0   nan    nan\n"
@@ -257,7 +264,7 @@ unittest
     df2.setFrameIndex(i2);
     df2.assign!1(0, [1.0, 2.0]);
 
-    assert(merge!("right")(df1, df2).display(true, 200) == "       Hello  Hi  Hello  Hi \n"
+    assert(merge!(JoinTypes.right)(df1, df2).display(true, 200) == "       Hello  Hi  Hello  Hi \n"
         ~ "I1                Hey    Hey\n"
         ~ "Hello  1      0   1      nan\n"
         ~ "Hey    0      0   2      nan\n"
@@ -281,7 +288,7 @@ unittest
     df2.setFrameIndex(i2);
     df2.assign!1(0, [1.0, 2.0]);
 
-    assert(merge!("outer")(df1, df2).display(true, 200) == "       Hello  Hi  Hello  Hi \n"
+    assert(merge!(JoinTypes.outer)(df1, df2).display(true, 200) == "       Hello  Hi  Hello  Hi \n"
         ~ "I1                Hey    Hey\n"
         ~ "Hello  1      0   1      nan\n"
         ~ "Hi     2      0   nan    nan\n"
@@ -306,7 +313,7 @@ unittest
     df2.setFrameIndex(i2);
     df2.assign!1(0, [1.0, 2.0]);
 
-    assert(merge!("outer")(df1, df2).display(true, 200) == "       Hello  Hi  Hello  Hi \n"
+    assert(merge!(JoinTypes.outer)(df1, df2).display(true, 200) == "       Hello  Hi  Hello  Hi \n"
         ~ "I1                Hey    Hey\n"
         ~ "Hello  1      0   1      nan\n"
         ~ "Hi     2      0   2      nan\n"
@@ -330,7 +337,7 @@ unittest
     df2.setFrameIndex(i2);
     df2.assign!1(0, [1.0, 2.0]);
 
-    assert(merge!("inner")(df1, df2).display(true, 200) == "       Hello  Hi  Hello  Hi \n"
+    assert(merge!(JoinTypes.inner)(df1, df2).display(true, 200) == "       Hello  Hi  Hello  Hi \n"
         ~ "I1                Hey    Hey\n"
         ~ "Hello  1      0   1      nan\n"
     );
