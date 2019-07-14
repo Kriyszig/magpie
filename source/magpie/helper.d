@@ -1,5 +1,6 @@
 module magpie.helper;
 
+import magpie.dataframe: DataFrame;
 import magpie.index: Index;
 
 import std.meta: AliasSeq, Repeat;
@@ -301,6 +302,15 @@ Index indexIntersection(int axis)(Index i1, Index i2)
     return ret;
 }
 
+/// Template to check if the input is a DataFrame or not
+template isDataFrame(T)
+{
+    static if(is(T: DataFrame!Ty, Ty...))
+        enum bool isDataFrame = true;
+    else
+        enum bool isDataFrame = false;
+}
+
 // Community suggested way ot intialize a DataFrame
 unittest
 {
@@ -429,4 +439,11 @@ unittest
     auto indxintersect =  indexIntersection!0(i1, i2);
     assert(indxintersect.row.index == [["Hello", "Hi"], ["Hello", "Hi"], ["Hey", "Hi"]]);
     assert(indxintersect.row.codes == [[0, 1], [1, 0], [0, 1]]);
+}
+
+// isDataFrame
+unittest
+{
+    static assert(isDataFrame!(DataFrame!(int, 2)) == true);
+    static assert(isDataFrame!(bool) == false);
 }

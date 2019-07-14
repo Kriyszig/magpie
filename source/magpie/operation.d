@@ -7,6 +7,7 @@ module magpie.operation;
  */
 
 import magpie.dataframe: DataFrame;
+import magpie.helper: isDataFrame;
 
 /// Enums for joins
 enum JoinTypes
@@ -31,6 +32,7 @@ Description: Merges two DataFrames based on indexes
 @parmas: rsuffix - Suffix to add in case there is an index collision between left and right DataFrame
 +/
 auto merge(JoinTypes type = Inner, T, U)(T df1, U df2, string lsuffix = "x_", string rsuffix = "y_")
+    if(isDataFrame!T && isDataFrame!U)
 {
 
     assert(df1.indx.row.codes.length == df2.indx.row.codes.length,
