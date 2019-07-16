@@ -155,15 +155,16 @@ Index ensureUnique(int axis)(Index i1, Index i2, string lsuffix = "x_", string r
         string[] indx;
         indx.length = i1.indexing[axis].codes.length;
 
-        foreach(j; 0 .. i1.indexing[axis].codes.length)
+        import std.range: lockstep;
+        foreach(j, a, b; lockstep(i1.indexing[axis].index, i1.indexing[axis].codes))
         {
-            if(i1.indexing[axis].index[j].length == 0)
+            if(a.length == 0)
             {
                 import std.conv: to;
-                indx[j] = to!string(i1.indexing[axis].codes[j][i]);
+                indx[j] = to!string(b[i]);
             }
             else
-                indx[j] = i1.indexing[axis].index[j][i1.indexing[axis].codes[j][i]];
+                indx[j] = a[b[i]];
         }
 
         // Making an asuumption that there is no conflicting indexes within the same Index struct
@@ -175,15 +176,16 @@ Index ensureUnique(int axis)(Index i1, Index i2, string lsuffix = "x_", string r
         string[] indx;
         indx.length = i2.indexing[axis].codes.length;
 
-        foreach(j; 0 .. i2.indexing[axis].codes.length)
+        import std.range: lockstep;
+        foreach(j, a, b; lockstep(i2.indexing[axis].index, i2.indexing[axis].codes))
         {
-            if(i2.indexing[axis].index[j].length == 0)
+            if(a.length == 0)
             {
                 import std.conv: to;
-                indx[j] = to!string(i2.indexing[axis].codes[j][i]);
+                indx[j] = to!string(b[i]);
             }
             else
-                indx[j] = i2.indexing[axis].index[j][i2.indexing[axis].codes[j][i]];
+                indx[j] = a[b[i]];
         }
 
         // Making an asuumption that there is no conflicting indexes within the same Index struct
@@ -222,15 +224,16 @@ Index indexUnion(int axis)(Index i1, Index i2)
         string[] indx;
         indx.length = i1.indexing[axis].codes.length;
 
-        foreach(j; 0 .. i1.indexing[axis].codes.length)
+        import std.range: lockstep;
+        foreach(j, a, b; lockstep(i1.indexing[axis].index, i1.indexing[axis].codes))
         {
-            if(i1.indexing[axis].index[j].length == 0)
+            if(a.length == 0)
             {
                 import std.conv: to;
-                indx[j] = to!string(i1.indexing[axis].codes[j][i]);
+                indx[j] = to!string(b[i]);
             }
             else
-                indx[j] = i1.indexing[axis].index[j][i1.indexing[axis].codes[j][i]];
+                indx[j] = a[b[i]];
         }
 
         // Making an asuumption that there is no conflicting indexes within the same Index struct
@@ -242,15 +245,16 @@ Index indexUnion(int axis)(Index i1, Index i2)
         string[] indx;
         indx.length = i2.indexing[axis].codes.length;
 
-        foreach(j; 0 .. i2.indexing[axis].codes.length)
+        import std.range: lockstep;
+        foreach(j, a, b; lockstep(i2.indexing[axis].index, i2.indexing[axis].codes))
         {
-            if(i2.indexing[axis].index[j].length == 0)
+            if(a.length == 0)
             {
                 import std.conv: to;
-                indx[j] = to!string(i2.indexing[axis].codes[j][i]);
+                indx[j] = to!string(b[i]);
             }
             else
-                indx[j] = i2.indexing[axis].index[j][i2.indexing[axis].codes[j][i]];
+                indx[j] = a[b[i]];
         }
 
         // Making an asuumption that there is no conflicting indexes within the same Index struct
@@ -279,15 +283,16 @@ Index indexIntersection(int axis)(Index i1, Index i2)
         string[] indx;
         indx.length = i1.indexing[axis].codes.length;
 
-        foreach(j; 0 .. i1.indexing[axis].codes.length)
+        import std.range: lockstep;
+        foreach(j, a, b; lockstep(i1.indexing[axis].index, i1.indexing[axis].codes))
         {
-            if(i1.indexing[axis].index[j].length == 0)
+            if(a.length == 0)
             {
                 import std.conv: to;
-                indx[j] = to!string(i1.indexing[axis].codes[j][i]);
+                indx[j] = to!string(b[i]);
             }
             else
-                indx[j] = i1.indexing[axis].index[j][i1.indexing[axis].codes[j][i]];
+                indx[j] = a[b[i]];
         }
 
         // Making an asuumption that there is no conflicting indexes within the same Index struct

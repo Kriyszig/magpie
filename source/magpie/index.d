@@ -42,23 +42,24 @@ public:
     {
         foreach(k; 0 .. 2)
         {
-            foreach(i; 0 .. indexing[k].index.length)
+            import std.range: lockstep;
+            foreach(ref a, ref b; lockstep(indexing[k].index, indexing[k].codes))
             {
                 import std.conv: to, ConvException;
-                if(indexing[k].index[i].length > 0)
+                if(a.length > 0)
                 {
                     try
                     {
                         import std.array: appender;
-                        auto inx = to!(int[])(indexing[k].index[i]);
-                        foreach(j; 0 .. indexing[k].codes[i].length)
-                            indexing[k].codes[i][j] = inx[indexing[k].codes[i][j]];
-                        indexing[k].index[i] = [];
+                        auto inx = to!(int[])(a);
+                        foreach(j; 0 .. b.length)
+                            b[j] = inx[b[j]];
+                        a = [];
                     }
                     catch(ConvException e)
                     {
                         import magpie.helper: sortIndex;
-                        sortIndex(indexing[k].index[i], indexing[k].codes[i]);
+                        sortIndex(a, b);
                     }
                 }
             }
@@ -76,23 +77,25 @@ public:
         {
             if(indexing[i].index.length != indexing[i].codes.length)
                 indexing[i].codes.length = indexing[i].index.length;
-            foreach(j; 0 .. indexing[i].index.length)
+
+            import std.range: lockstep;
+            foreach(ref a, ref b; lockstep(indexing[i].index, indexing[i].codes))
             {
-                if(indexing[i].index[j].length > 0 && indexing[i].codes[j].length == 0)
+                if(a.length > 0 && b.length == 0)
                 {
                     int[string] pos;
                     string[] index;
                     int[] codes;
 
                     int current = 0;
-                    foreach(k; 0 .. indexing[i].index[j].length)
+                    foreach(k; 0 .. a.length)
                     {
-                        codes ~= pos.require(indexing[i].index[j][k],
-                            { index ~= indexing[i].index[j][k]; return current++; }());
+                        codes ~= pos.require(a[k],
+                            { index ~= a[k]; return current++; }());
                     }
 
-                    indexing[i].index[j] = index;
-                    indexing[i].codes[j] = codes;
+                    a = index;
+                    b = codes;
                 }
             }
         }

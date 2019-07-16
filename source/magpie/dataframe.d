@@ -813,10 +813,10 @@ public:
                 indx.column.codes[0][i] = cast(int)i;
 
             indx.row.titles.length = indx.row.codes.length;
-            foreach(i; 0 .. indx.row.titles.length)
+            foreach(i, ref ele;indx.row.titles)
             {
                 import std.conv: to;
-                indx.row.titles[i] = "Index" ~ to!(string)(i + 1);
+                ele = "Index" ~ to!(string)(i + 1);
             }
         }
 
@@ -1247,10 +1247,11 @@ public:
             ret.indx.indexing[1] = indx.indexing[1];
             ret.indx.row.titles = indx.row.titles;
 
-            foreach(i; 0 .. indx.indexing[0].codes.length)
+            import std.range: lockstep;
+            foreach(a, b; lockstep(indx.row.index, indx.row.codes))
             {
-                ret.indx.row.index ~= indx.row.index[i];
-                ret.indx.row.codes ~= dropper(positions, indx.row.codes[i]);
+                ret.indx.row.index ~= a;
+                ret.indx.row.codes ~= dropper(positions, b);
             }
 
             static foreach(i; 0 .. RowType.length)
@@ -1268,10 +1269,11 @@ public:
             ret.indx.indexing[0] = indx.indexing[0];
             ret.indx.column.titles = indx.column.titles;
 
-            foreach(i; 0 .. indx.indexing[1].codes.length)
+            import std.range: lockstep;
+            foreach(a, b; lockstep(indx.column.index, indx.column.codes))
             {
-                ret.indx.column.index ~= indx.column.index[i];
-                ret.indx.column.codes ~= dropper(positions, indx.column.codes[i]);
+                ret.indx.column.index ~= a;
+                ret.indx.column.codes ~= dropper(positions, b);
             }
 
             auto retdata = dropper!(positions, data);
