@@ -8,6 +8,8 @@ import std.meta: AliasSeq, Repeat, staticMap;
 import std.array: appender;
 import std.traits: isType, isBoolean, isArray;
 
+import mir.ndslice;
+
 /++
 The DataFrame Structure
 +/
@@ -1365,6 +1367,14 @@ public:
         return ret;
     }
 
+    /++
+    Group DataFrame rows based on column values
+    Params:
+        dataLevels: Integer position of data columns to consider for groupBy
+        indexLevels: Levels of row index to consider for grouping
+    Returns:
+        A Group object
+    +/
     auto groupBy(int[] dataLevels = [])(int[] indexLevels = [])
     {
         import magpie.group: Group;
@@ -1374,6 +1384,47 @@ public:
         grp.createGroup!(dataLevels)(this, indexLevels);
 
         return grp;
+    }
+
+    auto asSlice(Type, SliceKind kind)() @property
+    {
+        static if(__traits(isArithmetic, Type))
+        {
+            static if(kind == Universal)
+                Slice!(Type*, 2, kind) ret = slice!(Type)(rows, cols).universal;
+            else static if(kind == Canonical)
+                Slice!(Type*, 2, kind) ret = slice!(Type)(rows, cols).canonical;
+            else
+                Slice!(Type*, 2, kind) ret = slice!(Type)(rows, cols);
+            
+            static foreach(i; 0 .. RowType.length)
+            {
+                static if(__traits(isArithmetic, RowType[i]))
+                {
+                    foreach(j; 0 .. rows)
+                        ret[j][i] = cast(Type)data[i][j];
+                }
+            }
+
+            return ret;
+        }
+        else
+        {
+            static if(kind == Universal)
+                Slice!(string*, 2, kind) ret = slice!(string)(rows, cols).universal;
+            else static if(kind == Canonical)
+                Slice!(string*, 2, kind) ret = slice!(string)(rows, cols).canonical;
+            else
+                Slice!(string*, 2, kind) ret = slice!(string)(rows, cols);
+            static foreach(i; 0 .. RowType.length)
+                foreach(j; 0 .. rows)
+                {
+                    import std.conv: to;
+                    ret[j][i] = to!(string)(data[i][j]);
+                }
+
+            return ret;
+        }
     }
 }
 
@@ -3136,4 +3187,46 @@ unittest
     grpBy.createGroup!([2])(df, [0, 1]);
 
     assert(grp.display(true, 200) == grpBy.display(true, 200));
+}
+
+// As a universal Slice
+unittest
+{
+    DataFrame!(int, 5) df;
+    Index inx;
+    inx.setIndex([["Hello", "Hi", "Hey"], ["Hi", "Hello", "Hey"], ["Hey", "Hello", "Hi"]], ["1", "2", "3"]);
+    df.setFrameIndex(inx);
+    df.assign!1(2, [1,2,3]);
+    df.assign!1(4, [1,2,3]);
+
+    auto dfslice = df.asSlice!(int, Universal);
+    assert(dfslice == [[0, 0, 1, 0, 1], [0, 0, 2, 0, 2], [0, 0, 3, 0, 3]]);
+}
+
+// As a canonical slice
+unittest
+{
+    DataFrame!(int, 5) df;
+    Index inx;
+    inx.setIndex([["Hello", "Hi", "Hey"], ["Hi", "Hello", "Hey"], ["Hey", "Hello", "Hi"]], ["1", "2", "3"]);
+    df.setFrameIndex(inx);
+    df.assign!1(2, [1,2,3]);
+    df.assign!1(4, [1,2,3]);
+
+    auto dfslice = df.asSlice!(int, Canonical);
+    assert(dfslice == [[0, 0, 1, 0, 1], [0, 0, 2, 0, 2], [0, 0, 3, 0, 3]]);
+}
+
+// As a contiguous slice
+unittest
+{
+    DataFrame!(int, 5) df;
+    Index inx;
+    inx.setIndex([["Hello", "Hi", "Hey"], ["Hi", "Hello", "Hey"], ["Hey", "Hello", "Hi"]], ["1", "2", "3"]);
+    df.setFrameIndex(inx);
+    df.assign!1(2, [1,2,3]);
+    df.assign!1(4, [1,2,3]);
+
+    auto dfslice = df.asSlice!(int, Contiguous);
+    assert(dfslice == [[0, 0, 1, 0, 1], [0, 0, 2, 0, 2], [0, 0, 3, 0, 3]]);
 }

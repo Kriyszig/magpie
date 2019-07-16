@@ -1,9 +1,12 @@
 {
-	"name": "magpie",
-	"targetType": "library",
-	"description": "Data analysis / manipulation library for D",
-	"license": "BSL-1.0",
 	"authors": [
 		"Prateek Nayak"
-	]
+	],
+	"dependencies": {
+		"mir-algorithm": "~>3.4.19"
+	},
+	"description": "Data analysis / manipulation library for D",
+	"license": "BSL-1.0",
+	"name": "magpie",
+	"targetType": "library"
 }
