@@ -6,6 +6,7 @@ import magpie.index: Index;
 import magpie.helper: dropper, transposed, toArr, vectorize;
 
 import std.meta: staticMap;
+import mir.ndslice;
 
 /// Struct for groupBy Operation
 struct Group(GrpRowType...)
@@ -528,6 +529,25 @@ public:
             {
                 mixin("data[i][elementCountTill[pos[0]] + pos[1]] " ~ op ~ "= elements.data[i];");
             }
+        }
+    }
+
+    // Assign a Slice to the Group
+    void opAssign(T, SliceKind kind)(Slice!(T*, 2, kind) input)
+    {
+        assert(input.shape[0] <= elementCountTill[$ - 1] && input.shape[1] <= GrpRowType.length, "Given Slice is larger than group");
+        static foreach(i; 0 .. GrpRowType.length)
+        {
+            static if(__traits(isArithmetic, T, GrpRowType[i]))
+                foreach(j; 0 .. input.shape[0])
+                    data[i][j] = cast(GrpRowType[i])input[j][i];
+            else
+            {
+                import std.conv: to;
+                foreach(j; 0 .. input.shape[0])
+                    data[i][j] = to!(GrpRowType[i])(input[j][i]);
+            }
+
         }
     }
 }
