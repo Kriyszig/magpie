@@ -989,6 +989,26 @@ public:
         }
     }
 
+    /// Assign Slice to DataFrame
+    void opAssign(T, SliceKind k)(Slice!(T*, 2, k) input)
+    {
+        assert(input.shape[0] <= rows && input.shape[1] <= cols, "Given Slice is larger than DataFrame");
+        static foreach(i; 0 .. RowType.length)
+            static if(__traits(isArithmetic, T, RowType[i]))
+            {
+                if(i < input.shape[1])
+                    foreach(j; 0 .. input.shape[0])
+                        data[i][j] = cast(RowType[i])input[j][i];
+            }
+            else
+            {
+                import std.conv: to;
+                if(i < input.shape[1])
+                    foreach(j; 0 .. input.shape[0])
+                        data[i][j] = to!(RowType[i])(input[j][i]);
+            }
+    }
+
     /++
     void assign(int axis, T, U...)(T index, U values)
     Description: Assign values to rows or column.index
@@ -1388,6 +1408,14 @@ public:
         return grp;
     }
 
+    /++
+    Get DataFrame data as a Slice
+    Params:
+        Type: Iterator type for the resultant slice
+        Kind: SliceKind for the resultant Slice
+    Returns:
+        A Slice of type Slice!(Type*, 2, kind)
+    +/
     auto asSlice(Type, SliceKind kind)() @property
     {
         static if(__traits(isArithmetic, Type))
@@ -3231,4 +3259,38 @@ unittest
 
     auto dfslice = df.asSlice!(int, Contiguous);
     assert(dfslice == [[0, 0, 1, 0, 1], [0, 0, 2, 0, 2], [0, 0, 3, 0, 3]]);
+}
+
+// Slice assignment
+unittest
+{
+    DataFrame!(int, 5) df;
+    Index inx;
+    inx.setIndex([["Hello", "Hi", "Hey"], ["Hi", "Hello", "Hey"], ["Hey", "Hello", "Hi"]], ["1", "2", "3"]);
+    df.setFrameIndex(inx);
+    df.assign!1(2, [1,2,3]);
+    df.assign!1(4, [1,2,3]);
+
+    auto dfslice = df.asSlice!(int, Contiguous);
+    
+    DataFrame!(int, 5) df2;
+    df2.setFrameIndex(inx);
+
+    df2 = dfslice;
+    assert(df.display(true, 200) == df2.display(true, 200));
+}
+
+// PArtial Slice Assignment
+unittest
+{
+    DataFrame!(int, 5) df;
+    Index inx;
+    inx.setIndex([["Hello", "Hi", "Hey"], ["Hi", "Hello", "Hey"], ["Hey", "Hello", "Hi"]], ["1", "2", "3"]);
+    df.setFrameIndex(inx);
+    
+    auto assn = slice!(int)(1, 1);
+    assn[0][0] = 42;
+    df = assn;
+
+    assert(df.data[0][0] == 42);
 }
