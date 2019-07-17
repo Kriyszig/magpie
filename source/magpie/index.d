@@ -74,6 +74,8 @@ public:
     {
         foreach(i; 0 .. 2)
         {
+            if(indexing[i].index.length != indexing[i].codes.length)
+                indexing[i].codes.length = indexing[i].index.length;
             foreach(j; 0 .. indexing[i].index.length)
             {
                 if(indexing[i].index[j].length > 0 && indexing[i].codes[j].length == 0)
@@ -157,7 +159,6 @@ public:
         }
 
         generateCodes();
-        optimize();
     }
 
     /++
@@ -226,7 +227,6 @@ public:
         }
 
         generateCodes();
-        optimize();
     }
 
     /++
@@ -261,7 +261,6 @@ public:
             indexing[axis].titles = titles;
 
         generateCodes();
-        optimize();
     }
 
     /++
@@ -290,7 +289,6 @@ public:
 
         // Generating codes and optimizing first because constructing levels is just repeating code [Index remains untouched]
         generateCodes();
-        optimize();
 
         foreach(i; 1 .. indexing[axis].index.length)
         {
@@ -323,31 +321,35 @@ public:
     @params: axis - 0 for rows, 1 for column.index
     @params: next - The element to extend element
     +/
-    void extend(int axis, T)(T next)
+    void extend(int axis, T)(T next, int insertPos = -1)
     {
+        if(insertPos < 0)
+            insertPos = cast(int)indexing[axis].codes[0].length;
+
         static if(is(T == int[]))
         {
 
             assert(next.length == indexing[axis].codes.length, "Index depth mismatch");
-            foreach(i; 0 .. indexing[axis].codes.length)
+            foreach(i, ref ele; indexing[axis].codes)
             {
                 if(indexing[axis].index[i].length == 0)
-                    indexing[axis].codes[i] ~= next[i];
+                    ele = ele[0 .. insertPos] ~ next[i] ~ ele[insertPos .. $];
                 else
                 {
                     import std.conv: to, ConvException;
                     import std.algorithm: countUntil;
-                    string ele = to!string(next[i]);
-                    int pos = cast(int)countUntil(indexing[axis].index[i], ele);
+                    string newele = to!string(next[i]);
+                    int pos = cast(int)countUntil(indexing[axis].index[i], newele);
 
                     if(pos > -1)
                     {
-                        indexing[axis].codes[i] ~= pos;
+                        ele = ele[0 .. insertPos] ~ pos ~ ele[insertPos .. $];
                     }
                     else
                     {
-                        indexing[axis].index[i] ~= ele;
-                        indexing[axis].codes[i] ~= cast(int)indexing[axis].index[i].length - 1;
+                        ++indexing[axis].index[i].length;
+                        indexing[axis].index[i][$ - 1] = newele;
+                        ele = ele[0 .. insertPos] ~ (cast(int)indexing[axis].index[i].length - 1) ~ ele[insertPos .. $];
                     }
                 }
             }
@@ -355,7 +357,7 @@ public:
         else static if(is(T == string[]))
         {
             assert(next.length == indexing[axis].codes.length, "Index depth mismatch");
-            foreach(i; 0 .. indexing[axis].codes.length)
+            foreach(i, ref ele; indexing[axis].codes)
             {
                 if(indexing[axis].index[i].length > 0)
                 {
@@ -364,12 +366,13 @@ public:
 
                     if(pos > -1)
                     {
-                        indexing[axis].codes[i] ~= pos;
+                        ele = ele[0 .. insertPos] ~ pos ~ ele[insertPos .. $];
                     }
                     else
                     {
-                        indexing[axis].index[i] ~= next[i];
-                        indexing[axis].codes[i] ~= cast(int)indexing[axis].index[i].length - 1;
+                        ++indexing[axis].index[i].length;
+                        indexing[axis].index[i][$ -1] = next[i];
+                        ele = ele[0 .. insertPos] ~ (cast(int)indexing[axis].index[i].length - 1) ~ ele[insertPos .. $];
                     }
                 }
                 else
@@ -377,16 +380,17 @@ public:
                     import std.conv: to, ConvException;
                     try
                     {
-                        int ele = to!int(next[i]);
-                        indexing[axis].codes[i] ~= ele;
+                        int newele = to!int(next[i]);
+                        ele = ele[0 .. insertPos] ~ newele ~ ele[insertPos .. $];
                     }
                     catch(ConvException e)
                     {
-                        indexing[axis].index[i] = to!(string[])(indexing[axis].codes[i]);
-                        indexing[axis].index[i] ~= next[i];
-                        indexing[axis].codes[i] = [];
+                        indexing[axis].index[i] = to!(string[])(ele);
+                        indexing[axis].index[i] = indexing[axis].index[i][0 .. insertPos] ~
+                            next[i] ~ indexing[axis].index[i][insertPos .. $];
+                        ele.length = indexing[axis].index[i].length;
                         foreach(j; 0 .. indexing[axis].index[i].length)
-                            indexing[axis].codes[i] ~= cast(int)j;
+                            ele[j] = cast(int)j;
                     }
                 }
             }
@@ -394,10 +398,56 @@ public:
         }
         else
         {
-            foreach(i; 0 .. next.length)
-                extend!axis(next[i]);
+            if(insertPos == indexing[axis].codes[0].length)
+                foreach(i; 0 .. next.length)
+                    extend!axis(next[i]);
+            else
+                foreach_reverse(i; 0 .. next.length)
+                    extend!axis(next[i], insertPos);
         }
         optimize();
+    }
+
+    /++
+    int getPosition(int axis)(string[] index)
+    Description: Get position of a particual index within the struct
+    @params: axis - 0 to search row Index, 1 to search column index
+    @params: index - index to search for
+    +/
+    ptrdiff_t getPosition(int axis)(string[] index)
+    {
+        import std.array: appender;
+        import std.algorithm: countUntil;
+        import std.conv: to;
+        auto codes = appender!(int[]);
+
+        foreach(i; 0 .. indexing[axis].codes.length)
+        {
+            if(indexing[axis].index[i].length == 0)
+                codes.put(to!int(index[i]));
+            else
+            {
+                int indxpos = cast(int)countUntil(indexing[axis].index[i], index[i]);
+                if(indxpos < 0)
+                    return -1;
+                codes.put(indxpos);
+            }
+        }
+
+        foreach(i; 0 .. indexing[axis].codes[0].length)
+        {
+            bool flag = true;
+            foreach(j; 0 .. indexing[axis].codes.length)
+            {
+                if(indexing[axis].codes[j][i] != codes.data[j])
+                    flag = false;
+            }
+
+            if(flag)
+                return cast(int)i;
+        }
+
+        return -1;
     }
 }
 
@@ -582,6 +632,64 @@ unittest
     assert(inx.column.codes == [[0,1,0,0], [1,0,1,1]]);
 }
 
+// Extending index specifying position of insertion
+unittest
+{
+    Index inx;
+    inx.setIndex([["Hello", "Hi"], ["Hi", "Hello"]], ["Index", "Index"],
+        [["Hello", "Hi"], ["Hi", "Hello"]], ["Index", "Index"]);
+    inx.extend!0(["Hello", "Hi"], 1);
+    assert(inx.row.index == [["Hello", "Hi"], ["Hello", "Hi"]]);
+    assert(inx.row.codes == [[0, 0, 1], [1, 1, 0]]);
+    inx.extend!1(["Hello", "Hi"], 1);
+    assert(inx.column.index == [["Hello", "Hi"], ["Hello", "Hi"]]);
+    assert(inx.column.codes == [[0, 0, 1], [1, 1, 0]]);
+}
+
+// Extending specifying position - requires conversion of codes to index
+unittest
+{
+    Index inx;
+    inx.setIndex([1,2,3], ["Index"], [1,2,3]);
+    assert(inx.row.codes == [[1,2,3]]);
+    assert(inx.row.index == [[]]);
+    assert(inx.column.codes == [[1,2,3]]);
+    assert(inx.column.index == [[]]);
+
+    // Appending string to integer row.index
+    inx.extend!0(["Hello"], 2);
+    assert(inx.row.index == [["1","2","3","Hello"]]);
+    assert(inx.row.codes == [[0,1,3,2]]);
+
+    // Appending integer to integer row.index
+    inx.extend!1([4], 1);
+    assert(inx.column.index == [[]]);
+    assert(inx.column.codes == [[1,4,2,3]]);
+
+    // Appending string to integer row.index
+    inx.extend!1(["Hello"], 3);
+    assert(inx.column.index == [["1","2","3","4","Hello"]]);
+    assert(inx.column.codes == [[0,3,1,4,2]]);
+
+    // Checking if optimize() is working
+    inx.extend!1(["Arrow"], 0);
+    assert(inx.column.index == [["1","2","3","4","Arrow","Hello"]]);
+    assert(inx.column.codes == [[4,0,3,1,5,2]]);
+}
+
+// Extending row.index with 2D array with position of insertion
+unittest
+{
+    Index inx;
+    inx.setIndex([["Hello", "Hi"], ["Hi", "Hello"]], ["Index", "Index"],
+        [["Hello", "Hi"], ["Hi", "Hello"]], ["Index", "Index"]);
+    inx.extend!0([["Hello", "Hi"], ["Hello", "Hi"]], 1);
+    assert(inx.row.index == [["Hello", "Hi"], ["Hello", "Hi"]]);
+    assert(inx.row.codes == [[0,0,0,1], [1,1,1,0]]);
+    inx.extend!1([["Hello", "Hi"], ["Hello", "Hi"]], 1);
+    assert(inx.column.index == [["Hello", "Hi"], ["Hello", "Hi"]]);
+    assert(inx.column.codes == [[0,0,0,1], [1,1,1,0]]);
+}
 
 // Test for code generation
 unittest
