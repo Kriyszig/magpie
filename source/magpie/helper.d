@@ -316,6 +316,15 @@ template isDataFrame(T)
         enum bool isDataFrame = false;
 }
 
+/// Check if given DataFrame is Homogeneous
+template isHomogeneous(Args...)
+{
+    static if(Args.length == 1)
+        enum bool isHomogeneous = true; 
+    else
+        enum bool isHomogeneous = is(Args[0] == Args[1]) && isHomogeneous!(Args[1 .. $]);
+}
+
 // Community suggested way ot intialize a DataFrame
 unittest
 {
@@ -451,4 +460,10 @@ unittest
 {
     static assert(isDataFrame!(DataFrame!(int, 2)) == true);
     static assert(isDataFrame!(bool) == false);
+}
+
+unittest
+{
+    static assert(isHomogeneous!(int, int, int) == true);
+    static assert(isHomogeneous!(int, int, double) == false);
 }

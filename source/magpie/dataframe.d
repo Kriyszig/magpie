@@ -1,6 +1,6 @@
 module magpie.dataframe;
 
-import magpie.axis: Axis;
+import magpie.axis: Axis, DataType;
 import magpie.index: Index;
 import magpie.helper: getArgsList, toArr;
 
@@ -1179,6 +1179,40 @@ public:
         }
     }
 
+    /// Slice assignment operation
+    void opIndexAssign(T, SliceKind kind)(Slice!(T*, 1, kind) sl, string[] index, int axis = 1)
+    {
+        opIndexOpAssign!("")(sl, index, axis);
+    }
+
+    /// Slice assignment operation
+    void opIndexOpAssign(string op, T, SliceKind kind)(Slice!(T*, 1, kind) sl, string[] index, int axis = 1)
+    {
+        if(axis)
+        {
+            Axis!void fwd;
+            fwd.data.length = sl.shape[0];
+            foreach(i; 0 .. sl.shape[0])
+                fwd.data[i] = DataType(sl[i]);
+
+            opIndexOpAssign!(op)(fwd, index, axis);
+        }
+        else
+        {
+            Axis!(RowType) fwd;
+            static foreach(i; 0 .. RowType.length)
+                static if(__traits(isArithmetic, RowType[i], T))
+                    fwd.data[i] = cast(RowType[i])sl[i];
+                else
+                {
+                    import std.conv: to;
+                    fwd.data[i] = to!(RowType[i])(sl[i]);
+                }
+
+            opIndexOpAssign!(op)(fwd, index, axis);
+        }
+    }
+
     /++
     void apply(alias Fn, int axis, T)(T index)
     Description: Applies a function on a particular row or column
@@ -1452,6 +1486,57 @@ public:
                     import std.conv: to;
                     ret[j][i] = to!(string)(data[i][j]);
                 }
+
+            return ret;
+        }
+    }
+
+    auto asSlice(SliceKind kind, Type = string, int axis = 0, T)(T index)
+        if(is(T == string[]) || is(T == int))
+    {
+        ptrdiff_t pos;
+        static if(is(T == string[]))
+            pos = getPosition!(axis)(index);
+        else
+            pos = index;
+
+        assert(pos > -1, "Index not found");
+        static if(axis)
+        {
+            static foreach(i; 0 .. RowType.length)
+            {
+                if(i == pos)
+                {
+                    static if(kind == Universal)
+                        Slice!(Type*, 1, kind) ret = slice!(Type)(rows).universal;
+                    else static if(kind == Canonical)
+                        Slice!(Type*, 1, kind) ret = slice!(string)(rows).canonical;
+                    else
+                        Slice!(Type*, 1, kind) ret = slice!(string)(rows);
+
+                    static if(__traits(isArithmetic, Type, RowType[i]) || is(Type == RowType[i]))
+                        foreach(j; 0 .. rows)
+                            ret[j] = cast(Type)data[i][j];
+
+                    return ret;
+                }
+            }
+
+            assert(0);
+        }
+        else
+        {
+            import std.conv: to;
+            Slice!(string*, 1, kind) ret;
+            static if(kind == Universal)
+                ret = slice!(string)(RowType.length).universal;
+            else static if(kind == Canonical)
+                ret = slice!(string)(RowType.length).canonical;
+            else
+                ret = slice!(string)(RowType.length);
+
+            static foreach(i; 0 .. RowType.length)
+                ret[i] = to!string(data[i][pos]);
 
             return ret;
         }
@@ -3293,4 +3378,52 @@ unittest
     df = assn;
 
     assert(df.data[0][0] == 42);
+}
+
+// asSlice oveload
+unittest
+{
+    DataFrame!(int, 5) df;
+    Index inx;
+    inx.setIndex([["Hello", "Hi", "Hey"], ["Hi", "Hello", "Hey"], ["Hey", "Hello", "Hi"]], ["1", "2", "3"]);
+    df.setFrameIndex(inx);
+    df.assign!1(2, [1,2,3]);
+    df.assign!1(4, [1,2,3]);
+
+    assert(df.asSlice!(Universal, int, 1)(["4"]) == [1, 2, 3]);
+    assert(df.asSlice!(Universal)(["Hello", "Hi", "Hey"]) == ["0", "0", "1", "0", "1"]);
+}
+
+// Slice opIndexOpAssign
+unittest
+{
+    DataFrame!(int, 5) df;
+    Index inx;
+    inx.setIndex([["Hello", "Hi", "Hey"], ["Hi", "Hello", "Hey"], ["Hey", "Hello", "Hi"]], ["1", "2", "3"]);
+    df.setFrameIndex(inx);
+    df.assign!1(2, [1,2,3]);
+    df.assign!1(4, [1,2,3]);
+
+    df[["3"]] = df.asSlice!(Universal, int, 1)(["4"]);
+    assert(df.asSlice!(Universal, int, 1)(["3"]) == [1, 2, 3]);
+
+    df[["Hello", "Hi", "Hey"], 0] = df.asSlice!(Universal)(["Hi", "Hello", "Hello"]);
+    assert(df.asSlice!(Universal)(["Hello", "Hi", "Hey"]) == ["0", "0", "2", "2", "2"]);
+}
+
+// Slice opIndexOpAssign - heterogeneous DataFrame
+unittest
+{
+    DataFrame!(int, 3, double, 2) df;
+    Index inx;
+    inx.setIndex([["Hello", "Hi", "Hey"], ["Hi", "Hello", "Hey"], ["Hey", "Hello", "Hi"]], ["1", "2", "3"]);
+    df.setFrameIndex(inx);
+    df.assign!1(2, [1,2,3]);
+    df.assign!1(4, [1.0, 2.0, 3.0]);
+
+    df[["1"]] = df.asSlice!(Universal, int, 1)(["4"]);
+    assert(df.asSlice!(Universal, int, 1)(["1"]) == [1, 2, 3]);
+
+    df[["Hello", "Hi", "Hey"], 0] = df.asSlice!(Universal)(["Hi", "Hello", "Hello"]);
+    assert(df.asSlice!(Universal)(["Hello", "Hi", "Hey"]) == ["0", "2", "2", "nan", "2"]);
 }

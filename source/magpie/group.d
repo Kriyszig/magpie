@@ -61,6 +61,47 @@ private:
         return -1;
     }
 
+    auto asSliceInternal(Type, SliceKind kind)(size_t start, size_t stop)
+    {
+        static if(__traits(isArithmetic, Type))
+        {
+            static if(kind == Universal)
+                Slice!(Type*, 2, kind) ret = slice!(Type)(stop - start, GrpRowType.length).universal;
+            else static if(kind == Canonical)
+                Slice!(Type*, 2, kind) ret = slice!(Type)(stop - start, GrpRowType.length).canonical;
+            else
+                Slice!(Type*, 2, kind) ret = slice!(Type)(stop - start, GrpRowType.length);
+            
+            static foreach(i; 0 .. GrpRowType.length)
+            {
+                static if(__traits(isArithmetic, GrpRowType[i]))
+                {
+                    foreach(j; start .. stop)
+                        ret[j - start][i] = cast(Type)data[i][j];
+                }
+            }
+
+            return ret;
+        }
+        else
+        {
+            static if(kind == Universal)
+                Slice!(string*, 2, kind) ret = slice!(string)(stop - start, GrpRowType.length).universal;
+            else static if(kind == Canonical)
+                Slice!(string*, 2, kind) ret = slice!(string)(stop - start, GrpRowType.length).canonical;
+            else
+                Slice!(string*, 2, kind) ret = slice!(string)(stop - start, GrpRowType.length);
+            static foreach(i; 0 .. GrpRowType.length)
+                foreach(j; start .. stop)
+                {
+                    import std.conv: to;
+                    ret[j - start][i] = to!(string)(data[i][j]);
+                }
+
+            return ret;
+        }
+    }
+
 public:
     /++
     ptrdiff_t getGroupPosition(string[] grpTitles)
@@ -507,7 +548,7 @@ public:
                 }
             }
         }
-        else static if(T.length == 0 && isArray!(T[0]))
+        else static if(T.length == 1 && isArray!(T[0]))
         {
             assert(elements.data.length == elementCountTill[pos[0] + 1] - elementCountTill[pos[0]],
                 "Size of data doesn't match size of group column");
@@ -532,7 +573,64 @@ public:
         }
     }
 
-    // Assign a Slice to the Group
+    /// Slice assignment operation
+    void opIndexAssign(T, SliceKind kind)(Slice!(T*, 1, kind) sl, string[] groupTitle, string[] index, int axis = 1)
+    {
+        opIndexOpAssign!("")(sl, groupTitle, index, axis);
+    }
+
+    /// Slice assignment operation
+    void opIndexOpAssign(string op, T, SliceKind kind)(Slice!(T*, 1, kind) sl, string[] groupTitle, string[] index, int axis = 1)
+    {
+        if(axis)
+        {
+            Axis!void fwd;
+            fwd.data.length = sl.shape[0];
+            foreach(i; 0 .. sl.shape[0])
+                fwd.data[i] = DataType(sl[i]);
+
+            opIndexOpAssign!(op)(fwd, groupTitle, index, axis);
+        }
+        else
+        {
+            Axis!(GrpRowType) fwd;
+            static foreach(i; 0 .. GrpRowType.length)
+                static if(__traits(isArithmetic, GrpRowType[i], T))
+                    fwd.data[i] = cast(GrpRowType[i])sl[i];
+                else
+                {
+                    import std.conv: to;
+                    fwd.data[i] = to!(GrpRowType[i])(sl[i]);
+                }
+
+            opIndexOpAssign!(op)(fwd, groupTitle, index, axis);
+        }
+    }
+
+    /// Assigning a Slice to group
+    void opIndexAssign(T, SliceKind kind)(Slice!(T*, 2, kind) sl, string[] groupTitle)
+    {
+        assert(sl.shape[1] <= GrpRowType.length, "Slice is larger than the Group that it is being assigned to");
+
+        ptrdiff_t pos = getGroupPosition(groupTitle);
+        assert(pos > -1, "Group not found");
+        assert(sl.shape[0] <= elementCountTill[pos + 1] - elementCountTill[pos], "Slice is larger than the Group that it is being assigned to");
+
+        static foreach(i; 0 .. GrpRowType.length)
+        {
+            if(__traits(isArithmetic, T, GrpRowType[i]))
+                foreach(j; elementCountTill[pos] .. elementCountTill[pos + 1])
+                    data[i][j] = cast(GrpRowType[i])sl[j - elementCountTill[pos]][i];
+            else
+            {
+                import std.conv: to;
+                foreach(j; elementCountTill[pos] .. elementCountTill[pos + 1])
+                    data[i][j] = to!(GrpRowType[i])(sl[j - elementCountTill[pos]][i]);
+            }
+        }
+    }
+
+    /// Assign a Slice to the Group
     void opAssign(T, SliceKind kind)(Slice!(T*, 2, kind) input)
     {
         assert(input.shape[0] <= elementCountTill[$ - 1] && input.shape[1] <= GrpRowType.length, "Given Slice is larger than group");
@@ -548,6 +646,85 @@ public:
                     data[i][j] = to!(GrpRowType[i])(input[j][i]);
             }
 
+        }
+    }
+
+    /// Get entire 
+    auto asSlice(T, SliceKind kind)() @property
+    {
+        return asSliceInternal!(T, kind)(0, elementCountTill[$ - 1]);
+    }
+
+    /// Get a specific group
+    auto asSlice(T, SliceKind kind, U)(U grp)
+        if(is(U == string) || is(U == string[]))
+    {
+        ptrdiff_t pos;
+        static if(is(U == string))
+            pos = getGroupPosition([grp]);
+        else
+            pos = getGroupPosition(grp);
+
+        assert(pos > -1, "Group not found");
+        return asSliceInternal!(T, kind)(elementCountTill[pos], elementCountTill[pos + 1]);
+    }
+
+    auto asSlice(SliceKind kind, Type = string, int axis = 0, U)(U grp, U index)
+        if(is(U == string[]) || is(U == int))
+    {
+        ptrdiff_t[2] pos;
+        static if(is(U == string[]))
+        {
+            pos[0] = getGroupPosition(grp);
+            pos[1] = positionInGroup!(axis)(index, pos[0]);
+        }
+        else
+        {
+            pos[0] = grp;
+            pos[1] = index;
+        }
+
+        assert(pos[0] > -1, "Group not found");
+        assert(pos[1] > -1, "Index not found");
+
+        static if(axis)
+        {
+            static foreach(i; 0 .. GrpRowType.length)
+                if(i == pos[1])
+                {
+                    static if(kind == Universal)
+                        Slice!(Type*, 1, kind) ret = slice!(Type)(elementCountTill[pos[0] + 1] - elementCountTill[pos[0]]).universal;
+                    else static if(kind == Canonical)
+                        Slice!(Type*, 1, kind) ret = slice!(string)(elementCountTill[pos[0] + 1] - elementCountTill[pos[0]]).canonical;
+                    else
+                        Slice!(Type*, 1, kind) ret = slice!(string)(elementCountTill[pos[0] + 1] - elementCountTill[pos[0]]);
+
+                    static if(__traits(isArithmetic, Type, GrpRowType[i]) || is(Type == GrpRowType[i]))
+                        foreach(j; elementCountTill[pos[0]] .. elementCountTill[pos[0] + 1])
+                            ret[j - elementCountTill[pos[0]]] = cast(Type)data[i][j];
+
+                    return ret;
+                }
+
+                assert(0);
+        }
+        else
+        {
+            Slice!(string*, 1, kind) ret;
+            static if(kind == Universal)
+                ret = slice!(string)(GrpRowType.length).universal;
+            else static if(kind == Canonical)
+                ret = slice!(string)(GrpRowType.length).canonical;
+            else
+                ret = slice!(string)(GrpRowType.length);
+
+            static foreach(i; 0 .. GrpRowType.length)
+            {
+                import std.conv: to;
+                ret[i] = to!string(data[i][elementCountTill[pos[0]] + pos[1]]);
+            }
+
+            return ret;
         }
     }
 }
@@ -1037,4 +1214,102 @@ unittest
 
     gp[["Hello", "Hi", "1"], ["3"]] /= gp[["Hello", "Hi", "1"], ["3"]];
     assert(gp[["Hello", "Hi", "1"], ["3"]].data == [1]);
+}
+
+// Retrieving as Slice and assignment of Slice to DataFrame 
+unittest
+{
+    DataFrame!(int, 5) df;
+    Index inx;
+    inx.setIndex([["Hello", "Hi", "Hey"], ["Hi", "Hello", "Hey"], ["Hey", "Hello", "Hi"]], ["1", "2", "3"]);
+    df.setFrameIndex(inx);
+    df.assign!1(2, [1,2,3]);
+    df.assign!1(4, [1,2,3]);
+
+    Group!(int, int, int, int) gp;
+    gp.createGroup!([2])(df, [0, 1]);
+
+    DataFrame!(int, 5) df2;
+    df2.setFrameIndex(inx);
+    df2.assign!1(2, [1,2,3]);
+
+    Group!(int, int, int, int) gp2;
+    gp2.createGroup!([2])(df2, [0, 1]);
+
+    gp2 = gp.asSlice!(int, Universal);
+    assert(gp.display(true, 200) == gp2.display(true, 200));
+}
+
+// Slice assignment operation
+unittest
+{
+    DataFrame!(int, 5) df;
+    Index inx;
+    inx.setIndex([["Hello", "Hi", "Hey"], ["Hi", "Hello", "Hey"], ["Hey", "Hello", "Hi"]], ["1", "2", "3"]);
+    df.setFrameIndex(inx);
+    df.assign!1(2, [1,2,3]);
+    df.assign!1(4, [1,2,3]);
+
+    Group!(int, int, int, int) gp;
+    gp.createGroup!([2])(df, [0, 1]);
+
+    // Assign a column
+    gp[["Hello", "Hi", "1"], ["0"]] = ([42]).sliced(1).universal;
+    assert(gp[["Hello", "Hi", "1"], ["Hey"], ["0"]] == 42);
+
+    // Assign a row
+    gp[["Hello", "Hi", "1"], ["Hey"], 0] = ([42, 42, 42, 42]).sliced(4).universal;
+    assert(gp.data[0][0] == 42 && gp.data[1][0] == 42 && gp.data[2][0] == 42 && gp.data[3][0] == 42);
+}
+
+// Getting a Group as Slice
+unittest
+{
+    DataFrame!(int, 5) df;
+    Index inx;
+    inx.setIndex([["Hello", "Hi", "Hey"], ["Hi", "Hello", "Hey"], ["Hey", "Hello", "Hi"]], ["1", "2", "3"]);
+    df.setFrameIndex(inx);
+    df.assign!1(2, [1,2,3]);
+    df.assign!1(4, [1,2,3]);
+
+    Group!(int, int, int, int) gp;
+    gp.createGroup!([2])(df, [0, 1]);
+
+    // Assigning values of one group to another using Slice
+    gp[["Hello", "Hi", "1"]] = gp.asSlice!(int, Universal)(["Hi", "Hello", "2"]);
+    assert(gp[["Hello", "Hi", "1"], ["Hey"], ["4"]] == 2);
+}
+
+// asSlice
+unittest
+{
+    DataFrame!(int, 5) df;
+    Index inx;
+    inx.setIndex([["Hello", "Hi", "Hey"], ["Hi", "Hello", "Hey"], ["Hey", "Hello", "Hi"]], ["1", "2", "3"]);
+    df.setFrameIndex(inx);
+    df.assign!1(2, [1,2,3]);
+    df.assign!1(4, [1,2,3]);
+
+    Group!(int, int, int, int) gp;
+    gp.createGroup!([2])(df, [0, 1]);
+
+    assert(gp.asSlice!(Universal, int, 1)(["Hello", "Hi", "1"], ["4"]) == [1]);
+    assert(gp.asSlice!(Universal)(["Hello", "Hi", "1"], ["Hey"]) == ["0", "0", "0", "1"]);
+}
+
+// asSlice - row
+unittest
+{
+    DataFrame!(int, 5) df;
+    Index inx;
+    inx.setIndex([["Hello", "Hi", "Hey"], ["Hi", "Hello", "Hey"], ["Hey", "Hello", "Hi"]], ["1", "2", "3"]);
+    df.setFrameIndex(inx);
+    df.assign!1(2, [1,2,3]);
+    df.assign!1(4, [1,2,3]);
+
+    Group!(int, int, int, int) gp;
+    gp.createGroup!([2])(df, [0, 1]);
+
+    gp[["Hello", "Hi", "1"], ["Hey"], 0] = gp.asSlice!(Universal)(["Hi", "Hello", "2"], ["Hello"]);
+    assert(gp[["Hello", "Hi", "1"], ["Hey"], ["4"]] == 2);
 }
