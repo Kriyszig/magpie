@@ -167,6 +167,7 @@ struct Index
 * [Drop](#Drop)
 * [Group By](#GroupBy)
 * [I/O](#I/O)
+* [Slice Integration](#Slice)
 
 ### Index
 
@@ -546,7 +547,7 @@ df.RowType ele;
 ele[0] = 1.77;
 ele[1] = 4;
 
-// Using RowType alais
+// Using RowType alias
 df.assign!0(["Hi", "Hello"], ele);
 df.display();
 /*
@@ -623,7 +624,7 @@ df.display();
 Applies a function to all the elements of row/column
 * Axis - 0 for row, 1 for column
 * Fn - Function to apply
-* index - single dimensional array of integer index or two dimeensional array of string index.
+* index - single dimensional array of integer index or two dimensional array of string index.
 
 Usage:
 
@@ -784,7 +785,7 @@ dcol.display();
 
 `DataFrame.groupBy(dataLevels)(indexLevels)`
 
-Group DataFrame based on na arbitrary number of columns. This includes grouping based on row indexes and data columns.
+Group DataFrame based on arbitrary number of columns. This includes grouping based on row indexes and data columns.
 
 * dataLevels - Integral indexes of data columns to be considered for grouping
 * indexLevels - Integral indexes of row indexing level to consider for grouping
@@ -959,7 +960,7 @@ gp.display();
 Displays the content of the dataframe on the terminal.
 
 * getStr - If set to true, will return the evaluated display string instead of the terminal output
-* maxSize - Override termianal size [Dynaimically detecting terminal size isn't implemented yet]
+* maxSize - Override terminal size [Dynamically detecting terminal size isn't implemented yet]
 
 Usage:
 
@@ -982,7 +983,7 @@ df.display();
  */
 
  string display_string = df.display(true);  // If set to false, will return an empty string
- string if_terminal_width_150 = df.display(true, 150);  // Assumes terminal can accomodate 150 characters
+ string if_terminal_width_150 = df.display(true, 150);  // Assumes terminal can accommodate 150 characters
 ```
 
 
@@ -992,7 +993,7 @@ Writes the DataFrame to CSV format.
 
 * writeIndex - If set true writes row indexes to the file.
 * writeColumn - If set rue writes column indexes to the file
-* sep - Is the data seperator
+* sep - Is the data separator
 
 Usage:
 
@@ -1008,7 +1009,7 @@ Parsing of CSV file into a DataFrame
 * indexDepth - How many columns from left do row index span
 * columnDepth - How many rows from top column index span
 * columns - indexes of columns to selectively parse
-* sep - Data Seperator
+* sep - Data Separator
 
 Usage:
 
@@ -1017,7 +1018,7 @@ import magpie.dataframe: DataFrame;
 
 DataFrame!(double, int, 2, double) df;
 df.from_csv("any.csv", 1, 1);
-/* Thie assumes any.csv has 1 column dedicated to row indexes
+/* This assumes any.csv has 1 column dedicated to row indexes
  * and 1 row dedicated to column indexes
  */
 ```
@@ -1029,7 +1030,7 @@ Faster parser for CSV files
 * indexDepth - How many columns from left do row index span
 * columnDepth - How many rows from top column index span
 * columns - indexes of columns to selectively parse
-* sep - Data Seperator
+* sep - Data Separator
 
 Usage:
 ```d
@@ -1037,13 +1038,131 @@ import magpie.dataframe: DataFrame;
 
 DataFrame!(double, int, 2, double) df;
 df.fastCSV("any.csv", 1, 1);
-/* Thie assumes any.csv has 1 column dedicated to row indexes
+/* This assumes any.csv has 1 column dedicated to row indexes
  * and 1 row dedicated to column indexes
  */
 ```
 <b>Note:</b> This redesign is still in an alpha stage. It doesn't support CSV with titles for column indexing levels. That said it is light years ahead of `from_csv`.
 
-You can see the bechmarks [here](https://github.com/Kriyszig/fastCSV). Adding a large CSV file to this repository wasn't practical. Hence, fastCSV tests on large CSV file were ported out of this repository.
+You can see the benchmarks [here](https://github.com/Kriyszig/fastCSV). Adding a large CSV file to this repository wasn't practical. Hence, fastCSV tests on large CSV file were ported out of this repository.
+
+### Slice
+
+This section deals with integration and interoperation of Mir's Slice and Magpie's DataFrame and Group
+
+* DataFrame.asSlice
+* Group.asSlice
+
+In DataFrame:
+
+#### `asSlice(Type, SliceKind)() @property`
+Retrieval of the entire DataFrame. If `Type` is Algebraic, then all the numeric data is copied over to the Slice else returns a Slice of string.
+
+### `asSlice(SliceKind, Type = string, axis = 0)`
+Get a row/column of DataFrame as Slice of `Type`.
+
+#### Usage:
+```d
+// Using Slice to copy value from one DataFrame to another
+import magpie.dataframe: DataFrame;
+import magpie.index: Index;
+
+DataFrame!(int, 5) df;
+Index inx;
+inx.setIndex([["Hello", "Hi", "Hey"], ["Hi", "Hello", "Hey"], ["Hey", "Hello", "Hi"]], ["1", "2", "3"]);
+df.setFrameIndex(inx);
+df.assign!1(2, [1,2,3]);
+df.assign!1(4, [1,2,3]);
+
+auto dfslice = df.asSlice!(int, Contiguous);
+
+DataFrame!(int, 5) df2;
+df2.setFrameIndex(inx);
+
+df2 = dfslice;
+df2.display();
+```
+```d
+/// Index operation on Slice
+import magpie.dataframe: DataFrame;
+import magpie.index: Index;
+
+DataFrame!(int, 3, double, 2) df;
+Index inx;
+inx.setIndex([["Hello", "Hi", "Hey"], ["Hi", "Hello", "Hey"], ["Hey", "Hello", "Hi"]], ["1", "2", "3"]);
+df.setFrameIndex(inx);
+df.assign!1(2, [1,2,3]);
+df.assign!1(4, [1.0, 2.0, 3.0]);
+
+df[["1"]] = df.asSlice!(Universal, int, 1)(["4"]);
+df.display();
+/*
+ * 1      2      3      0  1  2  3    4
+ * Hello  Hi     Hey    0  1  1  nan  1
+ * Hi     Hello  Hello  0  2  2  nan  2
+ * Hey    Hey    Hi     0  3  3  nan  3
+ * 
+ * Dataframe Dimension: [ 4 X 8 ]
+ * Data Dimension: [ 3 X 5 ]
+ */
+
+df[["Hello", "Hi", "Hey"], 0] = df.asSlice!(Universal)(["Hi", "Hello", "Hello"]);
+df.display();
+/*
+ * 1      2      3      0  1  2  3    4
+ * Hello  Hi     Hey    0  2  2  nan  2
+ * Hi     Hello  Hello  0  2  2  nan  2
+ * Hey    Hey    Hi     0  3  3  nan  3
+ * 
+ * Dataframe Dimension: [ 4 X 8 ]
+ * Data Dimension: [ 3 X 5 ]
+ */
+```
+
+In Group:
+
+#### `asSlice(Type, SliceKind)() @property`
+Get the entire Group as slice for copying. If `Type` is Algebraic, then all the numeric data is copied over to the Slice else returns a Slice of string.
+
+#### `asSlice(Type, SliceKind)(groupTitle)`
+Get a single group as Slice. If `Type` is Algebraic, then all the numeric data is copied over to the Slice else returns a Slice of string.
+
+#### `asSlice(SliceKind kind, Type = string, int axis = 0, U)(groupTitle,index)`
+Retrieve a single row or column of a particular group as Slice of type `Type`
+
+```d
+// Assign a group to another using Slice
+import magpie.dataframe: DataFrame;
+import magpie.index: Index;
+
+DataFrame!(int, 5) df;
+Index inx;
+inx.setIndex([["Hello", "Hi", "Hey"], ["Hi", "Hello", "Hey"], ["Hey", "Hello", "Hi"]], ["1", "2", "3"]);
+df.setFrameIndex(inx);
+df.assign!1(2, [1,2,3]);
+df.assign!1(4, [1,2,3]);
+
+auto gp = df.groupBy!([2])([0, 1]);
+
+gp[["Hello", "Hi", "1"]] = gp.asSlice!(int, Universal)(["Hi", "Hello", "2"]);
+gp.display();
+/*
+ * Group: ["Hello", "Hi", "1"]
+ * Group Dimension: [ 1 X 4 ]
+ * 3    0  1  3  4
+ * Hey  0  0  0  2
+ * 
+ * Group: ["Hi", "Hello", "2"]
+ * Group Dimension: [ 1 X 4 ]
+ * 3      0  1  3  4
+ * Hello  0  0  0  2
+ * 
+ * Group: ["Hey", "Hey", "3"]
+ * Group Dimension: [ 1 X 4 ]
+ * 3   0  1  3  4
+ * Hi  0  0  0  3
+ */
+```
 
 ##### Dataset Sources
 
