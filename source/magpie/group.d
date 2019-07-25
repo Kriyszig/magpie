@@ -3,7 +3,7 @@ module magpie.group;
 import magpie.axis: Axis, DataType;
 import magpie.dataframe: DataFrame;
 import magpie.index: Index;
-import magpie.helper: dropper, transposed, toArr, vectorize;
+import magpie.helper: dropper, transposed, toArr, vectorize, isHomogeneous;
 
 import std.meta: staticMap;
 import mir.ndslice;
@@ -16,6 +16,8 @@ struct Group(GrpRowType...)
 
     /// number of elements before the particular group
     int[] elementCountTill;
+
+    enum bool isHomogeneousType = isHomogeneous!(GrpRowType);
 
     alias GrpType = staticMap!(toArr, GrpRowType);
     /// Data of Group
@@ -162,7 +164,9 @@ public:
         // This is required as dropper!(dataLevels, df.data) won't work
         auto dropped = df.drop!(1, dataLevels);
 
-        data = dropped.data;
+        static foreach(i; 0 .. GrpRowType.length)
+            data[i] = dropped.data[i];
+        
         grpIndex.column = dropped.indx.column;
         grpIndex.row.titles = dropper(indexLevels, df.indx.row.titles);
         grpIndex.row.index = dropper(indexLevels, df.indx.row.index);

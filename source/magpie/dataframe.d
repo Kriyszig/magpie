@@ -2,7 +2,7 @@ module magpie.dataframe;
 
 import magpie.axis: Axis, DataType;
 import magpie.index: Index;
-import magpie.helper: getArgsList, toArr;
+import magpie.helper: getArgsList, toArr, isHomogeneous;
 
 import std.meta: AliasSeq, Repeat, staticMap;
 import std.array: appender;
@@ -23,7 +23,12 @@ struct DataFrame(FrameFields...)
     else
         alias RowType = getArgsList!(FrameFields);
 
-    alias FrameType = staticMap!(toArr, RowType);
+    enum bool isHomogeneousType = isHomogeneous!(RowType);
+
+    static if(!isHomogeneousType)
+        alias FrameType = staticMap!(toArr, RowType);
+    else
+        alias FrameType = toArr!(RowType[0])[RowType.length];
 
     ///
     size_t rows = 0;
@@ -1038,7 +1043,7 @@ public:
             {
                 if(i == pos)
                 {
-                    static if(is(FrameType[i] == U[0]))
+                    static if(is(toArr!(RowType[i]) == U[0]))
                         foreach(j; 0 .. (rows > values[0].length)? values[0].length: rows)
                             data[i][j] = values[0][j];
                 }
@@ -1330,7 +1335,11 @@ public:
                 ret.indx.column.codes ~= dropper(positions, b);
             }
 
-            auto retdata = dropper!(positions, data);
+            static if(isHomogeneousType)
+                auto retdata = dropper(positions, data);
+            else
+                auto retdata = dropper!(positions, data);
+            
             static foreach(i; 0 .. ret.RowType.length)
                 ret.data[i] = retdata[i];
 
@@ -1538,14 +1547,14 @@ public:
 unittest
 {
     DataFrame!(int, 2) df;
-    assert(is(typeof(df.data) == Repeat!(2, int[])));
+    assert(is(typeof(df.data) == int[][2]));
 }
 
 // O(log(n)) init
 unittest
 {
     DataFrame!(true, double, double, double) df;
-    assert(is(typeof(df.data) == Repeat!(3, double[])));
+    assert(is(typeof(df.data) == double[][3]));
 }
 
 // Initialize from struct - O(log(n))
@@ -1587,7 +1596,7 @@ unittest
 unittest
 {
     DataFrame!(int, 2) df;
-    assert(is(typeof(df.data) == Repeat!(2, int[])));
+    assert(is(typeof(df.data) == int[][2]));
 
     df.indx.row.titles = ["Index1"];
     df.indx.row.index = [["Hello", "Hi"]];
@@ -1614,7 +1623,7 @@ unittest
 unittest
 {
     DataFrame!(int, 2) df;
-    assert(is(typeof(df.data) == Repeat!(2, int[])));
+    assert(is(typeof(df.data) == int[][2]));
 
     df.indx.row.titles = ["Index1"];
     df.indx.row.index = [["Hello", "Hi"]];
@@ -1634,7 +1643,7 @@ unittest
 unittest
 {
     DataFrame!(int, 2) df;
-    assert(is(typeof(df.data) == Repeat!(2, int[])));
+    assert(is(typeof(df.data) == int[][2]));
 
     df.indx.row.titles = ["Index1", "Index2", "Index3"];
     df.indx.row.index = [["Hello", "Hi"], ["Hello"], []];
@@ -1668,7 +1677,7 @@ unittest
 unittest
 {
     DataFrame!(int, 2) df;
-    assert(is(typeof(df.data) == Repeat!(2, int[])));
+    assert(is(typeof(df.data) == int[][2]));
 
     df.indx.row.titles = ["Index1", "Index2", "Index3"];
     df.indx.row.index = [["Hello", "Hi"], ["Hello"], []];
@@ -1691,7 +1700,7 @@ unittest
 unittest
 {
     DataFrame!(int, 2) df;
-    assert(is(typeof(df.data) == Repeat!(2, int[])));
+    assert(is(typeof(df.data) == int[][2]));
 
     df.indx.row.titles = ["Index1", "Index2", "Index3"];
     df.indx.row.index = [["Hello", "Hi"], ["Hello"], []];
@@ -1846,7 +1855,7 @@ unittest
 unittest
 {
     DataFrame!(int, 2) df;
-    assert(is(typeof(df.data) == Repeat!(2, int[])));
+    assert(is(typeof(df.data) == int[][2]));
 
     df.indx.row.titles = ["Index1", "Index2", "Index3"];
     df.indx.row.index = [["Hello", "Hi"],["Hello"], []];
@@ -2047,7 +2056,7 @@ unittest
 unittest
 {
     DataFrame!(int, 2) df;
-    assert(is(typeof(df.data) == Repeat!(2, int[])));
+    assert(is(typeof(df.data) == int[][2]));
 
     df.indx.row.titles = ["Index1"];
     df.indx.row.index = [["Hello", "Hi"]];
@@ -2069,7 +2078,7 @@ unittest
 unittest
 {
     DataFrame!(int, 2) df;
-    assert(is(typeof(df.data) == Repeat!(2, int[])));
+    assert(is(typeof(df.data) == int[][2]));
 
     df.indx.row.titles = ["Index1"];
     df.indx.row.index = [["Hello", "Hi"]];
@@ -2093,7 +2102,7 @@ unittest
 unittest
 {
     DataFrame!(int, 2) df;
-    assert(is(typeof(df.data) == Repeat!(2, int[])));
+    assert(is(typeof(df.data) == int[][2]));
 
     df.indx.row.titles = ["Index1", "Index2"];
     df.indx.row.index = [["Hello", "Hi"], ["Hello", "Hi"]];
@@ -2115,7 +2124,7 @@ unittest
 unittest
 {
     DataFrame!(int, 2) df;
-    assert(is(typeof(df.data) == Repeat!(2, int[])));
+    assert(is(typeof(df.data) == int[][2]));
 
     df.indx.row.titles = ["Index1"];
     df.indx.row.index = [["Hello", "Hi"]];
@@ -2139,7 +2148,7 @@ unittest
 unittest
 {
     DataFrame!(int, 2) df;
-    assert(is(typeof(df.data) == Repeat!(2, int[])));
+    assert(is(typeof(df.data) == int[][2]));
 
     df.indx.row.titles = ["Index1"];
     df.indx.row.index = [["Hello", "Hi"]];
@@ -2164,7 +2173,7 @@ unittest
 unittest
 {
     DataFrame!(int, 20) df;
-    assert(is(typeof(df.data) == Repeat!(20, int[])));
+    assert(is(typeof(df.data) == int[][20]));
 
     df.indx.row.titles = ["Index1"];
     df.indx.row.index = [["Hello", "Hi"]];
@@ -2193,7 +2202,7 @@ unittest
 unittest
 {
     DataFrame!(int, 2) df;
-    assert(is(typeof(df.data) == Repeat!(2, int[])));
+    assert(is(typeof(df.data) == int[][2]));
 
     df.indx.row.titles = ["Index1"];
     df.indx.row.index = [[]];
@@ -2271,7 +2280,7 @@ unittest
 unittest
 {
     DataFrame!(int, 2) df;
-    assert(is(typeof(df.data) == Repeat!(2, int[])));
+    assert(is(typeof(df.data) == int[][2]));
 
     df.indx.row.titles = ["Index1", "Index2", "Index3"];
     df.indx.row.index = [["Hello", "Hi"], ["Hello"], []];
@@ -2295,7 +2304,7 @@ unittest
 unittest
 {
     DataFrame!(int, 2) df;
-    assert(is(typeof(df.data) == Repeat!(2, int[])));
+    assert(is(typeof(df.data) == int[][2]));
 
     df.indx.row.titles = ["Index1", "Index2", "Index3"];
     df.indx.row.index = [["Hello", "Hi"], ["Hello"], []];
@@ -2322,7 +2331,7 @@ unittest
 unittest
 {
     DataFrame!(int, 2) df;
-    assert(is(typeof(df.data) == Repeat!(2, int[])));
+    assert(is(typeof(df.data) == int[][2]));
 
     df.indx.row.titles = ["Index1", "Index2", "Index3"];
     df.indx.row.index = [["Hello", "Hi"], ["Hello"], []];
@@ -2347,7 +2356,7 @@ unittest
 unittest
 {
     DataFrame!(int, 2) df;
-    assert(is(typeof(df.data) == Repeat!(2, int[])));
+    assert(is(typeof(df.data) == int[][2]));
 
     df.indx.row.titles = ["Index1", "Index2", "Index3"];
     df.indx.row.index = [["Hello", "Hi"], ["Hello"], []];
@@ -2375,7 +2384,7 @@ unittest
 unittest
 {
     DataFrame!(int, 2) df;
-    assert(is(typeof(df.data) == Repeat!(2, int[])));
+    assert(is(typeof(df.data) == int[][2]));
 
     df.indx.row.titles = ["Index1", "Index2", "Index3"];
     df.indx.row.index = [["Hello", "Hi"], ["Hello"], []];
@@ -2414,7 +2423,7 @@ unittest
 unittest
 {
     DataFrame!(int, 2) df;
-    assert(is(typeof(df.data) == Repeat!(2, int[])));
+    assert(is(typeof(df.data) == int[][2]));
 
     df.indx.row.titles = ["Index1", "Index2", "Index3"];
     df.indx.row.index = [["Hello", "Hi"], ["Hello"], []];
@@ -2449,7 +2458,7 @@ unittest
 unittest
 {
     DataFrame!(int, 2) df;
-    assert(is(typeof(df.data) == Repeat!(2, int[])));
+    assert(is(typeof(df.data) == int[][2]));
 
     df.indx.row.titles = ["Index1", "Index2", "Index3"];
     df.indx.row.index = [["Hello", "Hi"],["Hello"], []];
@@ -2487,7 +2496,7 @@ unittest
 unittest
 {
     DataFrame!(int, 2) df;
-    assert(is(typeof(df.data) == Repeat!(2, int[])));
+    assert(is(typeof(df.data) == int[][2]));
 
     df.indx.row.titles = ["Index1", "Index2", "Index3"];
     df.indx.row.index = [["Hello", "Hi"],["Hello"], []];
@@ -2522,7 +2531,7 @@ unittest
 unittest
 {
     DataFrame!(int, 2) df;
-    assert(is(typeof(df.data) == Repeat!(2, int[])));
+    assert(is(typeof(df.data) == int[][2]));
 
     df.indx.row.titles = ["Index1", "Index2", "Index3"];
     df.indx.row.index = [["Hello", "Hi"], ["Hello"], []];
