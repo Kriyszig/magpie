@@ -994,19 +994,19 @@ public:
     {
         assert(input.shape[0] <= rows && input.shape[1] <= cols, "Given Slice is larger than DataFrame");
         static foreach(i; 0 .. RowType.length)
-            static if(__traits(isArithmetic, T, RowType[i]))
+            if(i < input.shape[1])
             {
-                if(i < input.shape[1])
-                    foreach(j; 0 .. input.shape[0])
+
+                foreach(j; 0 .. input.shape[0])
+                    static if(__traits(isArithmetic, T, RowType[i]))
                         data[i][j] = cast(RowType[i])input[j][i];
-            }
-            else
-            {
-                import std.conv: to;
-                if(i < input.shape[1])
-                    foreach(j; 0 .. input.shape[0])
+                    else
+                    {
+                        import std.conv: to;
                         data[i][j] = to!(RowType[i])(input[j][i]);
+                    }
             }
+            
     }
 
     /++
@@ -1453,42 +1453,33 @@ public:
     auto asSlice(Type, SliceKind kind)() @property
     {
         static if(__traits(isArithmetic, Type))
-        {
-            static if(kind == Universal)
-                Slice!(Type*, 2, kind) ret = slice!(Type)(rows, cols).universal;
-            else static if(kind == Canonical)
-                Slice!(Type*, 2, kind) ret = slice!(Type)(rows, cols).canonical;
-            else
-                Slice!(Type*, 2, kind) ret = slice!(Type)(rows, cols);
-            
-            static foreach(i; 0 .. RowType.length)
-            {
-                static if(__traits(isArithmetic, RowType[i]))
-                {
-                    foreach(j; 0 .. rows)
-                        ret[j][i] = cast(Type)data[i][j];
-                }
-            }
-
-            return ret;
-        }
+            alias RetType = Type;
         else
-        {
-            static if(kind == Universal)
-                Slice!(string*, 2, kind) ret = slice!(string)(rows, cols).universal;
-            else static if(kind == Canonical)
-                Slice!(string*, 2, kind) ret = slice!(string)(rows, cols).canonical;
-            else
-                Slice!(string*, 2, kind) ret = slice!(string)(rows, cols);
-            static foreach(i; 0 .. RowType.length)
-                foreach(j; 0 .. rows)
-                {
-                    import std.conv: to;
-                    ret[j][i] = to!(string)(data[i][j]);
-                }
+            alias RetType = string;
 
-            return ret;
+        static if(kind == Universal)
+            Slice!(RetType*, 2, kind) ret = slice!(RetType)(rows, cols).universal;
+        else static if(kind == Canonical)
+            Slice!(RetType*, 2, kind) ret = slice!(RetType)(rows, cols).canonical;
+        else
+            Slice!(RetType*, 2, kind) ret = slice!(RetType)(rows, cols);
+
+        static foreach(i; 0 .. RowType.length)
+        {
+            static if(__traits(isArithmetic, RowType[i], RetType) || is(RetType == RowType[i]))
+            {
+                foreach(j; 0 .. rows)
+                    ret[j][i] = cast(RetType)data[i][j];
+            }
+            else static if(is(RetType == string))
+            {
+                import std.conv: to;
+                foreach(j; 0 .. rows)
+                    ret[j][i] = to!(string)(data[i][j]);
+            }
         }
+
+        return ret;
     }
 
     auto asSlice(SliceKind kind, Type = string, int axis = 0, T)(T index)

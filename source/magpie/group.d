@@ -64,42 +64,33 @@ private:
     auto asSliceInternal(Type, SliceKind kind)(size_t start, size_t stop)
     {
         static if(__traits(isArithmetic, Type))
-        {
-            static if(kind == Universal)
-                Slice!(Type*, 2, kind) ret = slice!(Type)(stop - start, GrpRowType.length).universal;
-            else static if(kind == Canonical)
-                Slice!(Type*, 2, kind) ret = slice!(Type)(stop - start, GrpRowType.length).canonical;
-            else
-                Slice!(Type*, 2, kind) ret = slice!(Type)(stop - start, GrpRowType.length);
-            
-            static foreach(i; 0 .. GrpRowType.length)
-            {
-                static if(__traits(isArithmetic, GrpRowType[i]))
-                {
-                    foreach(j; start .. stop)
-                        ret[j - start][i] = cast(Type)data[i][j];
-                }
-            }
-
-            return ret;
-        }
+            alias RetType = Type;
         else
-        {
-            static if(kind == Universal)
-                Slice!(string*, 2, kind) ret = slice!(string)(stop - start, GrpRowType.length).universal;
-            else static if(kind == Canonical)
-                Slice!(string*, 2, kind) ret = slice!(string)(stop - start, GrpRowType.length).canonical;
-            else
-                Slice!(string*, 2, kind) ret = slice!(string)(stop - start, GrpRowType.length);
-            static foreach(i; 0 .. GrpRowType.length)
-                foreach(j; start .. stop)
-                {
-                    import std.conv: to;
-                    ret[j - start][i] = to!(string)(data[i][j]);
-                }
+            alias RetType =  string;
 
-            return ret;
+        static if(kind == Universal)
+            Slice!(RetType*, 2, kind) ret = slice!(RetType)(stop - start, GrpRowType.length).universal;
+        else static if(kind == Canonical)
+            Slice!(RetType*, 2, kind) ret = slice!(RetType)(stop - start, GrpRowType.length).canonical;
+        else
+            Slice!(RetType*, 2, kind) ret = slice!(RetType)(stop - start, GrpRowType.length);
+
+        static foreach(i; 0 .. GrpRowType.length)
+        {
+            static if(__traits(isArithmetic, RetType, GrpRowType[i]))
+            {
+                foreach(j; start .. stop)
+                    ret[j - start][i] = cast(RetType)data[i][j];
+            }
+            else static if(is(RetType == string))
+            {
+                import std.conv: to;
+                foreach(j; start .. stop)
+                    ret[j - start][i] = to!(string)(data[i][j]);
+            }
         }
+
+        return ret;
     }
 
 public:
