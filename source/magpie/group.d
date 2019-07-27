@@ -19,7 +19,10 @@ struct Group(GrpRowType...)
 
     enum bool isHomogeneousType = isHomogeneous!(GrpRowType);
 
-    alias GrpType = staticMap!(toArr, GrpRowType);
+    static if(!isHomogeneous!(GrpRowType))
+        alias GrpType = staticMap!(toArr, GrpRowType);
+    else
+        alias GrpType = toArr!(GrpRowType[0])[GrpRowType.length];
     /// Data of Group
     GrpType data;
 
@@ -175,7 +178,18 @@ public:
         int[] codes = vectorize(levels);
         int[][] rcodes = transposed(dropper(indexLevels, df.indx.row.codes));
         // Simultaneously arranging all the relavent fields using a zip as displayed in the docs
-        auto arrange = zip(levels, codes[1 .. $], data, rcodes).sort!((a, b) => a[1] < b[1]);
+
+        static if(isHomogeneousType)
+            auto sortdata = transposed(data);
+        else
+            auto ref sortdata = data;
+
+        auto arrange = zip(levels, codes[1 .. $], sortdata, rcodes).sort!((a, b) => a[1] < b[1]);
+
+        static if(isHomogeneousType)
+            foreach(i, ele; sortdata)
+                foreach(j, iele; ele)
+                    data[j][i] = iele;
 
         grpIndex.row.codes = transposed(rcodes);
 
