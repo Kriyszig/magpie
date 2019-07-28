@@ -23,6 +23,7 @@ struct DataFrame(FrameFields...)
     else
         alias RowType = getArgsList!(FrameFields);
 
+    /// Flag to know if the DataFrame is homogeneous
     enum bool isHomogeneousType = isHomogeneous!(RowType);
 
     static if(!isHomogeneousType)
@@ -187,25 +188,47 @@ public:
                     maxGap = (maxGap > lenCol)? maxGap: lenCol;
                 }
 
-                static foreach(j; 0 .. RowType.length)
+                static if(isHomogeneousType)
                 {
-                    if(j == dataIndex)
-                    {
-                        size_t maxsize1 = 0, maxsize2 = 0;
-                        if(top > indx.column.index.length + extra)
-                            maxsize1 = data[j][0 .. top - indx.column.index.length - extra].map!(e => to!string(e).length).reduce!max;
-                        if(bottom > data[j].length)
-                            maxsize2 = data[j].map!(e => to!string(e).length).reduce!max;
-                        else if(bottom > 0)
-                            maxsize2 = data[j][$ - bottom .. $].map!(e => to!string(e).length).reduce!max;
+                    size_t maxsize1 = 0, maxsize2 = 0;
+                    if(top > indx.column.index.length + extra)
+                        maxsize1 = data[dataIndex][0 .. top - indx.column.index.length - extra].map!(e => to!string(e).length).reduce!max;
+                    if(bottom > data[dataIndex].length)
+                        maxsize2 = data[dataIndex].map!(e => to!string(e).length).reduce!max;
+                    else if(bottom > 0)
+                        maxsize2 = data[dataIndex][$ - bottom .. $].map!(e => to!string(e).length).reduce!max;
 
-                        if(maxsize1 > maxGap)
+                    if(maxsize1 > maxGap)
+                    {
+                        maxGap = maxsize1;
+                    }
+                    if(maxsize2 > maxGap)
+                    {
+                        maxGap = maxsize2;
+                    }
+                }
+                else
+                {
+                    static foreach(j; 0 .. RowType.length)
+                    {
+                        if(j == dataIndex)
                         {
-                            maxGap = maxsize1;
-                        }
-                        if(maxsize2 > maxGap)
-                        {
-                            maxGap = maxsize2;
+                            size_t maxsize1 = 0, maxsize2 = 0;
+                            if(top > indx.column.index.length + extra)
+                                maxsize1 = data[j][0 .. top - indx.column.index.length - extra].map!(e => to!string(e).length).reduce!max;
+                            if(bottom > data[j].length)
+                                maxsize2 = data[j].map!(e => to!string(e).length).reduce!max;
+                            else if(bottom > 0)
+                                maxsize2 = data[j][$ - bottom .. $].map!(e => to!string(e).length).reduce!max;
+
+                            if(maxsize1 > maxGap)
+                            {
+                                maxGap = maxsize1;
+                            }
+                            if(maxsize2 > maxGap)
+                            {
+                                maxGap = maxsize2;
+                            }
                         }
                     }
                 }
@@ -392,10 +415,15 @@ public:
                             else
                             {
                                 string idx = "";
-                                static foreach(k; 0 .. RowType.length)
+                                static if(isHomogeneousType)
+                                    idx = to!string(data[j - indx.row.index.length][dataIndex]);
+                                else
                                 {
-                                    if(k == j - indx.row.index.length)
-                                        idx = to!string(data[k][dataIndex]);
+                                    static foreach(k; 0 .. RowType.length)
+                                    {
+                                        if(k == j - indx.row.index.length)
+                                            idx = to!string(data[k][dataIndex]);
+                                    }
                                 }
 
                                 if(idx.length > maxColSize)
@@ -850,11 +878,19 @@ public:
         if(Args.length > 0)
     {
         assert(i1 < rows && i2 < cols, "Index out of bound");
-        static foreach(i; 0 .. RowType.length)
+
+        static if(isHomogeneousType)
         {
-            if(i == i2)
+            data[i2][i1] = ele[0];
+        }
+        else
+        {
+            static foreach(i; 0 .. RowType.length)
             {
-                data[i][i1] = ele[0];
+                if(i == i2)
+                {
+                    data[i][i1] = ele[0];
+                }
             }
         }
     }
@@ -874,13 +910,16 @@ public:
         ptrdiff_t i2 = getPosition!1(cindx);
 
         assert(i1 > -1 && i2 > -1, "Given headers don't match DataFrame Headers");
-        static foreach(i; 0 .. RowType.length)
-        {
-            if(i == i2)
+        static if(isHomogeneousType)
+            data[i2][i1] = ele;
+        else
+            static foreach(i; 0 .. RowType.length)
             {
-                data[i][i1] = ele;
+                if(i == i2)
+                {
+                    data[i][i1] = ele;
+                }
             }
-        }
     }
 
     /++
@@ -1039,15 +1078,22 @@ public:
         }
         else
         {
-            static foreach(i; 0 .. RowType.length)
+            static if(isHomogeneousType)
             {
-                if(i == pos)
-                {
-                    static if(is(toArr!(RowType[i]) == U[0]))
-                        foreach(j; 0 .. (rows > values[0].length)? values[0].length: rows)
-                            data[i][j] = values[0][j];
-                }
+                static if(is(toArr!(RowType[0]) == U[0]))
+                    foreach(j; 0 .. (rows > values[0].length)? values[0].length: rows)
+                        data[pos][j] = values[0][j];
             }
+            else
+                static foreach(i; 0 .. RowType.length)
+                {
+                    if(i == pos)
+                    {
+                        static if(is(toArr!(RowType[i]) == U[0]))
+                            foreach(j; 0 .. (rows > values[0].length)? values[0].length: rows)
+                                data[i][j] = values[0][j];
+                    }
+                }
         }
     }
 
@@ -1060,9 +1106,12 @@ public:
         assert(i1 <= rows, "Row index out of bound");
         assert(i2 <= cols, "Column index out of bound");
 
-        static foreach(i; 0 .. RowType.length)
-            if(i == i2)
-                return data[i][i1];
+        static if(isHomogeneousType)
+            return data[i2][i1];
+        else
+            static foreach(i; 0 .. RowType.length)
+                if(i == i2)
+                    return data[i][i1];
 
         // If the above assertions pass, a value will be definitely returned
         assert(0);
@@ -1090,9 +1139,13 @@ public:
             i2 = getPosition!1(cindx);
 
         assert(i1 > -1 && i2 > -1, "Given headers don't match DataFrame Headers");
-        static foreach(i; 0 .. RowType.length)
-            if(i == i2)
-                return data[i][i1];
+        
+        static if(isHomogeneousType)
+            return data[i2][i1];
+        else
+            static foreach(i; 0 .. RowType.length)
+                if(i == i2)
+                    return data[i][i1];
 
         assert(0);
     }
@@ -1118,10 +1171,15 @@ public:
         {
             import magpie.axis: Axis, DataType;
             Axis!void retcol;
-            static foreach(i; 0 .. RowType.length)
-                if(i == pos)
-                    foreach(j; data[i])
+
+            static if(isHomogeneousType)
+                foreach(j; data[pos])
                         retcol.data ~= DataType(j);
+            else
+                static foreach(i; 0 .. RowType.length)
+                    if(i == pos)
+                        foreach(j; data[i])
+                            retcol.data ~= DataType(j);
 
             return retcol;
         }
@@ -1159,20 +1217,28 @@ public:
             assert(elements.data.length == rows, "Length of Axis.data is not equal to number of rows");
             ptrdiff_t pos = getPosition!1(index);
             assert(pos > -1, "Index not found");
-            static foreach(i; 0 .. RowType.length)
-                if(i == pos)
-                    foreach(j; 0 .. elements.data.length)
-                        mixin("data[i][j] " ~ op ~"= elements.data[j].get!(RowType[i]);");
+            static if(isHomogeneousType)
+                foreach(j; 0 .. elements.data.length)
+                    mixin("data[pos][j] " ~ op ~"= elements.data[j].get!(RowType[0]);");
+            else
+                static foreach(i; 0 .. RowType.length)
+                    if(i == pos)
+                        foreach(j; 0 .. elements.data.length)
+                            mixin("data[i][j] " ~ op ~"= elements.data[j].get!(RowType[i]);");
         }
         else static if(T.length == 1 && isArray!(T[0]))
         {
             assert(elements.data.length == rows, "Length of Axis.data is not equal to number of rows");
             ptrdiff_t pos = getPosition!1(index);
             assert(pos > -1, "Index not found");
-            static foreach(i; 0 .. RowType.length)
-                if(i == pos)
-                    foreach(j; 0 .. elements.data.length)
-                        mixin("data[i][j] " ~ op ~"= elements.data[j];");
+            static if(isHomogeneousType)
+                foreach(j; 0 .. elements.data.length)
+                        mixin("data[pos][j] " ~ op ~"= elements.data[j];");
+            else
+                static foreach(i; 0 .. RowType.length)
+                    if(i == pos)
+                        foreach(j; 0 .. elements.data.length)
+                            mixin("data[i][j] " ~ op ~"= elements.data[j];");
         }
         else
         {
@@ -1503,24 +1569,32 @@ public:
         assert(pos > -1, "Index not found");
         static if(axis)
         {
-            static foreach(i; 0 .. RowType.length)
+            static if(kind == Universal)
+                Slice!(Type*, 1, kind) ret = slice!(Type)(rows).universal;
+            else static if(kind == Canonical)
+                Slice!(Type*, 1, kind) ret = slice!(string)(rows).canonical;
+            else
+                Slice!(Type*, 1, kind) ret = slice!(string)(rows);
+            static if(isHomogeneousType)
             {
-                if(i == pos)
-                {
-                    static if(kind == Universal)
-                        Slice!(Type*, 1, kind) ret = slice!(Type)(rows).universal;
-                    else static if(kind == Canonical)
-                        Slice!(Type*, 1, kind) ret = slice!(string)(rows).canonical;
-                    else
-                        Slice!(Type*, 1, kind) ret = slice!(string)(rows);
-
-                    static if(__traits(isArithmetic, Type, RowType[i]) || is(Type == RowType[i]))
-                        foreach(j; 0 .. rows)
-                            ret[j] = cast(Type)data[i][j];
-
-                    return ret;
-                }
+                static if(__traits(isArithmetic, Type, RowType[0]) || is(Type == RowType[0]))
+                    foreach(j; 0 .. rows)
+                        ret[j] = cast(Type)data[pos][j];
+                
+                return ret;
             }
+            else
+                static foreach(i; 0 .. RowType.length)
+                {
+                    if(i == pos)
+                    {
+                        static if(__traits(isArithmetic, Type, RowType[i]) || is(Type == RowType[i]))
+                            foreach(j; 0 .. rows)
+                                ret[j] = cast(Type)data[i][j];
+
+                        return ret;
+                    }
+                }
 
             assert(0);
         }

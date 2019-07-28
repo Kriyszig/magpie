@@ -17,6 +17,7 @@ struct Group(GrpRowType...)
     /// number of elements before the particular group
     int[] elementCountTill;
 
+    /// Flag to check if the Group is Homogeneous
     enum bool isHomogeneousType = isHomogeneous!(GrpRowType);
 
     static if(!isHomogeneous!(GrpRowType))
