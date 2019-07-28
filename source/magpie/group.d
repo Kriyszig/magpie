@@ -413,9 +413,12 @@ public:
     +/
     auto opIndex(size_t i1, size_t i2, size_t i3)
     {
-        static foreach(i; 0 .. GrpRowType.length)
-            if(i == i3)
-                return data[i][elementCountTill[i1] + i2];
+        static if(isHomogeneousType)
+            return data[i3][elementCountTill[i1] + i2];
+        else
+            static foreach(i; 0 .. GrpRowType.length)
+                if(i == i3)
+                    return data[i][elementCountTill[i1] + i2];
 
         assert(0);
     }
@@ -447,9 +450,12 @@ public:
             pos[2] = positionInGroup!(1)(i3, pos[0]);
         assert(pos[2] > -1, "Index out of bound");
 
-        static foreach(i; 0 .. GrpRowType.length)
-            if(i == pos[2])
-                return data[i][elementCountTill[pos[0]] + pos[1]];
+        static if(isHomogeneousType)
+            return data[pos[2]][elementCountTill[pos[0]] + pos[1]];
+        else
+            static foreach(i; 0 .. GrpRowType.length)
+                if(i == pos[2])
+                    return data[i][elementCountTill[pos[0]] + pos[1]];
 
         assert(0);
     }
@@ -492,14 +498,18 @@ public:
         static if(1 - Args.length)
         {
             Axis!(void) ret;
-            static foreach(i; 0 .. GrpRowType.length)
-            {
-                if(i == pos[1])
-                {
-                    foreach(j; data[i][elementCountTill[pos[0]] .. elementCountTill[pos[0] + 1]])
+            static if(isHomogeneousType)
+                foreach(j; data[pos[1]][elementCountTill[pos[0]] .. elementCountTill[pos[0] + 1]])
                         ret.data ~= DataType(j);
+            else
+                static foreach(i; 0 .. GrpRowType.length)
+                {
+                    if(i == pos[1])
+                    {
+                        foreach(j; data[i][elementCountTill[pos[0]] .. elementCountTill[pos[0] + 1]])
+                            ret.data ~= DataType(j);
+                    }
                 }
-            }
 
             return ret;
         }
@@ -547,13 +557,24 @@ public:
         {
             assert(elements.data.length == elementCountTill[pos[0] + 1] - elementCountTill[pos[0]],
                 "Size of data doesn't match size of group column");
-            static foreach(i; 0.. GrpRowType.length)
+
+            static if(isHomogeneousType)
             {
-                if(i == pos[1])
+                foreach(j; elementCountTill[pos[0]] .. elementCountTill[pos[0] + 1])
                 {
-                    foreach(j; elementCountTill[pos[0]] .. elementCountTill[pos[0] + 1])
+                    mixin("data[pos[1]][j] " ~ op ~ "= elements.data[j - elementCountTill[pos[0]]].get!(GrpRowType[0]);");
+                }
+            }
+            else
+            {
+                static foreach(i; 0 .. GrpRowType.length)
+                {
+                    if(i == pos[1])
                     {
-                        mixin("data[i][j] " ~ op ~ "= elements.data[j - elementCountTill[pos[0]]].get!(GrpRowType[i]);");
+                        foreach(j; elementCountTill[pos[0]] .. elementCountTill[pos[0] + 1])
+                        {
+                            mixin("data[i][j] " ~ op ~ "= elements.data[j - elementCountTill[pos[0]]].get!(GrpRowType[i]);");
+                        }
                     }
                 }
             }
@@ -562,13 +583,22 @@ public:
         {
             assert(elements.data.length == elementCountTill[pos[0] + 1] - elementCountTill[pos[0]],
                 "Size of data doesn't match size of group column");
-            static foreach(i; 0.. GrpRowType.length)
+            
+            static if(isHomogeneousType)
             {
-                if(i == pos[1])
+                foreach(j; elementCountTill[pos[0]] .. elementCountTill[pos[0] + 1])
+                    mixin("data[pos[1]][j] " ~ op ~ "= elements.data[j - elementCountTill[pos[0]]];");
+            }
+            else
+            { 
+                static foreach(i; 0.. GrpRowType.length)
                 {
-                    foreach(j; elementCountTill[pos[0]] .. elementCountTill[pos[0] + 1])
+                    if(i == pos[1])
                     {
-                        mixin("data[i][j] " ~ op ~ "= elements.data[j - elementCountTill[pos[0]]];");
+                        foreach(j; elementCountTill[pos[0]] .. elementCountTill[pos[0] + 1])
+                        {
+                            mixin("data[i][j] " ~ op ~ "= elements.data[j - elementCountTill[pos[0]]];");
+                        }
                     }
                 }
             }
@@ -699,24 +729,36 @@ public:
 
         static if(axis)
         {
-            static foreach(i; 0 .. GrpRowType.length)
-                if(i == pos[1])
-                {
-                    static if(kind == Universal)
-                        Slice!(Type*, 1, kind) ret = slice!(Type)(elementCountTill[pos[0] + 1] - elementCountTill[pos[0]]).universal;
-                    else static if(kind == Canonical)
-                        Slice!(Type*, 1, kind) ret = slice!(string)(elementCountTill[pos[0] + 1] - elementCountTill[pos[0]]).canonical;
-                    else
-                        Slice!(Type*, 1, kind) ret = slice!(string)(elementCountTill[pos[0] + 1] - elementCountTill[pos[0]]);
 
-                    static if(__traits(isArithmetic, Type, GrpRowType[i]) || is(Type == GrpRowType[i]))
-                        foreach(j; elementCountTill[pos[0]] .. elementCountTill[pos[0] + 1])
-                            ret[j - elementCountTill[pos[0]]] = cast(Type)data[i][j];
+            static if(kind == Universal)
+                Slice!(Type*, 1, kind) ret = slice!(Type)(elementCountTill[pos[0] + 1] - elementCountTill[pos[0]]).universal;
+            else static if(kind == Canonical)
+                Slice!(Type*, 1, kind) ret = slice!(string)(elementCountTill[pos[0] + 1] - elementCountTill[pos[0]]).canonical;
+            else
+                Slice!(Type*, 1, kind) ret = slice!(string)(elementCountTill[pos[0] + 1] - elementCountTill[pos[0]]);
 
-                    return ret;
-                }
+            static if(isHomogeneousType)
+            {
+                static if(__traits(isArithmetic, Type, GrpRowType[0]) || is(Type == GrpRowType[0]))
+                    foreach(j; elementCountTill[pos[0]] .. elementCountTill[pos[0] + 1])
+                        ret[j - elementCountTill[pos[0]]] = cast(Type)data[pos[1]][j];
 
-                assert(0);
+                return ret;
+            }
+            else
+            {
+                static foreach(i; 0 .. GrpRowType.length)
+                    if(i == pos[1])
+                    {
+                        static if(__traits(isArithmetic, Type, GrpRowType[i]) || is(Type == GrpRowType[i]))
+                            foreach(j; elementCountTill[pos[0]] .. elementCountTill[pos[0] + 1])
+                                ret[j - elementCountTill[pos[0]]] = cast(Type)data[i][j];
+
+                        return ret;
+                    }
+            }
+            
+            assert(0);
         }
         else
         {
