@@ -1,12 +1,14 @@
 module magpie.dataframe;
 
-import magpie.axis: Axis;
+import magpie.axis: Axis, DataType;
 import magpie.index: Index;
 import magpie.helper: getArgsList, toArr;
 
 import std.meta: AliasSeq, Repeat, staticMap;
 import std.array: appender;
 import std.traits: isType, isBoolean, isArray;
+
+import mir.ndslice;
 
 /++
 The DataFrame Structure
@@ -811,10 +813,10 @@ public:
                 indx.column.codes[0][i] = cast(int)i;
 
             indx.row.titles.length = indx.row.codes.length;
-            foreach(i; 0 .. indx.row.titles.length)
+            foreach(i, ref ele;indx.row.titles)
             {
                 import std.conv: to;
-                indx.row.titles[i] = "Index" ~ to!(string)(i + 1);
+                ele = "Index" ~ to!(string)(i + 1);
             }
         }
 
@@ -987,6 +989,26 @@ public:
         }
     }
 
+    /// Assign Slice to DataFrame
+    void opAssign(T, SliceKind k)(Slice!(T*, 2, k) input)
+    {
+        assert(input.shape[0] <= rows && input.shape[1] <= cols, "Given Slice is larger than DataFrame");
+        static foreach(i; 0 .. RowType.length)
+            if(i < input.shape[1])
+            {
+
+                foreach(j; 0 .. input.shape[0])
+                    static if(__traits(isArithmetic, T, RowType[i]))
+                        data[i][j] = cast(RowType[i])input[j][i];
+                    else
+                    {
+                        import std.conv: to;
+                        data[i][j] = to!(RowType[i])(input[j][i]);
+                    }
+            }
+            
+    }
+
     /++
     void assign(int axis, T, U...)(T index, U values)
     Description: Assign values to rows or column.index
@@ -1157,6 +1179,40 @@ public:
         }
     }
 
+    /// Slice assignment operation
+    void opIndexAssign(T, SliceKind kind)(Slice!(T*, 1, kind) sl, string[] index, int axis = 1)
+    {
+        opIndexOpAssign!("")(sl, index, axis);
+    }
+
+    /// Slice assignment operation
+    void opIndexOpAssign(string op, T, SliceKind kind)(Slice!(T*, 1, kind) sl, string[] index, int axis = 1)
+    {
+        if(axis)
+        {
+            Axis!void fwd;
+            fwd.data.length = sl.shape[0];
+            foreach(i; 0 .. sl.shape[0])
+                fwd.data[i] = DataType(sl[i]);
+
+            opIndexOpAssign!(op)(fwd, index, axis);
+        }
+        else
+        {
+            Axis!(RowType) fwd;
+            static foreach(i; 0 .. RowType.length)
+                static if(__traits(isArithmetic, RowType[i], T))
+                    fwd.data[i] = cast(RowType[i])sl[i];
+                else
+                {
+                    import std.conv: to;
+                    fwd.data[i] = to!(RowType[i])(sl[i]);
+                }
+
+            opIndexOpAssign!(op)(fwd, index, axis);
+        }
+    }
+
     /++
     void apply(alias Fn, int axis, T)(T index)
     Description: Applies a function on a particular row or column
@@ -1245,10 +1301,11 @@ public:
             ret.indx.indexing[1] = indx.indexing[1];
             ret.indx.row.titles = indx.row.titles;
 
-            foreach(i; 0 .. indx.indexing[0].codes.length)
+            import std.range: lockstep;
+            foreach(a, b; lockstep(indx.row.index, indx.row.codes))
             {
-                ret.indx.row.index ~= indx.row.index[i];
-                ret.indx.row.codes ~= dropper(positions, indx.row.codes[i]);
+                ret.indx.row.index ~= a;
+                ret.indx.row.codes ~= dropper(positions, b);
             }
 
             static foreach(i; 0 .. RowType.length)
@@ -1266,10 +1323,11 @@ public:
             ret.indx.indexing[0] = indx.indexing[0];
             ret.indx.column.titles = indx.column.titles;
 
-            foreach(i; 0 .. indx.indexing[1].codes.length)
+            import std.range: lockstep;
+            foreach(a, b; lockstep(indx.column.index, indx.column.codes))
             {
-                ret.indx.column.index ~= indx.column.index[i];
-                ret.indx.column.codes ~= dropper(positions, indx.column.codes[i]);
+                ret.indx.column.index ~= a;
+                ret.indx.column.codes ~= dropper(positions, b);
             }
 
             auto retdata = dropper!(positions, data);
@@ -1365,6 +1423,14 @@ public:
         return ret;
     }
 
+    /++
+    Group DataFrame rows based on column values
+    Params:
+        dataLevels: Integer position of data columns to consider for groupBy
+        indexLevels: Levels of row index to consider for grouping
+    Returns:
+        A Group object
+    +/
     auto groupBy(int[] dataLevels = [])(int[] indexLevels = [])
     {
         import magpie.group: Group;
@@ -1374,6 +1440,97 @@ public:
         grp.createGroup!(dataLevels)(this, indexLevels);
 
         return grp;
+    }
+
+    /++
+    Get DataFrame data as a Slice
+    Params:
+        Type: Iterator type for the resultant slice
+        Kind: SliceKind for the resultant Slice
+    Returns:
+        A Slice of type Slice!(Type*, 2, kind)
+    +/
+    auto asSlice(Type, SliceKind kind)() @property
+    {
+        static if(__traits(isArithmetic, Type))
+            alias RetType = Type;
+        else
+            alias RetType = string;
+
+        static if(kind == Universal)
+            Slice!(RetType*, 2, kind) ret = slice!(RetType)(rows, cols).universal;
+        else static if(kind == Canonical)
+            Slice!(RetType*, 2, kind) ret = slice!(RetType)(rows, cols).canonical;
+        else
+            Slice!(RetType*, 2, kind) ret = slice!(RetType)(rows, cols);
+
+        static foreach(i; 0 .. RowType.length)
+        {
+            static if(__traits(isArithmetic, RowType[i], RetType) || is(RetType == RowType[i]))
+            {
+                foreach(j; 0 .. rows)
+                    ret[j][i] = cast(RetType)data[i][j];
+            }
+            else static if(is(RetType == string))
+            {
+                import std.conv: to;
+                foreach(j; 0 .. rows)
+                    ret[j][i] = to!(string)(data[i][j]);
+            }
+        }
+
+        return ret;
+    }
+
+    auto asSlice(SliceKind kind, Type = string, int axis = 0, T)(T index)
+        if(is(T == string[]) || is(T == int))
+    {
+        ptrdiff_t pos;
+        static if(is(T == string[]))
+            pos = getPosition!(axis)(index);
+        else
+            pos = index;
+
+        assert(pos > -1, "Index not found");
+        static if(axis)
+        {
+            static foreach(i; 0 .. RowType.length)
+            {
+                if(i == pos)
+                {
+                    static if(kind == Universal)
+                        Slice!(Type*, 1, kind) ret = slice!(Type)(rows).universal;
+                    else static if(kind == Canonical)
+                        Slice!(Type*, 1, kind) ret = slice!(string)(rows).canonical;
+                    else
+                        Slice!(Type*, 1, kind) ret = slice!(string)(rows);
+
+                    static if(__traits(isArithmetic, Type, RowType[i]) || is(Type == RowType[i]))
+                        foreach(j; 0 .. rows)
+                            ret[j] = cast(Type)data[i][j];
+
+                    return ret;
+                }
+            }
+
+            assert(0);
+        }
+        else
+        {
+            import std.conv: to;
+            Slice!(string*, 1, kind) ret;
+            static if(kind == Universal)
+                ret = slice!(string)(RowType.length).universal;
+            else static if(kind == Canonical)
+                ret = slice!(string)(RowType.length).canonical;
+            else
+                ret = slice!(string)(RowType.length);
+
+            static foreach(i; 0 .. RowType.length)
+                ret[i] = to!string(data[i][pos]);
+
+            return ret;
+        }
     }
 }
 
@@ -3136,4 +3293,128 @@ unittest
     grpBy.createGroup!([2])(df, [0, 1]);
 
     assert(grp.display(true, 200) == grpBy.display(true, 200));
+}
+
+// As a universal Slice
+unittest
+{
+    DataFrame!(int, 5) df;
+    Index inx;
+    inx.setIndex([["Hello", "Hi", "Hey"], ["Hi", "Hello", "Hey"], ["Hey", "Hello", "Hi"]], ["1", "2", "3"]);
+    df.setFrameIndex(inx);
+    df.assign!1(2, [1,2,3]);
+    df.assign!1(4, [1,2,3]);
+
+    auto dfslice = df.asSlice!(int, Universal);
+    assert(dfslice == [[0, 0, 1, 0, 1], [0, 0, 2, 0, 2], [0, 0, 3, 0, 3]]);
+}
+
+// As a canonical slice
+unittest
+{
+    DataFrame!(int, 5) df;
+    Index inx;
+    inx.setIndex([["Hello", "Hi", "Hey"], ["Hi", "Hello", "Hey"], ["Hey", "Hello", "Hi"]], ["1", "2", "3"]);
+    df.setFrameIndex(inx);
+    df.assign!1(2, [1,2,3]);
+    df.assign!1(4, [1,2,3]);
+
+    auto dfslice = df.asSlice!(int, Canonical);
+    assert(dfslice == [[0, 0, 1, 0, 1], [0, 0, 2, 0, 2], [0, 0, 3, 0, 3]]);
+}
+
+// As a contiguous slice
+unittest
+{
+    DataFrame!(int, 5) df;
+    Index inx;
+    inx.setIndex([["Hello", "Hi", "Hey"], ["Hi", "Hello", "Hey"], ["Hey", "Hello", "Hi"]], ["1", "2", "3"]);
+    df.setFrameIndex(inx);
+    df.assign!1(2, [1,2,3]);
+    df.assign!1(4, [1,2,3]);
+
+    auto dfslice = df.asSlice!(int, Contiguous);
+    assert(dfslice == [[0, 0, 1, 0, 1], [0, 0, 2, 0, 2], [0, 0, 3, 0, 3]]);
+}
+
+// Slice assignment
+unittest
+{
+    DataFrame!(int, 5) df;
+    Index inx;
+    inx.setIndex([["Hello", "Hi", "Hey"], ["Hi", "Hello", "Hey"], ["Hey", "Hello", "Hi"]], ["1", "2", "3"]);
+    df.setFrameIndex(inx);
+    df.assign!1(2, [1,2,3]);
+    df.assign!1(4, [1,2,3]);
+
+    auto dfslice = df.asSlice!(int, Contiguous);
+    
+    DataFrame!(int, 5) df2;
+    df2.setFrameIndex(inx);
+
+    df2 = dfslice;
+    assert(df.display(true, 200) == df2.display(true, 200));
+}
+
+// PArtial Slice Assignment
+unittest
+{
+    DataFrame!(int, 5) df;
+    Index inx;
+    inx.setIndex([["Hello", "Hi", "Hey"], ["Hi", "Hello", "Hey"], ["Hey", "Hello", "Hi"]], ["1", "2", "3"]);
+    df.setFrameIndex(inx);
+    
+    auto assn = slice!(int)(1, 1);
+    assn[0][0] = 42;
+    df = assn;
+
+    assert(df.data[0][0] == 42);
+}
+
+// asSlice oveload
+unittest
+{
+    DataFrame!(int, 5) df;
+    Index inx;
+    inx.setIndex([["Hello", "Hi", "Hey"], ["Hi", "Hello", "Hey"], ["Hey", "Hello", "Hi"]], ["1", "2", "3"]);
+    df.setFrameIndex(inx);
+    df.assign!1(2, [1,2,3]);
+    df.assign!1(4, [1,2,3]);
+
+    assert(df.asSlice!(Universal, int, 1)(["4"]) == [1, 2, 3]);
+    assert(df.asSlice!(Universal)(["Hello", "Hi", "Hey"]) == ["0", "0", "1", "0", "1"]);
+}
+
+// Slice opIndexOpAssign
+unittest
+{
+    DataFrame!(int, 5) df;
+    Index inx;
+    inx.setIndex([["Hello", "Hi", "Hey"], ["Hi", "Hello", "Hey"], ["Hey", "Hello", "Hi"]], ["1", "2", "3"]);
+    df.setFrameIndex(inx);
+    df.assign!1(2, [1,2,3]);
+    df.assign!1(4, [1,2,3]);
+
+    df[["3"]] = df.asSlice!(Universal, int, 1)(["4"]);
+    assert(df.asSlice!(Universal, int, 1)(["3"]) == [1, 2, 3]);
+
+    df[["Hello", "Hi", "Hey"], 0] = df.asSlice!(Universal)(["Hi", "Hello", "Hello"]);
+    assert(df.asSlice!(Universal)(["Hello", "Hi", "Hey"]) == ["0", "0", "2", "2", "2"]);
+}
+
+// Slice opIndexOpAssign - heterogeneous DataFrame
+unittest
+{
+    DataFrame!(int, 3, double, 2) df;
+    Index inx;
+    inx.setIndex([["Hello", "Hi", "Hey"], ["Hi", "Hello", "Hey"], ["Hey", "Hello", "Hi"]], ["1", "2", "3"]);
+    df.setFrameIndex(inx);
+    df.assign!1(2, [1,2,3]);
+    df.assign!1(4, [1.0, 2.0, 3.0]);
+
+    df[["1"]] = df.asSlice!(Universal, int, 1)(["4"]);
+    assert(df.asSlice!(Universal, int, 1)(["1"]) == [1, 2, 3]);
+
+    df[["Hello", "Hi", "Hey"], 0] = df.asSlice!(Universal)(["Hi", "Hello", "Hello"]);
+    assert(df.asSlice!(Universal)(["Hello", "Hi", "Hey"]) == ["0", "2", "2", "nan", "2"]);
 }

@@ -70,16 +70,18 @@ auto merge(JoinTypes type = Inner, T, U)(T df1, U df2, string lsuffix = "x_", st
     {
         string[] indx;
         indx.length = combinator.indx.row.codes.length;
-        foreach(j; 0 .. combinator.indx.row.codes.length)
+
+        import std.range: lockstep;
+        foreach(j, a, b; lockstep(combinator.indx.row.index, combinator.indx.row.codes))
         {
-            if(combinator.indx.row.index[j].length == 0)
+            if(a.length == 0)
             {
                 import std.conv: to;
-                indx[j] = to!string(combinator.indx.row.codes[j][i]);
+                indx[j] = to!string(b[i]);
             }
             else
             {
-                indx[j] = combinator.indx.row.index[j][combinator.indx.row.codes[j][i]];
+                indx[j] = a[b[i]];
             }
         }
 
