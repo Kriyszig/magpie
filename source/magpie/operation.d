@@ -8,6 +8,7 @@ module magpie.operation;
 
 import magpie.dataframe: DataFrame;
 import magpie.helper: isDataFrame;
+import magpie.ops;
 
 /// Enums for joins
 enum JoinTypes
@@ -203,6 +204,72 @@ auto merge(JoinTypes type = Inner, T, U)(T df1, U df2, string lsuffix = "x_", st
     else static assert(0, "Invalid join type. Available join type: left, right, outer, inner(default)");
 }
 
+enum AggregateOP
+{
+    count = 1,
+    max = 2,
+    min = 3,
+    mean = 4,
+    median = 5
+}
+
+auto aggregate(int axis, T, Ops...)(T df, Ops ops)
+    if(isDataFrame!T)
+{
+    static if(axis)
+    {
+        DataFrame!(float, df.RowType.length) ret;
+        ret.indx.column = df.indx.column;
+        ret.indx.row.titles = ["Operation"];
+        ret.indx.row.index.length = 1;
+        ret.indx.row.index[0].length = Ops.length;
+        ret.indx.row.codes.length = 1;
+
+        foreach(i; 0 .. df.RowType.length)
+            ret.data[i].length = Ops.length;
+
+        double opres;
+
+        static foreach(i; 0 .. Ops.length)
+        {
+            static foreach(j; 0 .. df.RowType.length)
+            {
+                if(ops[i] == AggregateOP.count)
+                {
+                    opres = count(df.data[j]);
+                    ret.indx.row.index[0][i] = "Count";
+                }
+                else if(ops[i] == AggregateOP.max)
+                {
+                    opres = max(df.data[j]);
+                    ret.indx.row.index[0][i] = "Max";
+                }
+                else if(ops[i] == AggregateOP.min)
+                {
+                    opres = min(df.data[j]);
+                    ret.indx.row.index[0][i] = "Min";
+                }
+                else if(ops[i] == AggregateOP.mean)
+                {
+                    opres = max(df.data[j]);
+                    ret.indx.row.index[0][i] = "Mean";
+                }
+                else if(ops[i] == AggregateOP.median)
+                {
+                    opres = max(df.data[j]);
+                    ret.indx.row.index[0][i] = "Median";
+                }
+                else assert(0, "Operation specified not found");
+
+                ret.data[j][i] = opres;
+            }
+        }
+
+        ret.rows = Ops.length;
+        return ret;
+    }
+}
+
 // Left Join
 unittest
 {
@@ -344,5 +411,24 @@ unittest
     assert(merge!(JoinTypes.inner)(df1, df2).display(true, 200) == "       Hello  Hi  Hello  Hi \n"
         ~ "I1                Hey    Hey\n"
         ~ "Hello  1      0   1      nan\n"
+    );
+}
+
+// Aggregate on Column
+unittest
+{
+    import magpie.index: Index;
+
+    DataFrame!(int, 3, double, 2) df;
+    Index inx;
+    inx[0] = ["Row1", "Row2"];
+    inx[1] = ["Col1", "Col2", "Col3", "Col4", "Col5"];
+
+    df.setFrameIndex(inx);
+    df = [[1, 2, 3, 4, 5], [1, 2, 3, 4, 5]];
+    // df.display();
+
+    assert(aggregate!(1)(df, AggregateOP.count).display(true, 200) == "Operation  Col1  Col2  Col3  Col4  Col5\n"
+        ~ "Count      2     4     6     8     10  \n"
     );
 }
