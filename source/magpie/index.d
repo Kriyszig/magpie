@@ -452,6 +452,37 @@ public:
 
         return -1;
     }
+
+    void opIndexAssign(T)(T index, size_t axis)
+    {
+        indexing[axis] = Indexing();
+        static if(is(T == int[]))
+        {
+            indexing[axis].index.length = 1;
+            indexing[axis].codes = [index];
+        }
+        else static if(is(T == int[][]))
+        {
+            indexing[axis].index.length = index.length;
+            indexing[axis].codes = index;
+        }
+        else static if(is(T == string[]))
+        {
+            indexing[axis].index = [index];
+            generateCodes();
+        }
+        else static if(is(T == string[][]))
+        {
+            indexing[axis].index = index;
+            generateCodes();
+        }
+        else static assert(0, "Index assignment only takes string array or integer array as input");
+
+        if(axis == 0)
+        {
+            indexing[axis].titles.length = indexing[axis].codes.length;
+        }
+    }
 }
 
 // Optmization test
@@ -896,4 +927,79 @@ unittest
     assert(inx.column.codes == [[0, 2, 1], [2, 0, 1]]);
     assert(inx.row.titles == ["RL1", "RL2"]);
     assert(inx.column.titles == ["CL1", "CL2"]);
+}
+
+// OpIndexAssign to set indexes - 1D integer array
+unittest
+{
+    Index inx;
+    inx[0] = [1, 2, 3, 4];
+    assert(inx.row.index == [[]]);
+    assert(inx.row.codes == [[1, 2, 3, 4]]);
+
+    inx[1] = [1, 2, 3, 4];
+    assert(inx.column.index == [[]]);
+    assert(inx.column.codes == [[1, 2, 3, 4]]);
+
+    // Checking previously set values remains unchanged
+    assert(inx.row.index == [[]]);
+    assert(inx.row.codes == [[1, 2, 3, 4]]);    
+}
+
+// OpIndexAssign to set indexes - 1D string array
+unittest
+{
+    Index inx;
+    inx[0] = ["Hello", "Hi"];
+    assert(inx.row.index == [["Hello", "Hi"]]);
+    assert(inx.row.codes == [[0, 1]]);
+
+    inx[1] = ["Hello", "Hi"];
+    assert(inx.column.index == [["Hello", "Hi"]]);
+    assert(inx.column.codes == [[0, 1]]);
+    // Checking previous values remain unchanged
+    assert(inx.row.index == [["Hello", "Hi"]]);
+    assert(inx.row.codes == [[0, 1]]);
+}
+
+// OpIndexAssign to set indexes - 1D integer array
+unittest
+{
+    Index inx;
+    inx[0] = [[1, 2, 3, 4], [1, 2, 3, 4]];
+    assert(inx.row.index == [[], []]);
+    assert(inx.row.codes == [[1, 2, 3, 4], [1, 2, 3, 4]]);
+
+    inx[1] = [[1, 2, 3, 4], [1, 2, 3, 4]];
+    assert(inx.column.index == [[], []]);
+    assert(inx.column.codes == [[1, 2, 3, 4], [1, 2, 3, 4]]);
+
+    // Checking previously set values remains unchanged
+    assert(inx.row.index == [[], []]);
+    assert(inx.row.codes == [[1, 2, 3, 4], [1, 2, 3, 4]]);    
+}
+
+// OpIndexAssign to set indexes - 1D string array
+unittest
+{
+    Index inx;
+    inx[0] = [["Hello", "Hi"], ["Hello", "Hi"]];
+    assert(inx.row.index == [["Hello", "Hi"], ["Hello", "Hi"]]);
+    assert(inx.row.codes == [[0, 1], [0, 1]]);
+
+    inx[1] = [["Hello", "Hi"], ["Hello", "Hi"]];
+    assert(inx.column.index == [["Hello", "Hi"], ["Hello", "Hi"]]);
+    assert(inx.column.codes == [[0, 1], [0, 1]]);
+    // Checking previous values remain unchanged
+    assert(inx.row.index == [["Hello", "Hi"], ["Hello", "Hi"]]);
+    assert(inx.row.codes == [[0, 1], [0, 1]]);
+}
+
+// Checking optimization because of trust issues
+unittest
+{
+    Index inx;
+    inx[0] = [["Hello", "Hi"], ["0", "1"]];
+    assert(inx.row.index == [["Hello", "Hi"], []]);
+    assert(inx.row.codes == [[0, 1], [0, 1]]);
 }
