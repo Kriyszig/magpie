@@ -266,6 +266,73 @@ auto aggregate(int axis, T, Ops...)(T df, Ops ops)
         }
 
         ret.rows = Ops.length;
+        ret.indx.optimize();
+
+        return ret;
+    }
+    else
+    {
+        // static assert(df.isHomogeneousType, "Row Aggregate is only supported for Homogeneous DataFrames");
+        DataFrame!(double, Ops.length) ret;
+        ret.indx.row = df.indx.row;
+        ret.indx.column.index.length = 1;
+        ret.indx.column.codes.length = 1;
+        ret.indx.column.index[0].length = Ops.length;
+
+        foreach(i; 0 .. Ops.length)
+            ret.data[i].length = df.rows;
+
+        foreach(i; 0 .. df.rows)
+        {
+            double[df.RowType.length] opArr;
+            int k;
+            static foreach(j; 0 .. df.RowType.length)
+                static if(__traits(isArithmetic, df.RowType[j]))
+                {
+                    opArr[k] = cast(double)df.data[j][i];
+                    ++k;
+                }
+
+            double opres;
+            if(opArr.length)
+            {
+                static foreach(j; 0 .. Ops.length)
+                {
+                    if(ops[j] == AggregateOP.count)
+                    {
+                        opres = count(opArr);
+                        ret.indx.column.index[0][j] = "Count";
+                    }
+                    else if(ops[j] == AggregateOP.max)
+                    {
+                        opres = max(opArr);
+                        ret.indx.column.index[0][j] = "Max";
+                    }
+                    else if(ops[j] == AggregateOP.min)
+                    {
+                        opres = min(opArr);
+                        ret.indx.column.index[0][j] = "Min";
+                    }
+                    else if(ops[j] == AggregateOP.mean)
+                    {
+                        opres = max(opArr);
+                        ret.indx.column.index[0][j] = "Mean";
+                    }
+                    else if(ops[j] == AggregateOP.median)
+                    {
+                        opres = max(opArr);
+                        ret.indx.column.index[0][j] = "Median";
+                    }
+                    else assert(0, "Operation specified not found");
+
+                    ret.data[j][i] = opres;
+                }
+            }
+        }
+
+        ret.rows = df.rows;
+        ret.indx.optimize();
+
         return ret;
     }
 }
@@ -414,7 +481,7 @@ unittest
     );
 }
 
-// Aggregate on Column
+// Aggregate with single op
 unittest
 {
     import magpie.index: Index;
@@ -430,5 +497,35 @@ unittest
 
     assert(aggregate!(1)(df, AggregateOP.count).display(true, 200) == "Operation  Col1  Col2  Col3  Col4  Col5\n"
         ~ "Count      2     4     6     8     10  \n"
+    );
+
+    assert(aggregate!(0)(df, AggregateOP.count).display(true, 200) == "      Count\n"
+        ~ "Row1  15   \n"
+        ~ "Row2  15   \n"
+    );
+}
+
+// Aggregate with multiple op
+unittest
+{
+    import magpie.index: Index;
+
+    DataFrame!(int, 3, double, 2) df;
+    Index inx;
+    inx[0] = ["Row1", "Row2"];
+    inx[1] = ["Col1", "Col2", "Col3", "Col4", "Col5"];
+
+    df.setFrameIndex(inx);
+    df = [[1, 2, 3, 4, 5], [1, 2, 3, 4, 5]];
+    // df.display();
+
+    assert(aggregate!(1)(df, AggregateOP.count, AggregateOP.max).display(true, 200) == "Operation  Col1  Col2  Col3  Col4  Col5\n"
+        ~ "Count      2     4     6     8     10  \n"
+        ~ "Max        1     2     3     4     5   \n"
+    );
+
+    assert(aggregate!(0)(df, AggregateOP.count, AggregateOP.max).display(true, 200) == "      Count  Max\n"
+        ~ "Row1  15     5  \n"
+        ~ "Row2  15     5  \n"
     );
 }
