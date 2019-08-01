@@ -7,7 +7,8 @@ module magpie.operation;
  */
 
 import magpie.dataframe: DataFrame;
-import magpie.helper: isDataFrame;
+import magpie.group: Group;
+import magpie.helper: isDataFrame, isGroup;
 import magpie.ops;
 
 /// Enums for joins
@@ -213,6 +214,15 @@ enum AggregateOP
     median = 5
 }
 
+/++
+Mathematical operation on an entire row/column
+Params:
+    axis: 0 to calculate alon row, 1 to calculate along column
+    df: DataFrame to apply aggregate on
+    ops: Operation to operate on the given DataFrame
+Returns:
+    A DataFFrame with the calculated aggregates
++/
 auto aggregate(int axis, T, Ops...)(T df, Ops ops)
     if(isDataFrame!T)
 {
@@ -333,6 +343,72 @@ auto aggregate(int axis, T, Ops...)(T df, Ops ops)
         ret.rows = df.rows;
         ret.indx.optimize();
 
+        return ret;
+    }
+}
+
+auto aggregate(int axis, T , Ops...)(T grp, Ops ops)
+    if(isGroup!T)
+{
+    import std.meta: Repeat;
+    static if(axis)
+    {
+        Group!(Repeat!(grp.GrpType.length, float)) ret;
+        ret.groups = grp.groups;
+        ret.elementCountTill.length = grp.groups.length + 1;
+        ret.grpIndex.column = grp.grpIndex.column;
+
+        foreach(i; 0 .. ret.elementCountTill.length)
+            ret.elementCountTill[i] = cast(int)(i * Ops.length);
+
+        foreach(i; 0 .. grp.GrpType.length)
+            ret.data[i].length = ret.groups.length * Ops.length;   
+        
+        ret.grpIndex.row.titles = ["Operation"];
+        ret.grpIndex.row.index.length = 1;
+        ret.grpIndex.row.index[0].length = ret.groups.length * Ops.length;
+        ret.grpIndex.row.codes.length = 1;
+
+        foreach(i; 0 .. ret.groups.length)
+        {
+            double opres;
+            static foreach(j; 0 .. Ops.length)
+            {
+                static foreach(k; 0 .. grp.GrpType.length)
+                {
+                    if(ops[j] == AggregateOP.count)
+                    {
+                        opres = count(grp.data[k][grp.elementCountTill[i] .. grp.elementCountTill[i + 1]]);
+                        ret.grpIndex.row.index[0][i * Ops.length + j] = "Count";
+                    }
+                    else if(ops[j] == AggregateOP.max)
+                    {
+                        opres = max(grp.data[k][grp.elementCountTill[i] .. grp.elementCountTill[i + 1]]);
+                        ret.grpIndex.row.index[0][i * Ops.length + j] = "Max";
+                    }
+                    else if(ops[j] == AggregateOP.min)
+                    {
+                        opres = min(grp.data[k][grp.elementCountTill[i] .. grp.elementCountTill[i + 1]]);
+                        ret.grpIndex.row.index[0][i * Ops.length + j] = "Min";
+                    }
+                    else if(ops[j] == AggregateOP.mean)
+                    {
+                        opres = max(grp.data[k][grp.elementCountTill[i] .. grp.elementCountTill[i + 1]]);
+                        ret.grpIndex.row.index[0][i * Ops.length + j] = "Mean";
+                    }
+                    else if(ops[j] == AggregateOP.median)
+                    {
+                        opres = max(grp.data[k][grp.elementCountTill[i] .. grp.elementCountTill[i + 1]]);
+                        ret.grpIndex.row.index[0][i * Ops.length + j] = "Median";
+                    }
+                    else assert(0, "Operation specified not found");
+
+                    ret.data[k][i * Ops.length + j] = opres;
+                }
+            }
+        }
+
+        ret.grpIndex.generateCodes();
         return ret;
     }
 }
@@ -527,5 +603,26 @@ unittest
     assert(aggregate!(0)(df, AggregateOP.count, AggregateOP.max).display(true, 200) == "      Count  Max\n"
         ~ "Row1  15     5  \n"
         ~ "Row2  15     5  \n"
+    );
+}
+
+// Aggregate with Group
+unittest
+{
+    import magpie.index: Index;
+
+    DataFrame!(int, 5) df;
+    Index inx;
+    inx.setIndex([["Hello", "Hello", "Hey"], ["Hi", "Hi", "Hey"], ["Hey", "Hello", "Hi"]], ["1", "2", "3"]);
+    df.setFrameIndex(inx);
+    df.assign!1(2, [1,1,3]);
+    df.assign!1(4, [1,2,3]);
+
+    auto gp = df.groupBy!([2])([0, 1]);
+    // gp.display();
+    assert(aggregate!(1)(gp, AggregateOP.count).display(true, 200) == "Operation  0  1  3  4\n"
+        ~ "Count      0  0  0  3\n\n"
+        ~ "Operation  0  1  3  4\n"
+        ~ "Count      0  0  0  3\n\n"
     );
 }

@@ -2,6 +2,7 @@ module magpie.helper;
 
 import magpie.dataframe: DataFrame;
 import magpie.index: Index;
+import magpie.group: Group;
 
 import std.meta: AliasSeq, Repeat;
 import std.range.primitives: ElementType;
@@ -314,6 +315,15 @@ template isDataFrame(T)
         enum bool isDataFrame = true;
     else
         enum bool isDataFrame = false;
+}
+
+/// Template to check if the input is a Group or not
+template isGroup(T)
+{
+    static if(is(T: Group!Ty, Ty...))
+        enum bool isGroup = true;
+    else
+        enum bool isGroup = false;
 }
 
 /// Check if given DataFrame is Homogeneous
