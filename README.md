@@ -168,6 +168,7 @@ struct Index
 * [Group By](#GroupBy)
 * [I/O](#I/O)
 * [Slice Integration](#Slice)
+* [Aggregate](#Aggregate)
 
 ### Index
 
@@ -331,6 +332,30 @@ inx.constructFromLevels!1([["Air", "Water"], ["Transportation", "What_to_put_her
  *  Air     Transportation  Gross Income
  *  Water   Transportation  Net Income
  *  Water   Transportation  Gross Income
+ */
+```
+
+#### Setting Index using Array like operation
+
+```d
+import magpie.index: Index;
+
+Index inx;
+inx[0] = ["Hello", "Hi"];
+inx[1] = ["Hey"];
+/*
+ *  The basic skeleton:
+ *         Hey
+ *  Hello
+ *  Hi
+ */
+
+inx[0] = [["Hello", "Hi"], ["Hey", "Hey"]];
+/*
+ *  The basic skeleton:
+ *              Hey
+ *  Hello  Hey
+ *  Hi     Hey
  */
 ```
 
@@ -1163,6 +1188,69 @@ gp.display();
  * Hi  0  0  0  3
  */
 ```
+
+### Aggregate
+
+Aggregate allows user to perform mathematical operation on row or columns of the DataFrame or a Group.
+
+Available Operations:
+* `Count`: Finds the sum
+* `Max`: Finds the largest element
+* `Min`: Finds the smallest element
+* `Mean`: Finds the mean value of the given data
+* `Median`: Finds the median of the given data
+
+#### Usage
+```d
+import magpie.dataframe: DataFrame;
+import magpie.index: Index;
+import magpie.operation: aggregate, AggregateOp;
+
+DataFrame!(int, 3, double, 2) df;
+Index inx;
+inx[0] = ["Row1", "Row2"];
+inx[1] = ["Col1", "Col2", "Col3", "Col4", "Col5"];
+
+df.setFrameIndex(inx);
+df = [[1, 2, 3, 4, 5], [1, 2, 3, 4, 5]];
+df.display();
+/*
+ *        Col1  Col2  Col3  Col4  Col5
+ *  Row1  1     2     3     4     5
+ *  Row2  1     2     3     4     5
+ */
+
+aggregate!(1)(df, AggregateOP.count).display();
+/*
+ *  Operation  Col1  Col2  Col3  Col4  Col5
+ *  Count      2     4     6     8     10
+ */
+
+aggregate!(1)(df, AggregateOP.count, AggregateOp.mean).display();
+/*
+ *  Operation       Col1  Col2  Col3  Col4  Col5
+ *  Count           2     4     6     8     10
+ *  Mean            1     2     3     4     5
+ */
+
+aggregate!(0)(df, AggregateOP.max).display();
+/*
+ *        Max
+ *  Row1  5
+ *  Row2  5
+ */
+
+aggregate!(0)(df, AggregateOP.max, AggregateOp.min).display();
+/*
+ *        Max  Min
+ *  Row1  5    1
+ *  Row2  5    1
+ */
+```
+
+Note:
+* Aggregate returns a homogeneous DataFrame of type Double
+* Aggregate operation along the row will only consider those elements of Arithmetic types
 
 ##### Dataset Sources
 

@@ -215,7 +215,7 @@ enum AggregateOP
 }
 
 /++
-Mathematical operation on an entire row/column
+Mathematical operation on an entire row/column of DataFrame
 Params:
     axis: 0 to calculate alon row, 1 to calculate along column
     df: DataFrame to apply aggregate on
@@ -347,6 +347,15 @@ auto aggregate(int axis, T, Ops...)(T df, Ops ops)
     }
 }
 
+/++
+Mathematical operation on an entire row/column of Group
+Params:
+    axis: 0 to calculate alon row, 1 to calculate along column
+    grp: Group to operate upon
+    ops: Operation to operate on the given DataFrame
+Returns:
+    A Group with the calculated aggregates
++/
 auto aggregate(int axis, T , Ops...)(T grp, Ops ops)
     if(isGroup!T)
 {
