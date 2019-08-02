@@ -310,27 +310,27 @@ auto aggregate(int axis, T, Ops...)(T df, Ops ops)
                 {
                     if(ops[j] == AggregateOP.count)
                     {
-                        opres = count(opArr);
+                        opres = count(opArr[0 .. k]);
                         ret.indx.column.index[0][j] = "Count";
                     }
                     else if(ops[j] == AggregateOP.max)
                     {
-                        opres = max(opArr);
+                        opres = max(opArr[0 .. k]);
                         ret.indx.column.index[0][j] = "Max";
                     }
                     else if(ops[j] == AggregateOP.min)
                     {
-                        opres = min(opArr);
+                        opres = min(opArr[0 .. k]);
                         ret.indx.column.index[0][j] = "Min";
                     }
                     else if(ops[j] == AggregateOP.mean)
                     {
-                        opres = max(opArr);
+                        opres = max(opArr[0 .. k]);
                         ret.indx.column.index[0][j] = "Mean";
                     }
                     else if(ops[j] == AggregateOP.median)
                     {
-                        opres = max(opArr);
+                        opres = max(opArr[0 .. k]);
                         ret.indx.column.index[0][j] = "Median";
                     }
                     else assert(0, "Operation specified not found");
@@ -404,6 +404,71 @@ auto aggregate(int axis, T , Ops...)(T grp, Ops ops)
                     else assert(0, "Operation specified not found");
 
                     ret.data[k][i * Ops.length + j] = opres;
+                }
+            }
+        }
+
+        ret.grpIndex.generateCodes();
+        return ret;
+    }
+    else
+    {
+        Group!(Repeat!(Ops.length, float)) ret;
+        ret.groups = grp.groups;
+        ret.grpIndex.row = grp.grpIndex.row;
+        ret.elementCountTill = grp.elementCountTill;
+
+        foreach(i; 0 .. Ops.length)
+            ret.data[i].length = ret.elementCountTill[$ -1];
+
+        ret.grpIndex.column.index.length = 1;
+        ret.grpIndex.column.codes.length = 1;
+        ret.grpIndex.column.index[0].length = Ops.length;
+
+        foreach(i; 0 .. ret.elementCountTill[$ - 1])
+        {
+            double[grp.GrpType.length] opArr;
+            size_t k;
+            static foreach(j; 0 .. grp.GrpType.length)
+                static if(__traits(isArithmetic, typeof(grp.data[j][i])))
+                {
+                    opArr[k] = cast(double)grp.data[j][i];
+                    ++k;
+                }    
+
+            double opres;
+            if(opArr.length)
+            {
+                static foreach(j; 0 .. Ops.length)
+                {
+                    if(ops[j] == AggregateOP.count)
+                    {
+                        opres = count(opArr[0 .. k]);
+                        ret.grpIndex.column.index[0][j] = "Count";
+                    }
+                    else if(ops[j] == AggregateOP.max)
+                    {
+                        opres = max(opArr[0 .. k]);
+                        ret.grpIndex.column.index[0][j] = "Max";
+                    }
+                    else if(ops[j] == AggregateOP.min)
+                    {
+                        opres = min(opArr[0 .. k]);
+                        ret.grpIndex.column.index[0][j] = "Min";
+                    }
+                    else if(ops[j] == AggregateOP.mean)
+                    {
+                        opres = max(opArr[0 .. k]);
+                        ret.grpIndex.column.index[0][j] = "Mean";
+                    }
+                    else if(ops[j] == AggregateOP.median)
+                    {
+                        opres = max(opArr[0 .. k]);
+                        ret.grpIndex.column.index[0][j] = "Median";
+                    }
+                    else assert(0, "Operation specified not found");
+
+                    ret.data[j][i] = opres;
                 }
             }
         }
@@ -624,5 +689,42 @@ unittest
         ~ "Count      0  0  0  3\n\n"
         ~ "Operation  0  1  3  4\n"
         ~ "Count      0  0  0  3\n\n"
+    );
+
+    assert(aggregate!(0)(gp, AggregateOP.count).display(true, 200) == "3      Count\n"
+        ~ "Hey    1    \n"
+        ~ "Hello  2    \n\n"
+        ~ "3   Count\n"
+        ~ "Hi  3    \n\n"
+    );
+}
+
+// Aggregate with Group
+unittest
+{
+    import magpie.index: Index;
+
+    DataFrame!(int, 5) df;
+    Index inx;
+    inx.setIndex([["Hello", "Hello", "Hey"], ["Hi", "Hi", "Hey"], ["Hey", "Hello", "Hi"]], ["1", "2", "3"]);
+    df.setFrameIndex(inx);
+    df.assign!1(2, [1,1,3]);
+    df.assign!1(4, [1,2,3]);
+
+    auto gp = df.groupBy!([2])([0, 1]);
+    // gp.display();
+    assert(aggregate!(1)(gp, AggregateOP.count, AggregateOP.max).display(true, 200) == "Operation  0  1  3  4\n"
+        ~ "Count      0  0  0  3\n"
+        ~ "Max        0  0  0  2\n\n"
+        ~ "Operation  0  1  3  4\n"
+        ~ "Count      0  0  0  3\n"
+        ~ "Max        0  0  0  3\n\n"
+    );
+
+    assert(aggregate!(0)(gp, AggregateOP.count, AggregateOP.max).display(true, 200) == "3      Count  Max\n"
+        ~ "Hey    1      1  \n"
+        ~ "Hello  2      2  \n\n"
+        ~ "3   Count  Max\n"
+        ~ "Hi  3      3  \n\n"
     );
 }
