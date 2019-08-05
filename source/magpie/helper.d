@@ -6,7 +6,7 @@ import magpie.group: Group;
 
 import std.meta: AliasSeq, Repeat;
 import std.range.primitives: ElementType;
-import std.traits: isStaticArray;
+import std.traits: isStaticArray, isIntegral, isFloatingPoint;
 
 /// Build DataFrame argument list
 template getArgsList(args...)
@@ -335,6 +335,22 @@ template isHomogeneous(Args...)
         enum bool isHomogeneous = is(Args[0] == Args[1]) && isHomogeneous!(Args[1 .. $]);
 }
 
+/// Resolve DataFrame type for aggregate's return value
+template resolveAggregateType(Args...)
+{
+    static if(Args.length)
+    {
+        static if(isIntegral!(Args[0]))
+            alias resolveAggregateType = AliasSeq!(ptrdiff_t, resolveAggregateType!(Args[1 .. $]));
+        else static if(isFloatingPoint!(Args[0]))
+            alias resolveAggregateType = AliasSeq!(double, resolveAggregateType!(Args[1 .. $]));
+        else
+            alias resolveAggregateType = AliasSeq!(float, resolveAggregateType!(Args[1 .. $]));
+    }
+    else
+        alias resolveAggregateType = AliasSeq!();
+}
+
 // Community suggested way ot intialize a DataFrame
 unittest
 {
@@ -476,4 +492,10 @@ unittest
 {
     static assert(isHomogeneous!(int, int, int) == true);
     static assert(isHomogeneous!(int, int, double) == false);
+}
+
+unittest
+{
+    static assert(is(resolveAggregateType!(int, int, float, float) == AliasSeq!(ptrdiff_t, ptrdiff_t, double, double)));
+    static assert(is(resolveAggregateType!(int, int, string, float, float) == AliasSeq!(ptrdiff_t, ptrdiff_t, float, double, double)));
 }

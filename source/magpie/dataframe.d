@@ -188,24 +188,15 @@ public:
                     maxGap = (maxGap > lenCol)? maxGap: lenCol;
                 }
 
+                size_t maxsize1 = 0, maxsize2 = 0;
                 static if(isHomogeneousType)
                 {
-                    size_t maxsize1 = 0, maxsize2 = 0;
                     if(top > indx.column.index.length + extra)
                         maxsize1 = data[dataIndex][0 .. top - indx.column.index.length - extra].map!(e => to!string(e).length).reduce!max;
                     if(bottom > data[dataIndex].length)
                         maxsize2 = data[dataIndex].map!(e => to!string(e).length).reduce!max;
                     else if(bottom > 0)
-                        maxsize2 = data[dataIndex][$ - bottom .. $].map!(e => to!string(e).length).reduce!max;
-
-                    if(maxsize1 > maxGap)
-                    {
-                        maxGap = maxsize1;
-                    }
-                    if(maxsize2 > maxGap)
-                    {
-                        maxGap = maxsize2;
-                    }
+                        maxsize2 = data[dataIndex][$ - bottom .. $].map!(e => to!string(e).length).reduce!max;   
                 }
                 else
                 {
@@ -213,24 +204,23 @@ public:
                     {
                         if(j == dataIndex)
                         {
-                            size_t maxsize1 = 0, maxsize2 = 0;
                             if(top > indx.column.index.length + extra)
                                 maxsize1 = data[j][0 .. top - indx.column.index.length - extra].map!(e => to!string(e).length).reduce!max;
                             if(bottom > data[j].length)
                                 maxsize2 = data[j].map!(e => to!string(e).length).reduce!max;
                             else if(bottom > 0)
                                 maxsize2 = data[j][$ - bottom .. $].map!(e => to!string(e).length).reduce!max;
-
-                            if(maxsize1 > maxGap)
-                            {
-                                maxGap = maxsize1;
-                            }
-                            if(maxsize2 > maxGap)
-                            {
-                                maxGap = maxsize2;
-                            }
                         }
                     }
+                }
+
+                if(maxsize1 > maxGap)
+                {
+                    maxGap = maxsize1;
+                }
+                if(maxsize2 > maxGap)
+                {
+                    maxGap = maxsize2;
                 }
 
                 gaps.put((maxGap < maxColSize)? maxGap: maxColSize);
@@ -1611,6 +1601,102 @@ public:
 
             static foreach(i; 0 .. RowType.length)
                 ret[i] = to!string(data[i][pos]);
+
+            return ret;
+        }
+    }
+
+    auto aggregate(int axis, Ops...)() @property
+    {
+        static if(axis)
+        {
+            import magpie.helper: resolveAggregateType;
+            DataFrame!(true, resolveAggregateType!(RowType)) ret;
+
+            ret.indx.column = indx.column;
+            ret.indx.row.titles = ["Operation"];
+            ret.indx.row.index.length = 1;
+            ret.indx.row.index[0].length = Ops.length;
+            ret.indx.row.codes.length = 1;
+            ret.rows = Ops.length;
+
+            static foreach(i; 0 .. Ops.length)
+                ret.indx.row.index[0][i] = __traits(identifier, Ops[0]);
+
+            static foreach(i; 0 .. RowType.length)
+                ret.data[i].length = Ops.length;
+
+            static foreach(i; 0 .. RowType.length)
+                static if(__traits(isArithmetic, RowType[i]))
+                    static foreach(j; 0 .. Ops.length)
+                    {
+                        import std.traits: variadicFunctionStyle, Variadic, Parameters, isArray, isNumeric, isCallable;
+
+                        static if(isCallable!(Ops[j])
+                            && (Paramters!(Ops[j]).length == 1 && isArray!(Paramters!(Ops[j])[0])))
+                        {
+                            ret.data[i][j] = Ops[j](data[i]);
+                        }
+                        else static if(!isCallable!(Ops[j]) || variadicFunctionStyle!(Ops[j]) != Variadic.no
+                            || (Paramters!(Ops[j]).length == 2 && isNumeric!(Paramters!(Ops[j])[0])
+                            && isNumeric!(Paramters!(Ops[j])[1])))
+                        {
+                            import std.algorithm: map, reduce;
+                            ret.data[i][j] = data[i].map!(e => e).reduce!(Ops[j]);
+                        }
+                    }
+
+            return ret;
+        }
+        else
+        {
+            import std.meta: Repeat;
+            DataFrame!(true, Repeat!(Ops.length, double)) ret;
+            ret.indx.row = indx.row;
+            ret.indx.column.index.length = 1;
+            ret.indx.column.codes.length = 1;
+            ret.indx.column.index[0].length = Ops.length;
+
+            static foreach(i; 0 .. Ops.length)
+                ret.indx.column.index[0][i] = __traits(identifier, Ops[0]);
+            
+            ret.rows = rows;
+            static foreach(i; 0 .. Ops.length)
+                ret.data[i].length = rows;
+
+            double[RowType.length] oparr;
+            size_t k;
+
+            foreach(i; 0 .. rows)
+            {
+                k = 0;
+                static foreach(j; 0 .. RowType.length)
+                    static if(__traits(isArithmetic, RowType[j]))
+                    {
+                        oparr[k] = data[j][i];
+                        ++k;
+                    }
+                
+                static foreach(j; 0 .. Ops.length)
+                {
+                    import std.traits: variadicFunctionStyle, Variadic, Parameters, isArray, isNumeric, isCallable;
+
+                    static if(isCallable!(Ops[j])
+                        && (Paramters!(Ops[j]).length == 1 && isArray!(Paramters!(Ops[j])[0])))
+                    {
+                        if(k > 0)
+                            ret.data[j][i] = Ops[j](oparr[0 .. k]);
+                    }
+                    else static if(!isCallable!(Ops[j]) || variadicFunctionStyle!(Ops[j]) != Variadic.no
+                        || (Paramters!(Ops[j]).length == 2 && isNumeric!(Paramters!(Ops[j])[0])
+                        && isNumeric!(Paramters!(Ops[j])[1])))
+                    {
+                        import std.algorithm: map, reduce;
+                        if(k > 0)
+                            ret.data[j][i] = oparr[0 .. k].map!(e => e).reduce!(Ops[j]);
+                    }
+                }
+            }
 
             return ret;
         }
@@ -3500,4 +3586,61 @@ unittest
 
     df[["Hello", "Hi", "Hey"], 0] = df.asSlice!(Universal)(["Hi", "Hello", "Hello"]);
     assert(df.asSlice!(Universal)(["Hello", "Hi", "Hey"]) == ["0", "2", "2", "nan", "2"]);
+}
+
+// Aggregate Operation on DataFrame Columns
+unittest
+{
+    DataFrame!(int, 2, double, 2) df;
+    Index inx;
+
+    inx[0] = ["Row1", "Row2"];
+    inx[1] = ["Col1", "Col2", "Col3", "Col4"];
+
+    df.setFrameIndex(inx);
+    df = [[1, 2, 3.4, 5.6], [2, 8, 7.9, 5.6]];
+    // df.display();
+
+    import std.algorithm: max, min;
+    assert(df.aggregate!(1, max).display(true, 200) == "Operation  Col1  Col2  Col3  Col4\n"
+        ~ "max        2     8     7.9   5.6 \n"
+    );
+
+    auto mindf = df.aggregate!(1, min);
+    import std.math: approxEqual;
+    assert(mindf.data[0][0] == 1 && mindf.data[1][0] == 2);
+    assert(approxEqual(mindf.data[2][0], 3.4, 1e-8) && approxEqual(mindf.data[3][0], 5.6, 1e-8));
+
+    auto doubledf = df.aggregate!(1, max, min);
+    assert(doubledf.data[0][0] == 2 && doubledf.data[1][0] == 8);
+    assert(approxEqual(doubledf.data[2][0], 7.9, 1e-8) && approxEqual(doubledf.data[3][0], 5.6, 1e-8));
+    assert(doubledf.data[0][1] == 1 && doubledf.data[1][1] == 2);
+    assert(approxEqual(doubledf.data[2][1], 3.4, 1e-8) && approxEqual(doubledf.data[3][1], 5.6, 1e-8));
+}
+
+// Aggregate Operation on DataFrame Columns
+unittest
+{
+    DataFrame!(int, 2, double, 2) df;
+    Index inx;
+
+    inx[0] = ["Row1", "Row2"];
+    inx[1] = ["Col1", "Col2", "Col3", "Col4"];
+
+    df.setFrameIndex(inx);
+    df = [[1, 2, 3.4, 5.6], [2, 8, 7.9, 5.6]];
+    // df.display();
+
+    import std.algorithm: max, min;
+    import std.math: approxEqual;
+
+    auto maxdf = df.aggregate!(0, max);
+    assert(approxEqual(maxdf.data[0][0], 5.6, 1e-8) && approxEqual(maxdf.data[0][1], 8, 1e-8));
+
+    auto mindf = df.aggregate!(0, min);
+    assert(approxEqual(mindf.data[0][0], 1, 1e-8) && approxEqual(mindf.data[0][1], 2, 1e-8));
+
+    auto doubledf = df.aggregate!(0, min, max);
+    assert(approxEqual(doubledf.data[0][0], 1, 1e-8) && approxEqual(doubledf.data[0][1], 2, 1e-8));
+    assert(approxEqual(doubledf.data[1][0], 5.6, 1e-8) && approxEqual(doubledf.data[1][1], 8, 1e-8));
 }
