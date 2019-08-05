@@ -733,9 +733,9 @@ public:
             static if(kind == Universal)
                 Slice!(Type*, 1, kind) ret = slice!(Type)(elementCountTill[pos[0] + 1] - elementCountTill[pos[0]]).universal;
             else static if(kind == Canonical)
-                Slice!(Type*, 1, kind) ret = slice!(string)(elementCountTill[pos[0] + 1] - elementCountTill[pos[0]]).canonical;
+                Slice!(Type*, 1, kind) ret = slice!(Type)(elementCountTill[pos[0] + 1] - elementCountTill[pos[0]]).canonical;
             else
-                Slice!(Type*, 1, kind) ret = slice!(string)(elementCountTill[pos[0] + 1] - elementCountTill[pos[0]]);
+                Slice!(Type*, 1, kind) ret = slice!(Type)(elementCountTill[pos[0] + 1] - elementCountTill[pos[0]]);
 
             static if(isHomogeneousType)
             {

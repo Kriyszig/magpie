@@ -1572,9 +1572,9 @@ public:
             static if(kind == Universal)
                 Slice!(Type*, 1, kind) ret = slice!(Type)(rows).universal;
             else static if(kind == Canonical)
-                Slice!(Type*, 1, kind) ret = slice!(string)(rows).canonical;
+                Slice!(Type*, 1, kind) ret = slice!(Type)(rows).canonical;
             else
-                Slice!(Type*, 1, kind) ret = slice!(string)(rows);
+                Slice!(Type*, 1, kind) ret = slice!(Type)(rows);
             static if(isHomogeneousType)
             {
                 static if(__traits(isArithmetic, Type, RowType[0]) || is(Type == RowType[0]))
