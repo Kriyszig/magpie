@@ -2,7 +2,7 @@ module magpie.dataframe;
 
 import magpie.axis: Axis, DataType;
 import magpie.index: Index;
-import magpie.helper: getArgsList, toArr, isHomogeneous;
+import magpie.helper: getArgsList, toArr, isHomogeneous, suitableType;
 
 import std.meta: AliasSeq, Repeat, staticMap;
 import std.array: appender;
@@ -45,6 +45,34 @@ private:
     ptrdiff_t getPosition(int axis)(string[] index)
     {
         return indx.getPosition!(axis)(index);
+    }
+
+    template resolverInternal(T, Ops...)
+    {
+        import std.traits: ReturnType;
+        static if(Ops.length)
+        {
+            alias Op = Ops[0];
+            static if(__traits(compiles, ReturnType!(Op!T)))
+                alias resolverInternal = AliasSeq!(ReturnType!(Op!T), resolverInternal!(T, Ops[1 .. $]));
+            else static if(__traits(compiles, ReturnType!(Op!(toArr!T))))
+                alias resolverInternal = AliasSeq!(ReturnType!(Op!(toArr!T)), resolverInternal!(T, Ops[1 .. $]));
+            else
+                alias resolverInternal = AliasSeq!(ReturnType!(Op!(T,T)), resolverInternal!(T, Ops[1 .. $]));
+        }
+        else 
+            alias resolverInternal = AliasSeq!();
+    }
+
+    template aggregateType(int axis, Ops...)
+    {
+        alias fwdType = suitableType!(RowType);
+        alias Resolved = resolverInternal!(fwdType, Ops);
+
+        static if(axis)
+            alias aggregateType = suitableType!(Resolved);
+        else
+            alias aggregateType = Resolved;
     }
 
 public:
@@ -1610,8 +1638,10 @@ public:
     {
         static if(axis)
         {
-            import magpie.helper: resolveAggregateType;
-            DataFrame!(true, resolveAggregateType!(RowType)) ret;
+            import std.meta: staticMap;
+
+            alias Resolve(T) = suitableType!(resolverInternal!(T, Ops));
+            DataFrame!(true, staticMap!(Resolve, RowType)) ret;
 
             ret.indx.column = indx.column;
             ret.indx.row.titles = ["Operation"];
@@ -1630,19 +1660,13 @@ public:
                 static if(__traits(isArithmetic, RowType[i]))
                     static foreach(j; 0 .. Ops.length)
                     {
-                        import std.traits: variadicFunctionStyle, Variadic, Parameters, isArray, isNumeric, isCallable;
-
-                        static if(isCallable!(Ops[j])
-                            && (Paramters!(Ops[j]).length == 1 && isArray!(Paramters!(Ops[j])[0])))
-                        {
+                        static if(__traits(compiles, Ops[j](data[i])))
                             ret.data[i][j] = Ops[j](data[i]);
-                        }
-                        else static if(!isCallable!(Ops[j]) || variadicFunctionStyle!(Ops[j]) != Variadic.no
-                            || (Paramters!(Ops[j]).length == 2 && isNumeric!(Paramters!(Ops[j])[0])
-                            && isNumeric!(Paramters!(Ops[j])[1])))
+                        else
                         {
                             import std.algorithm: map, reduce;
-                            ret.data[i][j] = data[i].map!(e => e).reduce!(Ops[j]);
+                            if(__traits(compiles, data[i].map!(e => e).reduce!(Ops[j])))
+                                ret.data[i][j] = cast(ret.RowType[i])data[i].map!(e => e).reduce!(Ops[j]);
                         }
                     }
 
@@ -1651,7 +1675,7 @@ public:
         else
         {
             import std.meta: Repeat;
-            DataFrame!(true, Repeat!(Ops.length, double)) ret;
+            DataFrame!(true, aggregateType!(axis, Ops)) ret;
             ret.indx.row = indx.row;
             ret.indx.column.index.length = 1;
             ret.indx.column.codes.length = 1;
@@ -1664,7 +1688,7 @@ public:
             static foreach(i; 0 .. Ops.length)
                 ret.data[i].length = rows;
 
-            double[RowType.length] oparr;
+            suitableType!(RowType)[RowType.length] oparr;
             size_t k;
 
             foreach(i; 0 .. rows)
@@ -1679,21 +1703,16 @@ public:
                 
                 static foreach(j; 0 .. Ops.length)
                 {
-                    import std.traits: variadicFunctionStyle, Variadic, Parameters, isArray, isNumeric, isCallable;
-
-                    static if(isCallable!(Ops[j])
-                        && (Paramters!(Ops[j]).length == 1 && isArray!(Paramters!(Ops[j])[0])))
+                    static if(__traits(compiles, Ops[j](oparr[0 .. k])))
                     {
                         if(k > 0)
                             ret.data[j][i] = Ops[j](oparr[0 .. k]);
                     }
-                    else static if(!isCallable!(Ops[j]) || variadicFunctionStyle!(Ops[j]) != Variadic.no
-                        || (Paramters!(Ops[j]).length == 2 && isNumeric!(Paramters!(Ops[j])[0])
-                        && isNumeric!(Paramters!(Ops[j])[1])))
+                    else
                     {
                         import std.algorithm: map, reduce;
-                        if(k > 0)
-                            ret.data[j][i] = oparr[0 .. k].map!(e => e).reduce!(Ops[j]);
+                        if(k > 0 && __traits(compiles, oparr[0 .. k].map!(e => e).reduce!(Ops[j])))
+                            ret.data[j][i] = cast(ret.RowType[j])oparr[0 .. k].map!(e => e).reduce!(Ops[j]);
                     }
                 }
             }
@@ -3608,10 +3627,12 @@ unittest
 
     auto mindf = df.aggregate!(1, min);
     import std.math: approxEqual;
+    static assert(is(mindf.RowType == AliasSeq!(int, int, double, double)));
     assert(mindf.data[0][0] == 1 && mindf.data[1][0] == 2);
     assert(approxEqual(mindf.data[2][0], 3.4, 1e-8) && approxEqual(mindf.data[3][0], 5.6, 1e-8));
 
     auto doubledf = df.aggregate!(1, max, min);
+    static assert(is(doubledf.RowType == AliasSeq!(int, int, double, double)));
     assert(doubledf.data[0][0] == 2 && doubledf.data[1][0] == 8);
     assert(approxEqual(doubledf.data[2][0], 7.9, 1e-8) && approxEqual(doubledf.data[3][0], 5.6, 1e-8));
     assert(doubledf.data[0][1] == 1 && doubledf.data[1][1] == 2);
@@ -3643,4 +3664,57 @@ unittest
     auto doubledf = df.aggregate!(0, min, max);
     assert(approxEqual(doubledf.data[0][0], 1, 1e-8) && approxEqual(doubledf.data[0][1], 2, 1e-8));
     assert(approxEqual(doubledf.data[1][0], 5.6, 1e-8) && approxEqual(doubledf.data[1][1], 8, 1e-8));
+}
+
+private auto customFunc(T)(T[] arr)
+{
+    T res = 0;
+    foreach(i, ele; arr)
+        res += i * ele;
+    
+    return res;
+}
+
+// Custom function passed to aggregate
+unittest
+{
+    DataFrame!(int, 2, double, 2) df;
+    Index inx;
+
+    inx[0] = ["Row1", "Row2"];
+    inx[1] = ["Col1", "Col2", "Col3", "Col4"];
+
+    df.setFrameIndex(inx);
+    df = [[1, 2, 3.4, 5.6], [2, 8, 7.9, 5.6]];
+    // df.display();
+
+    import std.math: approxEqual;
+    auto customdf = df.aggregate!(1, customFunc);
+    assert(customdf.data[0][0] == 2 && customdf.data[1][0] == 8);
+    assert(approxEqual(customdf.data[2][0], 7.9, 1e-8) && approxEqual(customdf.data[3][0], 5.6, 1e-8)); 
+}
+
+// Return Type optimization for Aggregate
+unittest
+{
+    DataFrame!(int, 4) df;
+    Index inx;
+
+    inx[0] = ["Row1", "Row2"];
+    inx[1] = ["Col1", "Col2", "Col3", "Col4"];
+
+    df.setFrameIndex(inx);
+    df = [[1, 2, 3, 5], [2, 8, 7, 6]];
+    // df.display();
+
+    import std.algorithm: max, min;
+    import std.math: approxEqual;
+
+    auto maxdf = df.aggregate!(0, max);
+    static assert(is(maxdf.FrameType == int[][1]));
+    assert(maxdf.data[0][0] == 5 && maxdf.data[0][1] == 8);
+
+    auto maxdfc = df.aggregate!(1, max);
+    static assert(is(maxdfc.FrameType == int[][4]));
+    assert(maxdfc.data[0][0] == 2 && maxdfc.data[1][0] == 8 && maxdfc.data[2][0] == 7 && maxdfc.data[3][0] == 6);
 }
