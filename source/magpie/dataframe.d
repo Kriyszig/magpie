@@ -53,7 +53,9 @@ private:
         static if(Ops.length)
         {
             alias Op = Ops[0];
-            static if(__traits(compiles, ReturnType!(Op!T)))
+            static if(__traits(compiles, ReturnType!(Op)))
+                alias resolverInternal = AliasSeq!(ReturnType!(Op), resolverInternal!(T, Ops[1 .. $]));
+            else static if(__traits(compiles, ReturnType!(Op!T)))
                 alias resolverInternal = AliasSeq!(ReturnType!(Op!T), resolverInternal!(T, Ops[1 .. $]));
             else static if(__traits(compiles, ReturnType!(Op!(toArr!T))))
                 alias resolverInternal = AliasSeq!(ReturnType!(Op!(toArr!T)), resolverInternal!(T, Ops[1 .. $]));
@@ -64,15 +66,11 @@ private:
             alias resolverInternal = AliasSeq!();
     }
 
-    template aggregateType(int axis, Ops...)
+    template aggregateType(Ops...)
     {
         alias fwdType = suitableType!(RowType);
         alias Resolved = resolverInternal!(fwdType, Ops);
-
-        static if(axis)
-            alias aggregateType = suitableType!(Resolved);
-        else
-            alias aggregateType = Resolved;
+        alias aggregateType = Resolved;
     }
 
 public:
@@ -1670,12 +1668,12 @@ public:
                         }
                     }
 
+            ret.indx.generateCodes();
             return ret;
         }
         else
         {
-            import std.meta: Repeat;
-            DataFrame!(true, aggregateType!(axis, Ops)) ret;
+            DataFrame!(true, aggregateType!(Ops)) ret;
             ret.indx.row = indx.row;
             ret.indx.column.index.length = 1;
             ret.indx.column.codes.length = 1;
@@ -1717,6 +1715,7 @@ public:
                 }
             }
 
+            ret.indx.generateCodes();
             return ret;
         }
     }
