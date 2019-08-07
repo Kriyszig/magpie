@@ -209,7 +209,7 @@ public:
         static if(isHomogeneousType)
             auto sortdata = transposed(data);
         else
-            auto ref sortdata = data;
+            alias sortdata = data;
 
         auto arrange = zip(levels, codes[1 .. $], sortdata, rcodes).sort!((a, b) => a[1] < b[1]);
 
