@@ -82,6 +82,17 @@ public:
     +/
     auto display(bool getStr = false, int maxwidth = 0)
     {
+        import std.algorithm: map, reduce, max;
+        import std.conv: to;
+
+        auto gapCalc(T)(T[] arr)
+        {
+            static if(is(T == string))
+                return arr.map!(e => e.length).reduce!max;
+            else
+                return arr.map!(e => to!string(e).length).reduce!max;
+        }
+
         if(rows == 0)
         {
             if(!getStr)
@@ -112,8 +123,6 @@ public:
             bottom = 0;
         }
 
-        import std.algorithm: map, reduce, max;
-        import std.conv: to;
         size_t dataIndex = 0;
         foreach(i; 0 .. totalWidth)
         {
@@ -125,16 +134,13 @@ public:
                 {
                     size_t tmp = 0;
                     if(indx.row.codes[i].length == 0)
-                        tmp = indx.row.index[i][0 .. top - indx.column.index.length - extra].map!(e => e.length).reduce!max;
+                        tmp = gapCalc(indx.row.index[i][0 .. top - indx.column.index.length - extra]);
                     else if(indx.row.index[i].length == 0)
-                        tmp = indx.row.codes[i][0 .. top - indx.column.index.length - extra].map!(e => to!string(e).length).reduce!max;
+                        tmp = gapCalc(indx.row.codes[i][0 .. top - indx.column.index.length - extra]);
                     else
                         tmp = indx.row.codes[i][0 .. top - indx.column.index.length - extra].map!(e => indx.row.index[i][e].length).reduce!max;
 
-                    if(tmp > thisGap)
-                    {
-                        thisGap = tmp;
-                    }
+                    thisGap = max(thisGap, tmp);
                 }
 
                 if(bottom > 0)
@@ -143,44 +149,35 @@ public:
                     {
                         size_t tmp = 0;
                         if(indx.row.codes[i].length == 0)
-                            tmp = indx.row.index[i].map!(e => e.length).reduce!max;
+                            tmp = gapCalc(indx.row.index[i]);
                         else if(indx.row.index[i].length == 0)
-                            tmp = indx.row.codes[i].map!(e => to!string(e).length).reduce!max;
+                            tmp = gapCalc(indx.row.codes[i]);
                         else
                             tmp = indx.row.codes[i].map!(e => indx.row.index[i][e].length).reduce!max;
 
-                        if(tmp > thisGap)
-                        {
-                            thisGap = tmp;
-                        }
+                        thisGap = max(thisGap, tmp);
                     }
                     else
                     {
                         size_t tmp = 0;
                         if(indx.row.codes[i].length == 0)
-                            tmp = indx.row.index[i][$ - bottom .. $].map!(e => e.length).reduce!max;
+                            tmp = gapCalc(indx.row.index[i][$ - bottom .. $]);
                         else if(indx.row.index[i].length == 0)
-                            tmp = indx.row.codes[i][$ - bottom .. $].map!(e => to!string(e).length).reduce!max;
+                            tmp = gapCalc(indx.row.codes[i][$ - bottom .. $]);
                         else
                             tmp = indx.row.codes[i][$ - bottom .. $].map!(e => indx.row.index[i][e].length).reduce!max;
 
-                        if(tmp > thisGap)
-                        {
-                            thisGap = tmp;
-                        }
+                        thisGap = max(thisGap, tmp);
                     }
                 }
 
                 if(i == indx.row.index.length - 1 && indx.column.titles.length > 0)
                 {
                     const auto tmp = (indx.column.titles.length > top)
-                        ? indx.column.titles[0 .. top].map!(e => e.length).reduce!max
-                        : indx.column.titles.map!(e => e.length).reduce!max;
+                        ? gapCalc(indx.column.titles[0 .. top])
+                        : gapCalc(indx.column.titles);
 
-                    if(tmp > thisGap)
-                    {
-                        thisGap = tmp;
-                    }
+                    thisGap = max(thisGap, tmp);
                 }
 
                 gaps.put((thisGap < maxColSize)? thisGap: maxColSize);
@@ -198,7 +195,7 @@ public:
                     else
                         lenCol = indx.column.index[j][indx.column.codes[j][dataIndex]].length;
 
-                    maxGap = (maxGap > lenCol)? maxGap: lenCol;
+                    maxGap = max(maxGap, lenCol);
                 }
 
                 foreach(j; totalHeight - bottom .. indx.column.index.length)
@@ -211,18 +208,18 @@ public:
                     else
                         lenCol = indx.column.index[j][indx.column.codes[j][dataIndex]].length;
 
-                    maxGap = (maxGap > lenCol)? maxGap: lenCol;
+                    maxGap = max(maxGap, lenCol);
                 }
 
                 size_t maxsize1 = 0, maxsize2 = 0;
                 static if(isHomogeneousType)
                 {
                     if(top > indx.column.index.length + extra)
-                        maxsize1 = data[dataIndex][0 .. top - indx.column.index.length - extra].map!(e => to!string(e).length).reduce!max;
+                        maxsize1 = gapCalc(data[dataIndex][0 .. top - indx.column.index.length - extra]);
                     if(bottom > data[dataIndex].length)
-                        maxsize2 = data[dataIndex].map!(e => to!string(e).length).reduce!max;
+                        maxsize2 = gapCalc(data[dataIndex]);
                     else if(bottom > 0)
-                        maxsize2 = data[dataIndex][$ - bottom .. $].map!(e => to!string(e).length).reduce!max;   
+                        maxsize2 = gapCalc(data[dataIndex][$ - bottom .. $]);   
                 }
                 else
                 {
@@ -231,24 +228,16 @@ public:
                         if(j == dataIndex)
                         {
                             if(top > indx.column.index.length + extra)
-                                maxsize1 = data[j][0 .. top - indx.column.index.length - extra].map!(e => to!string(e).length).reduce!max;
+                                maxsize1 = gapCalc(data[j][0 .. top - indx.column.index.length - extra]);
                             if(bottom > data[j].length)
-                                maxsize2 = data[j].map!(e => to!string(e).length).reduce!max;
+                                maxsize2 = gapCalc(data[j]);
                             else if(bottom > 0)
-                                maxsize2 = data[j][$ - bottom .. $].map!(e => to!string(e).length).reduce!max;
+                                maxsize2 = gapCalc(data[j][$ - bottom .. $]);
                         }
                     }
                 }
 
-                if(maxsize1 > maxGap)
-                {
-                    maxGap = maxsize1;
-                }
-                if(maxsize2 > maxGap)
-                {
-                    maxGap = maxsize2;
-                }
-
+                maxGap = max(maxGap, maxsize1, maxsize2);
                 gaps.put((maxGap < maxColSize)? maxGap: maxColSize);
                 ++dataIndex;
             }
