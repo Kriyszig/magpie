@@ -503,10 +503,23 @@ public:
     @params: writecolumn.index - write column index to the file
     @params: sep - data seperator
     +/
-    void to_csv(string path, bool writeIndex = true, bool writeColumn = true, char sep = ',')
+    void to_csv(int precision = 0)(string path, bool writeIndex = true, bool writeColumn = true, char sep = ',')
     {
         import std.array: appender;
         import std.conv: to;
+        import std.format: format;
+
+        string formatData(T)(T ele)
+        {
+            static if(is(T == string))
+                return ele;
+            else static if(__traits(isIntegral, T))
+                return format!"%d"(ele);
+            else static if(__traits(isFloating, T) && precision)
+                return format!("%." ~ to!string(precision) ~"f")(ele);
+            else
+                return to!string(ele);
+        }
 
         auto formatter = appender!(string);
         const size_t totalHeight = rows + indx.column.index.length +
@@ -601,11 +614,11 @@ public:
                     formatter.put(sep);
                 }
             }
-            formatter.put(to!string(data[0][i]));
+            formatter.put(formatData(data[0][i]));
             static foreach(j; 1 .. RowType.length)
             {
                 formatter.put(sep);
-                formatter.put(to!string(data[j][i]));
+                formatter.put(formatData(data[j][i]));
             }
 
             formatter.put("\n");
@@ -3046,10 +3059,10 @@ unittest
 // Parsing dataset 2 with gaps in data
 unittest
 {
-    DataFrame!(double, 23) df;
+    DataFrame!(int, double, 22) df;
     df.from_csv("./test/fromcsv/dataset2.csv", 2, 1);
     //df.display();
-    df.to_csv("./test/tocsv/ex4p1.csv");
+    df.to_csv!(4)("./test/tocsv/ex4p1.csv");
 
     import std.stdio: File;
     import std.string: chomp;
