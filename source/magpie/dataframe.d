@@ -886,6 +886,27 @@ public:
         return data[i2][i1];
     }
 
+    RowType[i2] at(size_t i2)(size_t i1) @property
+        if(i2 < RowType.length)
+    {
+        return data[i2][i1];
+    }
+
+    auto at(size_t i1, size_t i2) @property
+    {
+        assert(i2 < cols && i1 < rows, "Index out of bound");
+        static if(isHomogeneousType)
+            return data[i2][i1];
+        else
+        {
+            static foreach(i; 0 .. RowType.length)
+                if(i == i2)
+                    return data[i][i1];
+
+            assert(0);
+        }
+    }
+
     /++
     void opIndexAssign(Args...)(Args ele, size_t i1, size_t i2)
     Description: Setting the element at an index
