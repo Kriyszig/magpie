@@ -85,6 +85,18 @@ public:
         import std.algorithm: map, reduce, max;
         import std.conv: to;
 
+        auto auxDispatch(alias Fn)(size_t indx)
+        {
+            static if(isHomogeneousType)
+                return Fn(indx);
+            else
+                static foreach(i; 0 .. RowType.length)
+                    if(i == indx)
+                        return Fn!i;
+
+            assert(0);
+        }
+
         auto gapCalc(T)(T[] arr)
         {
             static if(is(T == string))
@@ -212,30 +224,23 @@ public:
                 }
 
                 size_t maxsize1 = 0, maxsize2 = 0;
-                static if(isHomogeneousType)
+
+                void maxGapCalc(ptrdiff_t si = -1)(size_t ri = 0) @property
                 {
+                    static if(si > -1)
+                        alias j = si;
+                    else
+                        size_t j = ri;
+
                     if(top > indx.column.index.length + extra)
-                        maxsize1 = gapCalc(data[dataIndex][0 .. top - indx.column.index.length - extra]);
-                    if(bottom > data[dataIndex].length)
-                        maxsize2 = gapCalc(data[dataIndex]);
+                        maxsize1 = gapCalc(data[j][0 .. top - indx.column.index.length - extra]);
+                    if(bottom > data[j].length)
+                        maxsize2 = gapCalc(data[j]);
                     else if(bottom > 0)
-                        maxsize2 = gapCalc(data[dataIndex][$ - bottom .. $]);   
+                        maxsize2 = gapCalc(data[j][$ - bottom .. $]);
                 }
-                else
-                {
-                    static foreach(j; 0 .. RowType.length)
-                    {
-                        if(j == dataIndex)
-                        {
-                            if(top > indx.column.index.length + extra)
-                                maxsize1 = gapCalc(data[j][0 .. top - indx.column.index.length - extra]);
-                            if(bottom > data[j].length)
-                                maxsize2 = gapCalc(data[j]);
-                            else if(bottom > 0)
-                                maxsize2 = gapCalc(data[j][$ - bottom .. $]);
-                        }
-                    }
-                }
+
+                auxDispatch!maxGapCalc(dataIndex);
 
                 maxGap = max(maxGap, maxsize1, maxsize2);
                 gaps.put((maxGap < maxColSize)? maxGap: maxColSize);
@@ -420,17 +425,19 @@ public:
                             else
                             {
                                 string idx = "";
-                                static if(isHomogeneousType)
-                                    idx = to!string(data[j - indx.row.index.length][dataIndex]);
-                                else
+
+                                string toStringAux(ptrdiff_t si = -1)(size_t ri = 0) @property
                                 {
-                                    static foreach(k; 0 .. RowType.length)
-                                    {
-                                        if(k == j - indx.row.index.length)
-                                            idx = to!string(data[k][dataIndex]);
-                                    }
+                                    static if(si > -1)
+                                        alias i = si;
+                                    else
+                                        size_t i = ri;
+
+                                    return to!string(data[i][dataIndex]);
                                 }
 
+                                idx = auxDispatch!toStringAux(j - indx.row.index.length);
+                                
                                 if(idx.length > maxColSize)
                                 {
                                     dispstr.put(idx[0 .. maxColSize]);
@@ -895,16 +902,30 @@ public:
     auto at(size_t i1, size_t i2) @property
     {
         assert(i2 < cols && i1 < rows, "Index out of bound");
-        static if(isHomogeneousType)
-            return data[i2][i1];
-        else
+
+        auto auxDispatch(alias Fn)(size_t indx)
         {
-            static foreach(i; 0 .. RowType.length)
-                if(i == i2)
-                    return data[i][i1];
+            static if(isHomogeneousType)
+                return Fn(indx);
+            else
+                static foreach(i; 0 .. RowType.length)
+                    if(i == indx)
+                        return Fn!i;
 
             assert(0);
         }
+
+        auto returnAux(ptrdiff_t si = -1)(size_t ri = 0) @property
+        {
+            static if(si > -1)
+                alias i = si;
+            else
+                size_t i = ri;
+
+            return data[i][i1];
+        }
+        
+        return auxDispatch!returnAux(i2);
     }
 
     /++
@@ -918,20 +939,27 @@ public:
     {
         assert(i1 < rows && i2 < cols, "Index out of bound");
 
-        static if(isHomogeneousType)
+        void auxDispatch(alias Fn)(size_t indx)
         {
-            data[i2][i1] = ele[0];
+            static if(isHomogeneousType)
+                Fn(indx);
+            else
+                static foreach(i; 0 .. RowType.length)
+                    if(i == indx)
+                        Fn!i;
         }
-        else
+
+        void assignAux(ptrdiff_t si = -1)(size_t ri = 0) @property
         {
-            static foreach(i; 0 .. RowType.length)
-            {
-                if(i == i2)
-                {
-                    data[i][i1] = ele[0];
-                }
-            }
+            static if(si > -1)
+                alias i = si;
+            else
+                size_t i = ri;
+
+            data[i][i1] = ele[0];
         }
+
+        auxDispatch!assignAux(i2);
     }
 
     /++
@@ -945,20 +973,32 @@ public:
         assert(rindx.length == indx.row.codes.length, "Size of row index don't match the index depth");
         assert(cindx.length == indx.column.codes.length, "Size of column index don't match the index depth");
 
+        void auxDispatch(alias Fn)(size_t indx)
+        {
+            static if(isHomogeneousType)
+                Fn(indx);
+            else
+                static foreach(i; 0 .. RowType.length)
+                    if(i == indx)
+                        Fn!i;
+        }
+
         ptrdiff_t i1 = getPosition!0(rindx);
         ptrdiff_t i2 = getPosition!1(cindx);
 
         assert(i1 > -1 && i2 > -1, "Given headers don't match DataFrame Headers");
-        static if(isHomogeneousType)
-            data[i2][i1] = ele;
-        else
-            static foreach(i; 0 .. RowType.length)
-            {
-                if(i == i2)
-                {
-                    data[i][i1] = ele;
-                }
-            }
+
+        void assignAux(ptrdiff_t si = -1)(size_t ri = 0) @property
+        {
+            static if(si > -1)
+                alias i = si;
+            else
+                size_t i = ri;
+
+            data[i][i1] = ele;
+        }
+
+        auxDispatch!assignAux(i2);
     }
 
     /++
@@ -1102,6 +1142,16 @@ public:
     void assign(int axis, T, U...)(T index, U values)
         if(U.length > 0)
     {
+        void auxDispatch(alias Fn)(size_t indx)
+        {
+            static if(isHomogeneousType)
+                Fn(indx);
+            else
+                static foreach(i; 0 .. RowType.length)
+                    if(i == indx)
+                        Fn!i;
+        }
+
         ptrdiff_t pos;
         static if(is(T == int))
             pos = index;
@@ -1117,22 +1167,27 @@ public:
         }
         else
         {
-            static if(isHomogeneousType)
+            void assignAux(ptrdiff_t si = -1)(size_t ri = 0) @property
             {
-                static if(is(toArr!(RowType[0]) == U[0]))
-                    foreach(j; 0 .. (rows > values[0].length)? values[0].length: rows)
-                        data[pos][j] = values[0][j];
-            }
-            else
-                static foreach(i; 0 .. RowType.length)
+                static if(si > -1)
                 {
-                    if(i == pos)
-                    {
-                        static if(is(toArr!(RowType[i]) == U[0]))
-                            foreach(j; 0 .. (rows > values[0].length)? values[0].length: rows)
-                                data[i][j] = values[0][j];
-                    }
+                    alias i = si;
+                    enum size_t typepos = i;
                 }
+                else
+                {
+                    size_t i = ri;
+                    enum size_t typepos = 0;
+                }
+
+                static if(is(toArr!(RowType[typepos]) == U[0]))
+                {
+                    foreach(j; 0 .. (rows > values[0].length)? values[0].length: rows)
+                        data[i][j] = values[0][j];
+                }
+            }
+            
+            auxDispatch!assignAux(pos);
         }
     }
 
@@ -1145,15 +1200,29 @@ public:
         assert(i1 <= rows, "Row index out of bound");
         assert(i2 <= cols, "Column index out of bound");
 
-        static if(isHomogeneousType)
-            return data[i2][i1];
-        else
-            static foreach(i; 0 .. RowType.length)
-                if(i == i2)
-                    return data[i][i1];
+        auto auxDispatch(alias Fn)(size_t indx)
+        {
+            static if(isHomogeneousType)
+                return Fn(indx);
+            else
+                static foreach(i; 0 .. RowType.length)
+                    if(i == indx)
+                        return Fn!i;
 
-        // If the above assertions pass, a value will be definitely returned
-        assert(0);
+            assert(0);
+        }
+
+        auto returnAux(ptrdiff_t si = -1)(size_t ri = 0) @property
+        {
+            static if(si > -1)
+                alias i = si;
+            else
+                size_t i = ri;
+
+            return data[i][i1];
+        }
+
+        return auxDispatch!returnAux(i2);
     }
 
     /++
@@ -1178,15 +1247,30 @@ public:
             i2 = getPosition!1(cindx);
 
         assert(i1 > -1 && i2 > -1, "Given headers don't match DataFrame Headers");
-        
-        static if(isHomogeneousType)
-            return data[i2][i1];
-        else
-            static foreach(i; 0 .. RowType.length)
-                if(i == i2)
-                    return data[i][i1];
 
-        assert(0);
+        auto auxDispatch(alias Fn)(size_t indx)
+        {
+            static if(isHomogeneousType)
+                return Fn(indx);
+            else
+                static foreach(i; 0 .. RowType.length)
+                    if(i == indx)
+                        return Fn!i;
+
+            assert(0);
+        }
+        
+        auto returnAux(ptrdiff_t si = -1)(size_t ri = 0) @property
+        {
+            static if(si > -1)
+                alias i = si;
+            else
+                size_t i = ri;
+
+            return data[i][i1];
+        }
+
+        return auxDispatch!returnAux(i2);
     }
 
     /++
@@ -1197,6 +1281,16 @@ public:
     auto opIndex(Args...)(string[] index, Args args)
         if(Args.length == 0 || (Args.length == 1 && is(Args[0] == int)))
     {
+        void auxDispatch(alias Fn)(size_t indx)
+        {
+            static if(isHomogeneousType)
+                Fn(indx);
+            else
+                static foreach(i; 0 .. RowType.length)
+                    if(i == indx)
+                        Fn!i;
+        }
+
         const int axis = 1 - Args.length;
         ptrdiff_t pos = -1;
         if(axis == 0)
@@ -1211,15 +1305,18 @@ public:
             import magpie.axis: Axis, DataType;
             Axis!void retcol;
 
-            static if(isHomogeneousType)
-                foreach(j; data[pos])
-                        retcol.data ~= DataType(j);
-            else
-                static foreach(i; 0 .. RowType.length)
-                    if(i == pos)
-                        foreach(j; data[i])
-                            retcol.data ~= DataType(j);
+            void axisAssignAux(ptrdiff_t si = -1)(size_t ri = 0) @property
+            {
+                static if(si > -1)
+                    alias i = si;
+                else
+                    size_t i = ri;
+                    
+                foreach(j; data[i])
+                    retcol.data ~= DataType(j);
+            }
 
+            auxDispatch!axisAssignAux(pos);
             return retcol;
         }
         else
@@ -1250,34 +1347,60 @@ public:
     void opIndexOpAssign(string op, T...)(Axis!T elements, string[] index, int axis = 1)
         if(T.length == RowType.length || T.length == 1)
     {
+        void auxDispatch(alias Fn)(size_t indx)
+        {
+            static if(isHomogeneousType)
+                Fn(indx);
+            else
+                static foreach(i; 0 .. RowType.length)
+                    if(i == indx)
+                        Fn!i;
+        }
+
         import std.traits: isArray;
         static if(is(T[0] == void))
         {
             assert(elements.data.length == rows, "Length of Axis.data is not equal to number of rows");
             ptrdiff_t pos = getPosition!1(index);
             assert(pos > -1, "Index not found");
-            static if(isHomogeneousType)
+
+            void mixinAux(ptrdiff_t si = -1)(size_t ri = 0) @property
+            {
+                static if(si > -1)
+                {
+                    alias i = si;
+                    enum size_t typepos = si;
+                }
+                else
+                {
+                    size_t i = ri;
+                    enum size_t typepos = 0;
+                }
+
                 foreach(j; 0 .. elements.data.length)
-                    mixin("data[pos][j] " ~ op ~"= elements.data[j].get!(RowType[0]);");
-            else
-                static foreach(i; 0 .. RowType.length)
-                    if(i == pos)
-                        foreach(j; 0 .. elements.data.length)
-                            mixin("data[i][j] " ~ op ~"= elements.data[j].get!(RowType[i]);");
+                    mixin("data[i][j] " ~ op ~"= elements.data[j].get!(RowType[typepos]);");
+            }
+            
+            auxDispatch!mixinAux(pos);
         }
         else static if(T.length == 1 && isArray!(T[0]))
         {
             assert(elements.data.length == rows, "Length of Axis.data is not equal to number of rows");
             ptrdiff_t pos = getPosition!1(index);
             assert(pos > -1, "Index not found");
-            static if(isHomogeneousType)
+
+            void mixinAux(ptrdiff_t si = -1)(size_t ri = 0) @property
+            {
+                static if(si > -1)
+                    alias i = si;
+                else
+                    size_t i = ri;
+
                 foreach(j; 0 .. elements.data.length)
-                        mixin("data[pos][j] " ~ op ~"= elements.data[j];");
-            else
-                static foreach(i; 0 .. RowType.length)
-                    if(i == pos)
-                        foreach(j; 0 .. elements.data.length)
-                            mixin("data[i][j] " ~ op ~"= elements.data[j];");
+                    mixin("data[i][j] " ~ op ~"= elements.data[j];");
+            }
+            
+            auxDispatch!mixinAux(pos);
         }
         else
         {
@@ -1599,6 +1722,16 @@ public:
     auto asSlice(SliceKind kind, Type = string, int axis = 0, T)(T index)
         if(is(T == string[]) || is(T == int))
     {
+        void auxDispatch(alias Fn)(size_t indx)
+        {
+            static if(isHomogeneousType)
+                Fn(indx);
+            else
+                static foreach(i; 0 .. RowType.length)
+                    if(i == indx)
+                        Fn!i;
+        }
+
         ptrdiff_t pos;
         static if(is(T == string[]))
             pos = getPosition!(axis)(index);
@@ -1614,28 +1747,27 @@ public:
                 Slice!(Type*, 1, kind) ret = slice!(Type)(rows).canonical;
             else
                 Slice!(Type*, 1, kind) ret = slice!(Type)(rows);
-            static if(isHomogeneousType)
-            {
-                static if(__traits(isArithmetic, Type, RowType[0]) || is(Type == RowType[0]))
-                    foreach(j; 0 .. rows)
-                        ret[j] = cast(Type)data[pos][j];
-                
-                return ret;
-            }
-            else
-                static foreach(i; 0 .. RowType.length)
-                {
-                    if(i == pos)
-                    {
-                        static if(__traits(isArithmetic, Type, RowType[i]) || is(Type == RowType[i]))
-                            foreach(j; 0 .. rows)
-                                ret[j] = cast(Type)data[i][j];
 
-                        return ret;
-                    }
+            void sliceAssignAux(ptrdiff_t si = -1)(size_t ri = 0) @property
+            {
+                static if(si > -1)
+                {
+                    alias i = si;
+                    enum size_t typepos = si;
+                }
+                else
+                {
+                    size_t i = ri;
+                    enum size_t typepos = 0;
                 }
 
-            assert(0);
+                static if(__traits(isArithmetic, Type, RowType[typepos]) || is(Type == RowType[typepos]))
+                    foreach(j; 0 .. rows)
+                        ret[j] = cast(Type)data[i][j];
+            }
+            
+            auxDispatch!sliceAssignAux(pos);
+            return ret;
         }
         else
         {
@@ -1655,6 +1787,14 @@ public:
         }
     }
 
+    /++
+    Applies mathematical operations on DataFrame row/column
+    Params:
+        axis: 0 to compute row wise, 1 to compute column wise
+        Ops: Mathematical operations to apply
+    Returns:
+        DataFrame with computed operations
+    +/
     auto aggregate(int axis, Ops...)() @property
     {
         static if(axis)
