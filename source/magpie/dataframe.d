@@ -73,6 +73,21 @@ private:
         alias aggregateType = Resolved;
     }
 
+    mixin template auxDispatch(alias F)
+    {
+        auto auxDispatch(size_t indx)
+        {
+            static if(isHomogeneousType)
+                return F(indx);
+            else
+                static foreach(i; 0 .. RowType.length)
+                    if(i == indx)
+                        return F!(i);
+
+            assert(0);
+        }
+    }
+
 public:
     /++
     auto display(bool getStr = false, int maxwidth = 0)
@@ -84,18 +99,6 @@ public:
     {
         import std.algorithm: map, reduce, max;
         import std.conv: to;
-
-        auto auxDispatch(alias Fn)(size_t indx)
-        {
-            static if(isHomogeneousType)
-                return Fn(indx);
-            else
-                static foreach(i; 0 .. RowType.length)
-                    if(i == indx)
-                        return Fn!i;
-
-            assert(0);
-        }
 
         auto gapCalc(T)(T[] arr)
         {
@@ -240,7 +243,8 @@ public:
                         maxsize2 = gapCalc(data[j][$ - bottom .. $]);
                 }
 
-                auxDispatch!maxGapCalc(dataIndex);
+                mixin auxDispatch!(maxGapCalc);
+                auxDispatch(dataIndex);
 
                 maxGap = max(maxGap, maxsize1, maxsize2);
                 gaps.put((maxGap < maxColSize)? maxGap: maxColSize);
@@ -436,7 +440,8 @@ public:
                                     return to!string(data[i][dataIndex]);
                                 }
 
-                                idx = auxDispatch!toStringAux(j - indx.row.index.length);
+                                mixin auxDispatch!(toStringAux);
+                                idx = auxDispatch(j - indx.row.index.length);
                                 
                                 if(idx.length > maxColSize)
                                 {
@@ -903,18 +908,6 @@ public:
     {
         assert(i2 < cols && i1 < rows, "Index out of bound");
 
-        auto auxDispatch(alias Fn)(size_t indx)
-        {
-            static if(isHomogeneousType)
-                return Fn(indx);
-            else
-                static foreach(i; 0 .. RowType.length)
-                    if(i == indx)
-                        return Fn!i;
-
-            assert(0);
-        }
-
         auto returnAux(ptrdiff_t si = -1)(size_t ri = 0) @property
         {
             static if(si > -1)
@@ -925,7 +918,8 @@ public:
             return data[i][i1];
         }
         
-        return auxDispatch!returnAux(i2);
+        mixin auxDispatch!(returnAux);
+        return auxDispatch(i2);
     }
 
     /++
@@ -939,16 +933,6 @@ public:
     {
         assert(i1 < rows && i2 < cols, "Index out of bound");
 
-        void auxDispatch(alias Fn)(size_t indx)
-        {
-            static if(isHomogeneousType)
-                Fn(indx);
-            else
-                static foreach(i; 0 .. RowType.length)
-                    if(i == indx)
-                        Fn!i;
-        }
-
         void assignAux(ptrdiff_t si = -1)(size_t ri = 0) @property
         {
             static if(si > -1)
@@ -959,7 +943,8 @@ public:
             data[i][i1] = ele[0];
         }
 
-        auxDispatch!assignAux(i2);
+        mixin auxDispatch!(assignAux);
+        auxDispatch(i2);
     }
 
     /++
@@ -972,16 +957,6 @@ public:
     {
         assert(rindx.length == indx.row.codes.length, "Size of row index don't match the index depth");
         assert(cindx.length == indx.column.codes.length, "Size of column index don't match the index depth");
-
-        void auxDispatch(alias Fn)(size_t indx)
-        {
-            static if(isHomogeneousType)
-                Fn(indx);
-            else
-                static foreach(i; 0 .. RowType.length)
-                    if(i == indx)
-                        Fn!i;
-        }
 
         ptrdiff_t i1 = getPosition!0(rindx);
         ptrdiff_t i2 = getPosition!1(cindx);
@@ -998,7 +973,8 @@ public:
             data[i][i1] = ele;
         }
 
-        auxDispatch!assignAux(i2);
+        mixin auxDispatch!(assignAux);
+        auxDispatch(i2);
     }
 
     /++
@@ -1142,15 +1118,6 @@ public:
     void assign(int axis, T, U...)(T index, U values)
         if(U.length > 0)
     {
-        void auxDispatch(alias Fn)(size_t indx)
-        {
-            static if(isHomogeneousType)
-                Fn(indx);
-            else
-                static foreach(i; 0 .. RowType.length)
-                    if(i == indx)
-                        Fn!i;
-        }
 
         ptrdiff_t pos;
         static if(is(T == int))
@@ -1187,7 +1154,8 @@ public:
                 }
             }
             
-            auxDispatch!assignAux(pos);
+            mixin auxDispatch!(assignAux);
+            auxDispatch(pos);
         }
     }
 
@@ -1200,18 +1168,6 @@ public:
         assert(i1 <= rows, "Row index out of bound");
         assert(i2 <= cols, "Column index out of bound");
 
-        auto auxDispatch(alias Fn)(size_t indx)
-        {
-            static if(isHomogeneousType)
-                return Fn(indx);
-            else
-                static foreach(i; 0 .. RowType.length)
-                    if(i == indx)
-                        return Fn!i;
-
-            assert(0);
-        }
-
         auto returnAux(ptrdiff_t si = -1)(size_t ri = 0) @property
         {
             static if(si > -1)
@@ -1222,7 +1178,8 @@ public:
             return data[i][i1];
         }
 
-        return auxDispatch!returnAux(i2);
+        mixin auxDispatch!(returnAux);
+        return auxDispatch(i2);
     }
 
     /++
@@ -1247,18 +1204,6 @@ public:
             i2 = getPosition!1(cindx);
 
         assert(i1 > -1 && i2 > -1, "Given headers don't match DataFrame Headers");
-
-        auto auxDispatch(alias Fn)(size_t indx)
-        {
-            static if(isHomogeneousType)
-                return Fn(indx);
-            else
-                static foreach(i; 0 .. RowType.length)
-                    if(i == indx)
-                        return Fn!i;
-
-            assert(0);
-        }
         
         auto returnAux(ptrdiff_t si = -1)(size_t ri = 0) @property
         {
@@ -1270,7 +1215,8 @@ public:
             return data[i][i1];
         }
 
-        return auxDispatch!returnAux(i2);
+        mixin auxDispatch!(returnAux);
+        return auxDispatch(i2);
     }
 
     /++
@@ -1281,16 +1227,6 @@ public:
     auto opIndex(Args...)(string[] index, Args args)
         if(Args.length == 0 || (Args.length == 1 && is(Args[0] == int)))
     {
-        void auxDispatch(alias Fn)(size_t indx)
-        {
-            static if(isHomogeneousType)
-                Fn(indx);
-            else
-                static foreach(i; 0 .. RowType.length)
-                    if(i == indx)
-                        Fn!i;
-        }
-
         const int axis = 1 - Args.length;
         ptrdiff_t pos = -1;
         if(axis == 0)
@@ -1316,7 +1252,8 @@ public:
                     retcol.data ~= DataType(j);
             }
 
-            auxDispatch!axisAssignAux(pos);
+            mixin auxDispatch!(axisAssignAux);
+            auxDispatch(pos);
             return retcol;
         }
         else
@@ -1347,16 +1284,6 @@ public:
     void opIndexOpAssign(string op, T...)(Axis!T elements, string[] index, int axis = 1)
         if(T.length == RowType.length || T.length == 1)
     {
-        void auxDispatch(alias Fn)(size_t indx)
-        {
-            static if(isHomogeneousType)
-                Fn(indx);
-            else
-                static foreach(i; 0 .. RowType.length)
-                    if(i == indx)
-                        Fn!i;
-        }
-
         import std.traits: isArray;
         static if(is(T[0] == void))
         {
@@ -1381,7 +1308,8 @@ public:
                     mixin("data[i][j] " ~ op ~"= elements.data[j].get!(RowType[typepos]);");
             }
             
-            auxDispatch!mixinAux(pos);
+            mixin auxDispatch!(mixinAux);
+            auxDispatch(pos);
         }
         else static if(T.length == 1 && isArray!(T[0]))
         {
@@ -1400,7 +1328,8 @@ public:
                     mixin("data[i][j] " ~ op ~"= elements.data[j];");
             }
             
-            auxDispatch!mixinAux(pos);
+            mixin auxDispatch!(mixinAux);
+            auxDispatch(pos);
         }
         else
         {
@@ -1722,16 +1651,6 @@ public:
     auto asSlice(SliceKind kind, Type = string, int axis = 0, T)(T index)
         if(is(T == string[]) || is(T == int))
     {
-        void auxDispatch(alias Fn)(size_t indx)
-        {
-            static if(isHomogeneousType)
-                Fn(indx);
-            else
-                static foreach(i; 0 .. RowType.length)
-                    if(i == indx)
-                        Fn!i;
-        }
-
         ptrdiff_t pos;
         static if(is(T == string[]))
             pos = getPosition!(axis)(index);
@@ -1766,7 +1685,8 @@ public:
                         ret[j] = cast(Type)data[i][j];
             }
             
-            auxDispatch!sliceAssignAux(pos);
+            mixin auxDispatch!(sliceAssignAux);
+            auxDispatch(pos);
             return ret;
         }
         else
@@ -1793,7 +1713,7 @@ public:
         axis: 0 to compute row wise, 1 to compute column wise
         Ops: Mathematical operations to apply
     Returns:
-        DataFrame with computed operations
+        DataFrame with computed operations  
     +/
     auto aggregate(int axis, Ops...)() @property
     {

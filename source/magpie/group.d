@@ -125,6 +125,21 @@ private:
         alias aggregateType = Resolved;
     }
 
+    mixin template auxDispatch(alias F)
+    {
+        auto auxDispatch(size_t indx)
+        {
+            static if(isHomogeneousType)
+                return F(indx);
+            else
+                static foreach(i; 0 .. GrpRowType.length)
+                    if(i == indx)
+                        return F!(i);
+
+            assert(0);
+        }
+    }
+
 public:
     /++
     ptrdiff_t getGroupPosition(string[] grpTitles)
@@ -439,14 +454,18 @@ public:
     +/
     auto opIndex(size_t i1, size_t i2, size_t i3)
     {
-        static if(isHomogeneousType)
-            return data[i3][elementCountTill[i1] + i2];
-        else
-            static foreach(i; 0 .. GrpRowType.length)
-                if(i == i3)
-                    return data[i][elementCountTill[i1] + i2];
+        auto returnAux(ptrdiff_t si = -1)(size_t ri = 0) @property
+        {
+            static if(si > -1)
+                alias i = si;
+            else
+                size_t i = ri;
 
-        assert(0);
+            return data[i][elementCountTill[i1] + i2];
+        }
+        
+        mixin auxDispatch!(returnAux);
+        return auxDispatch(i3);
     }
 
     /++
@@ -476,14 +495,18 @@ public:
             pos[2] = positionInGroup!(1)(i3, pos[0]);
         assert(pos[2] > -1, "Index out of bound");
 
-        static if(isHomogeneousType)
-            return data[pos[2]][elementCountTill[pos[0]] + pos[1]];
-        else
-            static foreach(i; 0 .. GrpRowType.length)
-                if(i == pos[2])
-                    return data[i][elementCountTill[pos[0]] + pos[1]];
+        auto returnAux(ptrdiff_t si = -1)(size_t ri) @property
+        {
+            static if(si > -1)
+                alias i = si;
+            else
+                size_t i = ri;
 
-        assert(0);
+            return data[i][elementCountTill[pos[0]] + pos[1]];
+        }
+        
+        mixin auxDispatch!(returnAux);
+        return auxDispatch(pos[2]);
     }
 
     /++
@@ -524,18 +547,19 @@ public:
         static if(1 - Args.length)
         {
             Axis!(void) ret;
-            static if(isHomogeneousType)
-                foreach(j; data[pos[1]][elementCountTill[pos[0]] .. elementCountTill[pos[0] + 1]])
-                        ret.data ~= DataType(j);
-            else
-                static foreach(i; 0 .. GrpRowType.length)
-                {
-                    if(i == pos[1])
-                    {
-                        foreach(j; data[i][elementCountTill[pos[0]] .. elementCountTill[pos[0] + 1]])
-                            ret.data ~= DataType(j);
-                    }
-                }
+            void dataSetterAux(ptrdiff_t si = -1)(size_t ri = 0) @property
+            {
+                static if(si > -1)
+                    alias i = si;
+                else
+                    size_t i = ri;
+
+                foreach(j; data[i][elementCountTill[pos[0]] .. elementCountTill[pos[0] + 1]])
+                    ret.data ~= DataType(j);
+            }
+            
+            mixin auxDispatch!(dataSetterAux);
+            auxDispatch(pos[1]);
 
             return ret;
         }
@@ -584,50 +608,49 @@ public:
             assert(elements.data.length == elementCountTill[pos[0] + 1] - elementCountTill[pos[0]],
                 "Size of data doesn't match size of group column");
 
-            static if(isHomogeneousType)
+            void mixinAux(ptrdiff_t si = -1)(size_t ri = 0) @property
             {
+                static if(si > -1)
+                {
+                    alias i = si;
+                    enum size_t typepos = si;
+                }
+                else
+                {
+                    size_t i = ri;
+                    enum size_t typepos = 0;
+                }
+
                 foreach(j; elementCountTill[pos[0]] .. elementCountTill[pos[0] + 1])
                 {
-                    mixin("data[pos[1]][j] " ~ op ~ "= elements.data[j - elementCountTill[pos[0]]].get!(GrpRowType[0]);");
+                    mixin("data[i][j] " ~ op ~ "= elements.data[j - elementCountTill[pos[0]]].get!(GrpRowType[typepos]);");
                 }
             }
-            else
-            {
-                static foreach(i; 0 .. GrpRowType.length)
-                {
-                    if(i == pos[1])
-                    {
-                        foreach(j; elementCountTill[pos[0]] .. elementCountTill[pos[0] + 1])
-                        {
-                            mixin("data[i][j] " ~ op ~ "= elements.data[j - elementCountTill[pos[0]]].get!(GrpRowType[i]);");
-                        }
-                    }
-                }
-            }
+            
+            mixin auxDispatch!(mixinAux);
+            auxDispatch(pos[1]);
         }
         else static if(T.length == 1 && isArray!(T[0]))
         {
             assert(elements.data.length == elementCountTill[pos[0] + 1] - elementCountTill[pos[0]],
                 "Size of data doesn't match size of group column");
             
-            static if(isHomogeneousType)
+            void mixinAux(ptrdiff_t si = -1)(size_t ri = 0) @property
             {
+                static if(si > -1)
+                    alias i = si;
+                else
+                    size_t i = ri;
+
                 foreach(j; elementCountTill[pos[0]] .. elementCountTill[pos[0] + 1])
-                    mixin("data[pos[1]][j] " ~ op ~ "= elements.data[j - elementCountTill[pos[0]]];");
-            }
-            else
-            { 
-                static foreach(i; 0.. GrpRowType.length)
                 {
-                    if(i == pos[1])
-                    {
-                        foreach(j; elementCountTill[pos[0]] .. elementCountTill[pos[0] + 1])
-                        {
-                            mixin("data[i][j] " ~ op ~ "= elements.data[j - elementCountTill[pos[0]]];");
-                        }
-                    }
+                    mixin("data[i][j] " ~ op ~ "= elements.data[j - elementCountTill[pos[0]]];");
                 }
+
             }
+
+            mixin auxDispatch!(mixinAux);
+            auxDispatch(pos[1]);
         }
         else
         {
@@ -763,28 +786,29 @@ public:
             else
                 Slice!(Type*, 1, kind) ret = slice!(Type)(elementCountTill[pos[0] + 1] - elementCountTill[pos[0]]);
 
-            static if(isHomogeneousType)
+            void assignmentAux(ptrdiff_t si = -1)(size_t ri = 0) @property
             {
-                static if(__traits(isArithmetic, Type, GrpRowType[0]) || is(Type == GrpRowType[0]))
+                static if(si > -1)
+                {
+                    alias i = si;
+                    enum size_t typepos = si;
+                }
+                else
+                {
+                    size_t i = ri;
+                    enum size_t typepos = 0;
+                }
+
+                static if(__traits(isArithmetic, Type, GrpRowType[typepos]) || is(Type == GrpRowType[typepos]))
                     foreach(j; elementCountTill[pos[0]] .. elementCountTill[pos[0] + 1])
-                        ret[j - elementCountTill[pos[0]]] = cast(Type)data[pos[1]][j];
+                        ret[j - elementCountTill[pos[0]]] = cast(Type)data[i][j];
 
-                return ret;
             }
-            else
-            {
-                static foreach(i; 0 .. GrpRowType.length)
-                    if(i == pos[1])
-                    {
-                        static if(__traits(isArithmetic, Type, GrpRowType[i]) || is(Type == GrpRowType[i]))
-                            foreach(j; elementCountTill[pos[0]] .. elementCountTill[pos[0] + 1])
-                                ret[j - elementCountTill[pos[0]]] = cast(Type)data[i][j];
 
-                        return ret;
-                    }
-            }
+            mixin auxDispatch!(assignmentAux);
+            auxDispatch(pos[1]);
             
-            assert(0);
+            return ret;
         }
         else
         {
