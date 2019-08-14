@@ -832,6 +832,44 @@ public:
 
     auto aggregate(int axis, Ops...)() @property
     {
+        void init(int axis, T)(ref T arg)
+        {
+            enum int perpendicular = ((axis)? 0: 1);
+
+            arg.groups = groups;
+            arg.grpIndex.indexing[axis] = grpIndex.indexing[axis];
+            arg.grpIndex.indexing[perpendicular].index.length = 1;
+            arg.grpIndex.indexing[perpendicular].codes.length = 1;
+
+            static if(axis)
+            {
+                ret.grpIndex.row.titles = ["Operation"];
+                ret.grpIndex.row.index[0].length = ret.groups.length * Ops.length;
+                ret.elementCountTill.length = groups.length + 1;
+
+                foreach(i; 0 .. ret.elementCountTill.length)
+                    ret.elementCountTill[i] = cast(int)(i * Ops.length);
+
+                static foreach(i; 0 .. GrpType.length)
+                    ret.data[i].length = ret.groups.length * Ops.length;
+                
+                foreach(i; 0 .. ret.groups.length)
+                    static foreach(j; 0 .. Ops.length)
+                        ret.grpIndex.row.index[0][i * Ops.length + j] = __traits(identifier, Ops[j]);
+            }
+            else
+            {
+                ret.elementCountTill = elementCountTill;
+                ret.grpIndex.column.index[0].length = Ops.length;
+
+                static foreach(i; 0 .. Ops.length)
+                    ret.grpIndex.column.index[0][i] = __traits(identifier, Ops[i]);
+
+                static foreach(i; 0 .. Ops.length)
+                    ret.data[i].length = ret.elementCountTill[$ -1];
+            }
+        }
+
         static if(axis)
         {
             import std.meta: staticMap;
@@ -839,26 +877,8 @@ public:
             alias Resolve(T) = suitableType!(resolverInternal!(T, Ops));
             alias ResolvedTypes = staticMap!(Resolve, GrpRowType);
             Group!(ResolvedTypes) ret;
-
-            ret.groups = groups;
-            ret.elementCountTill.length = groups.length + 1;
-            ret.grpIndex.column = grpIndex.column;
-
-            foreach(i; 0 .. ret.elementCountTill.length)
-                ret.elementCountTill[i] = cast(int)(i * Ops.length);
-
-            static foreach(i; 0 .. GrpType.length)
-                ret.data[i].length = ret.groups.length * Ops.length;
+            init!(axis)(ret);
             
-            ret.grpIndex.row.titles = ["Operation"];
-            ret.grpIndex.row.index.length = 1;
-            ret.grpIndex.row.index[0].length = ret.groups.length * Ops.length;
-            ret.grpIndex.row.codes.length = 1;
-
-            foreach(i; 0 .. ret.groups.length)
-                static foreach(j; 0 .. Ops.length)
-                    ret.grpIndex.row.index[0][i * Ops.length + j] = __traits(identifier, Ops[j]);
-
             foreach(i; 0 .. ret.groups.length)
                 static foreach(j; 0 .. Ops.length)
                     static foreach(k; 0 .. GrpRowType.length)
@@ -881,19 +901,7 @@ public:
         {
             alias AggregateType = aggregateType!(Ops);
             Group!(AggregateType) ret;
-            ret.groups = groups;
-            ret.grpIndex.row = grpIndex.row;
-            ret.elementCountTill = elementCountTill;
-
-            static foreach(i; 0 .. Ops.length)
-                ret.data[i].length = ret.elementCountTill[$ -1];
-
-            ret.grpIndex.column.index.length = 1;
-            ret.grpIndex.column.codes.length = 1;
-            ret.grpIndex.column.index[0].length = Ops.length;
-
-            static foreach(i; 0 .. Ops.length)
-                ret.grpIndex.column.index[0][i] = __traits(identifier, Ops[i]);
+            init!(axis)(ret);
 
             suitableType!(GrpRowType)[GrpRowType.length] opArr;
             size_t k;
@@ -1573,18 +1581,18 @@ unittest
     assert(approxEqual(dub.data[1][0], 2, 1e-8) && approxEqual(dub.data[1][1], 3, 1e-8) && approxEqual(dub.data[1][2], 5, 1e-8) && approxEqual(dub.data[1][3], 6, 1e-8));
 }
 
-private auto customFunc(T)(T[] arr)
-{
-    T res = 0;
-    foreach(i, ele; arr)
-        res += i * ele;
-    
-    return res;
-}
-
 // Aggregate with custom function
 unittest
 {
+    static auto customFunc(T)(T[] arr)
+    {
+        T res = 0;
+        foreach(i, ele; arr)
+            res += i * ele;
+        
+        return res;
+    }
+
     DataFrame!(int, 2, double, 2) df;
     Index inx;
     inx[0] = [["Hello", "Hello", "Hi", "Hi"], ["1", "2", "3", "4"]];

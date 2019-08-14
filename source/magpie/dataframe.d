@@ -1717,25 +1717,41 @@ public:
     +/
     auto aggregate(int axis, Ops...)() @property
     {
+        void init(int axis, T)(ref T args)
+        {
+            enum int perpendicular = ((axis)? 0: 1);
+            
+            args.indx.indexing[axis] = indx.indexing[axis];
+            args.indx.indexing[perpendicular].index.length = 1;
+            args.indx.indexing[perpendicular].index[0].length = Ops.length;
+            args.indx.indexing[perpendicular].codes.length = 1;
+
+            static foreach(i; 0 .. Ops.length)
+                ret.indx.indexing[perpendicular].index[0][i] = __traits(identifier, Ops[0]);
+            
+            static if(axis)
+            {
+                args.indx.row.titles = ["Operation"];
+                args.rows = Ops.length;
+
+                static foreach(i; 0 .. RowType.length)
+                    ret.data[i].length = Ops.length;
+            }
+            else
+            {
+                args.rows = rows;
+                static foreach(i; 0 .. Ops.length)
+                    ret.data[i].length = rows;
+            }
+        }
+
         static if(axis)
         {
             import std.meta: staticMap;
 
             alias Resolve(T) = suitableType!(resolverInternal!(T, Ops));
             DataFrame!(true, staticMap!(Resolve, RowType)) ret;
-
-            ret.indx.column = indx.column;
-            ret.indx.row.titles = ["Operation"];
-            ret.indx.row.index.length = 1;
-            ret.indx.row.index[0].length = Ops.length;
-            ret.indx.row.codes.length = 1;
-            ret.rows = Ops.length;
-
-            static foreach(i; 0 .. Ops.length)
-                ret.indx.row.index[0][i] = __traits(identifier, Ops[0]);
-
-            static foreach(i; 0 .. RowType.length)
-                ret.data[i].length = Ops.length;
+            init!(axis)(ret);
 
             static foreach(i; 0 .. RowType.length)
                 static if(__traits(isArithmetic, RowType[i]))
@@ -1757,17 +1773,7 @@ public:
         else
         {
             DataFrame!(true, aggregateType!(Ops)) ret;
-            ret.indx.row = indx.row;
-            ret.indx.column.index.length = 1;
-            ret.indx.column.codes.length = 1;
-            ret.indx.column.index[0].length = Ops.length;
-
-            static foreach(i; 0 .. Ops.length)
-                ret.indx.column.index[0][i] = __traits(identifier, Ops[0]);
-            
-            ret.rows = rows;
-            static foreach(i; 0 .. Ops.length)
-                ret.data[i].length = rows;
+            init!(axis)(ret);
 
             suitableType!(RowType)[RowType.length] oparr;
             size_t k;
@@ -3748,18 +3754,18 @@ unittest
     assert(approxEqual(doubledf.data[1][0], 5.6, 1e-8) && approxEqual(doubledf.data[1][1], 8, 1e-8));
 }
 
-private auto customFunc(T)(T[] arr)
-{
-    T res = 0;
-    foreach(i, ele; arr)
-        res += i * ele;
-    
-    return res;
-}
-
 // Custom function passed to aggregate
 unittest
 {
+    static auto customFunc(T)(T[] arr)
+    {
+        T res = 0;
+        foreach(i, ele; arr)
+            res += i * ele;
+        
+        return res;
+    }
+
     DataFrame!(int, 2, double, 2) df;
     Index inx;
 
