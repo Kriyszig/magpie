@@ -3,7 +3,7 @@ module magpie.group;
 import magpie.axis: Axis, DataType;
 import magpie.dataframe: DataFrame;
 import magpie.index: Index;
-import magpie.helper: dropper, transposed, toArr, vectorize, isHomogeneous, suitableType;
+import magpie.helper: dropper, transposed, toArr, vectorize, isHomogeneous, suitableType, auxDispatch;
 
 import std.meta: staticMap, AliasSeq;
 import mir.ndslice;
@@ -123,21 +123,6 @@ private:
         alias fwdType = suitableType!(GrpRowType);
         alias Resolved = resolverInternal!(fwdType, Ops);
         alias aggregateType = Resolved;
-    }
-
-    mixin template auxDispatch(alias F)
-    {
-        auto auxDispatch(size_t indx)
-        {
-            static if(isHomogeneousType)
-                return F(indx);
-            else
-                static foreach(i; 0 .. GrpRowType.length)
-                    if(i == indx)
-                        return F!(i);
-
-            assert(0);
-        }
     }
 
 public:
@@ -464,7 +449,7 @@ public:
             return data[i][elementCountTill[i1] + i2];
         }
         
-        mixin auxDispatch!(returnAux);
+        mixin auxDispatch!(returnAux, isHomogeneousType, GrpRowType);
         return auxDispatch(i3);
     }
 
@@ -505,7 +490,7 @@ public:
             return data[i][elementCountTill[pos[0]] + pos[1]];
         }
         
-        mixin auxDispatch!(returnAux);
+        mixin auxDispatch!(returnAux, isHomogeneousType, GrpRowType);
         return auxDispatch(pos[2]);
     }
 
@@ -558,7 +543,7 @@ public:
                     ret.data ~= DataType(j);
             }
             
-            mixin auxDispatch!(dataSetterAux);
+            mixin auxDispatch!(dataSetterAux, isHomogeneousType, GrpRowType);
             auxDispatch(pos[1]);
 
             return ret;
@@ -603,7 +588,7 @@ public:
         }
 
         import std.traits: isArray;
-        static if(is(T[0] == void))
+        static if(is(T[0] == void) || (T.length == 1 && isArray!(T[0])))
         {
             assert(elements.data.length == elementCountTill[pos[0] + 1] - elementCountTill[pos[0]],
                 "Size of data doesn't match size of group column");
@@ -621,35 +606,18 @@ public:
                     enum size_t typepos = 0;
                 }
 
-                foreach(j; elementCountTill[pos[0]] .. elementCountTill[pos[0] + 1])
-                {
-                    mixin("data[i][j] " ~ op ~ "= elements.data[j - elementCountTill[pos[0]]].get!(GrpRowType[typepos]);");
-                }
-            }
-            
-            mixin auxDispatch!(mixinAux);
-            auxDispatch(pos[1]);
-        }
-        else static if(T.length == 1 && isArray!(T[0]))
-        {
-            assert(elements.data.length == elementCountTill[pos[0] + 1] - elementCountTill[pos[0]],
-                "Size of data doesn't match size of group column");
-            
-            void mixinAux(ptrdiff_t si = -1)(size_t ri = 0) @property
-            {
-                static if(si > -1)
-                    alias i = si;
+                static if(is(T[0] == void))
+                    enum string append = ".get!(GrpRowType[typepos]);";
                 else
-                    size_t i = ri;
+                    enum string append = ";";
 
                 foreach(j; elementCountTill[pos[0]] .. elementCountTill[pos[0] + 1])
                 {
-                    mixin("data[i][j] " ~ op ~ "= elements.data[j - elementCountTill[pos[0]]];");
+                    mixin("data[i][j] " ~ op ~ "= elements.data[j - elementCountTill[pos[0]]]" ~ append);
                 }
-
             }
-
-            mixin auxDispatch!(mixinAux);
+            
+            mixin auxDispatch!(mixinAux, isHomogeneousType, GrpRowType);
             auxDispatch(pos[1]);
         }
         else
@@ -805,7 +773,7 @@ public:
 
             }
 
-            mixin auxDispatch!(assignmentAux);
+            mixin auxDispatch!(assignmentAux, isHomogeneousType, GrpRowType);
             auxDispatch(pos[1]);
             
             return ret;
@@ -893,9 +861,6 @@ public:
                                     ret.data[k][i * Ops.length + j] = cast(ResolvedTypes[k])data[k][elementCountTill[i] .. elementCountTill[i + 1]].map!(e => e).reduce!(Ops[j]);
                             }
                         }
-
-            ret.grpIndex.generateCodes();
-            return ret;
         }
         else
         {
@@ -931,10 +896,10 @@ public:
                     }
                 }
             }
-
-            ret.grpIndex.generateCodes();
-            return ret;
         }
+
+        ret.grpIndex.generateCodes();
+        return ret;
     }
 }
 

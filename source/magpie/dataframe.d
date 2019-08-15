@@ -2,7 +2,7 @@ module magpie.dataframe;
 
 import magpie.axis: Axis, DataType;
 import magpie.index: Index;
-import magpie.helper: getArgsList, toArr, isHomogeneous, suitableType;
+import magpie.helper: getArgsList, toArr, isHomogeneous, suitableType, auxDispatch;
 
 import std.meta: AliasSeq, Repeat, staticMap;
 import std.array: appender;
@@ -71,21 +71,6 @@ private:
         alias fwdType = suitableType!(RowType);
         alias Resolved = resolverInternal!(fwdType, Ops);
         alias aggregateType = Resolved;
-    }
-
-    mixin template auxDispatch(alias F)
-    {
-        auto auxDispatch(size_t indx)
-        {
-            static if(isHomogeneousType)
-                return F(indx);
-            else
-                static foreach(i; 0 .. RowType.length)
-                    if(i == indx)
-                        return F!(i);
-
-            assert(0);
-        }
     }
 
 public:
@@ -243,7 +228,7 @@ public:
                         maxsize2 = gapCalc(data[j][$ - bottom .. $]);
                 }
 
-                mixin auxDispatch!(maxGapCalc);
+                mixin auxDispatch!(maxGapCalc, isHomogeneousType, RowType);
                 auxDispatch(dataIndex);
 
                 maxGap = max(maxGap, maxsize1, maxsize2);
@@ -440,7 +425,7 @@ public:
                                     return to!string(data[i][dataIndex]);
                                 }
 
-                                mixin auxDispatch!(toStringAux);
+                                mixin auxDispatch!(toStringAux, isHomogeneousType, RowType);
                                 idx = auxDispatch(j - indx.row.index.length);
                                 
                                 if(idx.length > maxColSize)
@@ -523,9 +508,7 @@ public:
 
         string formatData(T)(T ele)
         {
-            static if(is(T == string))
-                return ele;
-            else static if(__traits(isIntegral, T))
+            static if(__traits(isIntegral, T))
                 return format!"%d"(ele);
             else static if(__traits(isFloating, T) && precision)
                 return format!("%." ~ to!string(precision) ~"f")(ele);
@@ -918,7 +901,7 @@ public:
             return data[i][i1];
         }
         
-        mixin auxDispatch!(returnAux);
+        mixin auxDispatch!(returnAux, isHomogeneousType, RowType);
         return auxDispatch(i2);
     }
 
@@ -943,7 +926,7 @@ public:
             data[i][i1] = ele[0];
         }
 
-        mixin auxDispatch!(assignAux);
+        mixin auxDispatch!(assignAux, isHomogeneousType, RowType);
         auxDispatch(i2);
     }
 
@@ -973,7 +956,7 @@ public:
             data[i][i1] = ele;
         }
 
-        mixin auxDispatch!(assignAux);
+        mixin auxDispatch!(assignAux, isHomogeneousType, RowType);
         auxDispatch(i2);
     }
 
@@ -1154,7 +1137,7 @@ public:
                 }
             }
             
-            mixin auxDispatch!(assignAux);
+            mixin auxDispatch!(assignAux, isHomogeneousType, RowType);
             auxDispatch(pos);
         }
     }
@@ -1178,7 +1161,7 @@ public:
             return data[i][i1];
         }
 
-        mixin auxDispatch!(returnAux);
+        mixin auxDispatch!(returnAux, isHomogeneousType, RowType);
         return auxDispatch(i2);
     }
 
@@ -1215,7 +1198,7 @@ public:
             return data[i][i1];
         }
 
-        mixin auxDispatch!(returnAux);
+        mixin auxDispatch!(returnAux, isHomogeneousType, RowType);
         return auxDispatch(i2);
     }
 
@@ -1252,7 +1235,7 @@ public:
                     retcol.data ~= DataType(j);
             }
 
-            mixin auxDispatch!(axisAssignAux);
+            mixin auxDispatch!(axisAssignAux, isHomogeneousType, RowType);
             auxDispatch(pos);
             return retcol;
         }
@@ -1285,7 +1268,7 @@ public:
         if(T.length == RowType.length || T.length == 1)
     {
         import std.traits: isArray;
-        static if(is(T[0] == void))
+        static if(is(T[0] == void) || (T.length == 1 && isArray!(T[0])))
         {
             assert(elements.data.length == rows, "Length of Axis.data is not equal to number of rows");
             ptrdiff_t pos = getPosition!1(index);
@@ -1304,31 +1287,16 @@ public:
                     enum size_t typepos = 0;
                 }
 
-                foreach(j; 0 .. elements.data.length)
-                    mixin("data[i][j] " ~ op ~"= elements.data[j].get!(RowType[typepos]);");
-            }
-            
-            mixin auxDispatch!(mixinAux);
-            auxDispatch(pos);
-        }
-        else static if(T.length == 1 && isArray!(T[0]))
-        {
-            assert(elements.data.length == rows, "Length of Axis.data is not equal to number of rows");
-            ptrdiff_t pos = getPosition!1(index);
-            assert(pos > -1, "Index not found");
-
-            void mixinAux(ptrdiff_t si = -1)(size_t ri = 0) @property
-            {
-                static if(si > -1)
-                    alias i = si;
+                static if(is(T[0] == void))
+                    enum string append = ".get!(RowType[typepos]);";
                 else
-                    size_t i = ri;
+                    enum string append = ";";
 
                 foreach(j; 0 .. elements.data.length)
-                    mixin("data[i][j] " ~ op ~"= elements.data[j];");
+                    mixin("data[i][j] " ~ op ~"= elements.data[j]" ~ append);
             }
             
-            mixin auxDispatch!(mixinAux);
+            mixin auxDispatch!(mixinAux, isHomogeneousType, RowType);
             auxDispatch(pos);
         }
         else
@@ -1685,7 +1653,7 @@ public:
                         ret[j] = cast(Type)data[i][j];
             }
             
-            mixin auxDispatch!(sliceAssignAux);
+            mixin auxDispatch!(sliceAssignAux, isHomogeneousType, RowType);
             auxDispatch(pos);
             return ret;
         }
@@ -1766,9 +1734,6 @@ public:
                                 ret.data[i][j] = cast(ret.RowType[i])data[i].map!(e => e).reduce!(Ops[j]);
                         }
                     }
-
-            ret.indx.generateCodes();
-            return ret;
         }
         else
         {
@@ -1803,10 +1768,10 @@ public:
                     }
                 }
             }
-
-            ret.indx.generateCodes();
-            return ret;
         }
+
+        ret.indx.generateCodes();
+        return ret;
     }
 }
 

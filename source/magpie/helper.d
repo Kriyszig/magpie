@@ -346,6 +346,21 @@ template suitableType(Types...)
         alias suitableType = Largest!(Types);
 }
 
+mixin template auxDispatch(alias F, bool isHomogeneousType, RowType...)
+{
+    auto auxDispatch(size_t indx)
+    {
+        static if(isHomogeneousType)
+            return F(indx);
+        else
+            static foreach(i; 0 .. RowType.length)
+                if(i == indx)
+                    return F!(i);
+
+        assert(0);
+    }
+}
+
 // Community suggested way ot intialize a DataFrame
 unittest
 {
