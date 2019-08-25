@@ -73,6 +73,33 @@ private:
         alias aggregateType = Resolved;
     }
 
+    auto dropperRuntimeInternal(int[] positions)
+    {
+        import magpie.helper: dropper;
+        import std.algorithm: max, min, reduce;
+        assert(positions.reduce!min > -1 && positions.reduce!max < rows, "Index out of bound");
+
+        DataFrame!(true, RowType) ret;
+        ret.indx = Index();
+        ret.indx.indexing[1] = indx.indexing[1];
+        ret.indx.row.titles = indx.row.titles;
+
+        import std.range: lockstep;
+        ret.indx.row.index.length = indx.row.index.length;
+        ret.indx.row.codes.length = indx.row.codes.length;
+        foreach(i, a, b; lockstep(indx.row.index, indx.row.codes))
+        {
+            ret.indx.row.index[i] = a;
+            ret.indx.row.codes[i] = dropper(positions, b);
+        }
+
+        static foreach(i; 0 .. RowType.length)
+            ret.data[i] = dropper(positions, data[i]);
+
+        ret.rows = rows - positions.length;
+        return ret;
+    }
+
 public:
     /++
     auto display(bool getStr = false, int maxwidth = 0)
@@ -1423,27 +1450,7 @@ public:
             return this;
         }
         else static if(axis == 0)
-        {
-            assert(positions.reduce!min > -1 && positions.reduce!max < rows, "Index out of bound");
-
-            DataFrame!(true, RowType) ret;
-            ret.indx = Index();
-            ret.indx.indexing[1] = indx.indexing[1];
-            ret.indx.row.titles = indx.row.titles;
-
-            import std.range: lockstep;
-            foreach(a, b; lockstep(indx.row.index, indx.row.codes))
-            {
-                ret.indx.row.index ~= a;
-                ret.indx.row.codes ~= dropper(positions, b);
-            }
-
-            static foreach(i; 0 .. RowType.length)
-                ret.data[i] = dropper(positions, data[i]);
-
-            ret.rows = rows - positions.length;
-            return ret;
-        }
+            return dropperRuntimeInternal(positions);
         else
         {
             assert(positions.reduce!min > -1 && positions.reduce!max < cols, "Index out of bound");
@@ -1772,6 +1779,52 @@ public:
 
         ret.indx.generateCodes();
         return ret;
+    }
+
+    /++
+    Filter the DataFrame based on the result of callback
+    Params:
+        filterFunc: Callback function based on whose result, the DataFrame is filtered
+    Returns:
+        Filtered DataFrame
+    +/
+    auto filter(alias filterFunc)() @property
+    {
+        auto applier(alias filterFunc, T...)(T element)
+        {
+            static if(isHomogeneousType)
+                toArr!(RowType[0]) rowArray = element[0][0];
+            else
+                alias rowArray = element;
+
+            return filterFunc(rowArray);
+        }
+
+        int[] pos;
+        int k, count;
+        pos.length = rows;
+        
+        static if(isHomogeneousType)
+        {
+            import magpie.helper: transposed;
+            RowType[0][][] operableData = transposed(data);
+        }
+        else
+            alias operableData = data;
+
+        import std.range: zip;
+        auto zipped = zip(operableData);
+        foreach(ele; zipped)
+        {
+            if(!applier!filterFunc(ele))
+            {
+                pos[k] = count;
+                ++k;
+            }
+            ++count;
+        }
+
+        return dropperRuntimeInternal(pos[0 .. k]);
     }
 }
 
@@ -3770,4 +3823,56 @@ unittest
     auto maxdfc = df.aggregate!(1, max);
     static assert(is(maxdfc.FrameType == int[][4]));
     assert(maxdfc.data[0][0] == 2 && maxdfc.data[1][0] == 8 && maxdfc.data[2][0] == 7 && maxdfc.data[3][0] == 6);
+}
+
+// Filter on Heterogeneous DataFrame
+unittest
+{
+    DataFrame!(double, float) df;
+    Index inx;
+    inx[0] = ["Firm1", "Firm2", "Firm3", "Firm4", "Firm5"];
+    inx[1] = ["Assets", "Valuation"];
+    df.setFrameIndex(inx);
+
+    static bool filterFunc(T)(T ele)
+    {
+        return (ele[0] > ele[1]);
+    }
+
+    df = [[1.2, 2.3], [0.8, 1.2], [4.2, 1.2], [7.2, 9.4], [1.1, 0.5]];
+    // df.display();
+    assert(df.filter!(filterFunc).display(true, 200) == "       Assets  Valuation\n"
+        ~ "Firm3  4.2     1.2      \n"
+        ~ "Firm5  1.1     0.5      \n"
+    );
+
+    version(DMD)
+    {
+        assert(df.filter!(e => e[0] > e[1]).display(true, 200) == "       Assets  Valuation\n"
+            ~ "Firm3  4.2     1.2      \n"
+            ~ "Firm5  1.1     0.5      \n"
+        );
+    }
+}
+
+// Filter on Homogeneous DataFrame
+unittest
+{
+    DataFrame!(float, float) df;
+    Index inx;
+    inx[0] = ["Firm1", "Firm2", "Firm3", "Firm4", "Firm5"];
+    inx[1] = ["Assets", "Valuation"];
+    df.setFrameIndex(inx);
+
+    static bool filterFunc(T)(T ele)
+    {
+        return (ele[0] > ele[1]);
+    }
+
+    df = [[1.2, 2.3], [0.8, 1.2], [4.2, 1.2], [7.2, 9.4], [1.1, 0.5]];
+    // df.display();
+    assert(df.filter!(filterFunc).display(true, 200) == "       Assets  Valuation\n"
+        ~ "Firm3  4.2     1.2      \n"
+        ~ "Firm5  1.1     0.5      \n"
+    );
 }
