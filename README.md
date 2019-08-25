@@ -1193,18 +1193,12 @@ gp.display();
 
 Aggregate allows user to perform mathematical operation on row or columns of the DataFrame or a Group.
 
-Available Operations:
-* `Count`: Finds the sum
-* `Max`: Finds the largest element
-* `Min`: Finds the smallest element
-* `Mean`: Finds the mean value of the given data
-* `Median`: Finds the median of the given data
-
 #### Usage
 ```d
 import magpie.dataframe: DataFrame;
 import magpie.index: Index;
 import magpie.operation: aggregate, AggregateOp;
+import std.algorithm: max, min;
 
 DataFrame!(int, 3, double, 2) df;
 Index inx;
@@ -1212,7 +1206,7 @@ inx[0] = ["Row1", "Row2"];
 inx[1] = ["Col1", "Col2", "Col3", "Col4", "Col5"];
 
 df.setFrameIndex(inx);
-df = [[1, 2, 3, 4, 5], [1, 2, 3, 4, 5]];
+df = [[1, 2, 3, 4, 5], [0, 1, 2, 3, 4]];
 df.display();
 /*
  *        Col1  Col2  Col3  Col4  Col5
@@ -1220,37 +1214,33 @@ df.display();
  *  Row2  1     2     3     4     5
  */
 
-aggregate!(1)(df, AggregateOP.count).display();
+df.aggregate!(1, max).display();
 /*
  *  Operation  Col1  Col2  Col3  Col4  Col5
- *  Count      2     4     6     8     10
+ *  max        1     2     3     4     5
  */
 
-aggregate!(1)(df, AggregateOP.count, AggregateOp.mean).display();
+df.aggregate!(1, max, min).display();
 /*
  *  Operation       Col1  Col2  Col3  Col4  Col5
- *  Count           2     4     6     8     10
- *  Mean            1     2     3     4     5
+ *  max             1     2     3     4     15
+ *  min             0     1     2     3     4  
  */
 
-aggregate!(0)(df, AggregateOP.max).display();
+aggregate!(0, max).display();
 /*
- *        Max
+ *        max
  *  Row1  5
- *  Row2  5
+ *  Row2  4
  */
 
-aggregate!(0)(df, AggregateOP.max, AggregateOp.min).display();
+aggregate!(0, max, min).display();
 /*
- *        Max  Min
+ *        max  min
  *  Row1  5    1
- *  Row2  5    1
+ *  Row2  4    0
  */
 ```
-
-Note:
-* Aggregate returns a homogeneous DataFrame of type Double
-* Aggregate operation along the row will only consider those elements of Arithmetic types
 
 ##### Dataset Sources
 
