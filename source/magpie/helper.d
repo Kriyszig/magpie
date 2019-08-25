@@ -2,10 +2,11 @@ module magpie.helper;
 
 import magpie.dataframe: DataFrame;
 import magpie.index: Index;
+import magpie.group: Group;
 
 import std.meta: AliasSeq, Repeat;
 import std.range.primitives: ElementType;
-import std.traits: isStaticArray;
+import std.traits: isStaticArray, isIntegral, isFloatingPoint;
 
 /// Build DataFrame argument list
 template getArgsList(args...)
@@ -316,6 +317,15 @@ template isDataFrame(T)
         enum bool isDataFrame = false;
 }
 
+/// Template to check if the input is a Group or not
+template isGroup(T)
+{
+    static if(is(T: Group!Ty, Ty...))
+        enum bool isGroup = true;
+    else
+        enum bool isGroup = false;
+}
+
 /// Check if given DataFrame is Homogeneous
 template isHomogeneous(Args...)
 {
@@ -323,6 +333,32 @@ template isHomogeneous(Args...)
         enum bool isHomogeneous = true; 
     else
         enum bool isHomogeneous = is(Args[0] == Args[1]) && isHomogeneous!(Args[1 .. $]);
+}
+
+/// Finding suitable type for aggregate
+template suitableType(Types...)
+{
+    import std.meta: anySatisfy;
+    import std.traits: isFloatingPoint, Largest;
+    static if(anySatisfy!(isFloatingPoint, Types))
+        alias suitableType = double;
+    else
+        alias suitableType = Largest!(Types);
+}
+
+mixin template auxDispatch(alias F, bool isHomogeneousType, RowType...)
+{
+    auto auxDispatch(size_t indx)
+    {
+        static if(isHomogeneousType)
+            return F(indx);
+        else
+            static foreach(i; 0 .. RowType.length)
+                if(i == indx)
+                    return F!(i);
+
+        assert(0);
+    }
 }
 
 // Community suggested way ot intialize a DataFrame

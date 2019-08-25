@@ -7,7 +7,8 @@ module magpie.operation;
  */
 
 import magpie.dataframe: DataFrame;
-import magpie.helper: isDataFrame;
+import magpie.group: Group;
+import magpie.helper: isDataFrame, isGroup;
 
 /// Enums for joins
 enum JoinTypes

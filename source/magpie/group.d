@@ -3,9 +3,9 @@ module magpie.group;
 import magpie.axis: Axis, DataType;
 import magpie.dataframe: DataFrame;
 import magpie.index: Index;
-import magpie.helper: dropper, transposed, toArr, vectorize;
+import magpie.helper: dropper, transposed, toArr, vectorize, isHomogeneous, suitableType, auxDispatch;
 
-import std.meta: staticMap;
+import std.meta: staticMap, AliasSeq;
 import mir.ndslice;
 
 /// Struct for groupBy Operation
@@ -17,7 +17,13 @@ struct Group(GrpRowType...)
     /// number of elements before the particular group
     int[] elementCountTill;
 
-    alias GrpType = staticMap!(toArr, GrpRowType);
+    /// Flag to check if the Group is Homogeneous
+    enum bool isHomogeneousType = isHomogeneous!(GrpRowType);
+
+    static if(!isHomogeneous!(GrpRowType))
+        alias GrpType = staticMap!(toArr, GrpRowType);
+    else
+        alias GrpType = toArr!(GrpRowType[0])[GrpRowType.length];
     /// Data of Group
     GrpType data;
 
@@ -93,6 +99,32 @@ private:
         return ret;
     }
 
+    template resolverInternal(T, Ops...)
+    {
+        import std.traits: ReturnType;
+        static if(Ops.length)
+        {
+            alias Op = Ops[0];
+            static if(__traits(compiles, ReturnType!(Op)))
+                alias resolverInternal = AliasSeq!(ReturnType!(Op), resolverInternal!(T, Ops[1 .. $]));
+            else static if(__traits(compiles, ReturnType!(Op!T)))
+                alias resolverInternal = AliasSeq!(ReturnType!(Op!T), resolverInternal!(T, Ops[1 .. $]));
+            else static if(__traits(compiles, ReturnType!(Op!(toArr!T))))
+                alias resolverInternal = AliasSeq!(ReturnType!(Op!(toArr!T)), resolverInternal!(T, Ops[1 .. $]));
+            else
+                alias resolverInternal = AliasSeq!(ReturnType!(Op!(T,T)), resolverInternal!(T, Ops[1 .. $]));
+        }
+        else 
+            alias resolverInternal = AliasSeq!();
+    }
+
+    template aggregateType(Ops...)
+    {
+        alias fwdType = suitableType!(GrpRowType);
+        alias Resolved = resolverInternal!(fwdType, Ops);
+        alias aggregateType = Resolved;
+    }
+
 public:
     /++
     ptrdiff_t getGroupPosition(string[] grpTitles)
@@ -162,7 +194,9 @@ public:
         // This is required as dropper!(dataLevels, df.data) won't work
         auto dropped = df.drop!(1, dataLevels);
 
-        data = dropped.data;
+        static foreach(i; 0 .. GrpRowType.length)
+            data[i] = dropped.data[i];
+        
         grpIndex.column = dropped.indx.column;
         grpIndex.row.titles = dropper(indexLevels, df.indx.row.titles);
         grpIndex.row.index = dropper(indexLevels, df.indx.row.index);
@@ -171,7 +205,18 @@ public:
         int[] codes = vectorize(levels);
         int[][] rcodes = transposed(dropper(indexLevels, df.indx.row.codes));
         // Simultaneously arranging all the relavent fields using a zip as displayed in the docs
-        auto arrange = zip(levels, codes[1 .. $], data, rcodes).sort!((a, b) => a[1] < b[1]);
+
+        static if(isHomogeneousType)
+            auto sortdata = transposed(data);
+        else
+            alias sortdata = data;
+
+        auto arrange = zip(levels, codes[1 .. $], sortdata, rcodes).sort!((a, b) => a[1] < b[1]);
+
+        static if(isHomogeneousType)
+            foreach(i, ele; sortdata)
+                foreach(j, iele; ele)
+                    data[j][i] = iele;
 
         grpIndex.row.codes = transposed(rcodes);
 
@@ -394,11 +439,18 @@ public:
     +/
     auto opIndex(size_t i1, size_t i2, size_t i3)
     {
-        static foreach(i; 0 .. GrpRowType.length)
-            if(i == i3)
-                return data[i][elementCountTill[i1] + i2];
+        auto returnAux(ptrdiff_t si = -1)(size_t ri = 0) @property
+        {
+            static if(si > -1)
+                alias i = si;
+            else
+                size_t i = ri;
 
-        assert(0);
+            return data[i][elementCountTill[i1] + i2];
+        }
+        
+        mixin auxDispatch!(returnAux, isHomogeneousType, GrpRowType);
+        return auxDispatch(i3);
     }
 
     /++
@@ -428,11 +480,18 @@ public:
             pos[2] = positionInGroup!(1)(i3, pos[0]);
         assert(pos[2] > -1, "Index out of bound");
 
-        static foreach(i; 0 .. GrpRowType.length)
-            if(i == pos[2])
-                return data[i][elementCountTill[pos[0]] + pos[1]];
+        auto returnAux(ptrdiff_t si = -1)(size_t ri) @property
+        {
+            static if(si > -1)
+                alias i = si;
+            else
+                size_t i = ri;
 
-        assert(0);
+            return data[i][elementCountTill[pos[0]] + pos[1]];
+        }
+        
+        mixin auxDispatch!(returnAux, isHomogeneousType, GrpRowType);
+        return auxDispatch(pos[2]);
     }
 
     /++
@@ -473,14 +532,19 @@ public:
         static if(1 - Args.length)
         {
             Axis!(void) ret;
-            static foreach(i; 0 .. GrpRowType.length)
+            void dataSetterAux(ptrdiff_t si = -1)(size_t ri = 0) @property
             {
-                if(i == pos[1])
-                {
-                    foreach(j; data[i][elementCountTill[pos[0]] .. elementCountTill[pos[0] + 1]])
-                        ret.data ~= DataType(j);
-                }
+                static if(si > -1)
+                    alias i = si;
+                else
+                    size_t i = ri;
+
+                foreach(j; data[i][elementCountTill[pos[0]] .. elementCountTill[pos[0] + 1]])
+                    ret.data ~= DataType(j);
             }
+            
+            mixin auxDispatch!(dataSetterAux, isHomogeneousType, GrpRowType);
+            auxDispatch(pos[1]);
 
             return ret;
         }
@@ -524,35 +588,37 @@ public:
         }
 
         import std.traits: isArray;
-        static if(is(T[0] == void))
+        static if(is(T[0] == void) || (T.length == 1 && isArray!(T[0])))
         {
             assert(elements.data.length == elementCountTill[pos[0] + 1] - elementCountTill[pos[0]],
                 "Size of data doesn't match size of group column");
-            static foreach(i; 0.. GrpRowType.length)
+
+            void mixinAux(ptrdiff_t si = -1)(size_t ri = 0) @property
             {
-                if(i == pos[1])
+                static if(si > -1)
                 {
-                    foreach(j; elementCountTill[pos[0]] .. elementCountTill[pos[0] + 1])
-                    {
-                        mixin("data[i][j] " ~ op ~ "= elements.data[j - elementCountTill[pos[0]]].get!(GrpRowType[i]);");
-                    }
+                    alias i = si;
+                    enum size_t typepos = si;
+                }
+                else
+                {
+                    size_t i = ri;
+                    enum size_t typepos = 0;
+                }
+
+                static if(is(T[0] == void))
+                    enum string append = ".get!(GrpRowType[typepos]);";
+                else
+                    enum string append = ";";
+
+                foreach(j; elementCountTill[pos[0]] .. elementCountTill[pos[0] + 1])
+                {
+                    mixin("data[i][j] " ~ op ~ "= elements.data[j - elementCountTill[pos[0]]]" ~ append);
                 }
             }
-        }
-        else static if(T.length == 1 && isArray!(T[0]))
-        {
-            assert(elements.data.length == elementCountTill[pos[0] + 1] - elementCountTill[pos[0]],
-                "Size of data doesn't match size of group column");
-            static foreach(i; 0.. GrpRowType.length)
-            {
-                if(i == pos[1])
-                {
-                    foreach(j; elementCountTill[pos[0]] .. elementCountTill[pos[0] + 1])
-                    {
-                        mixin("data[i][j] " ~ op ~ "= elements.data[j - elementCountTill[pos[0]]];");
-                    }
-                }
-            }
+            
+            mixin auxDispatch!(mixinAux, isHomogeneousType, GrpRowType);
+            auxDispatch(pos[1]);
         }
         else
         {
@@ -680,24 +746,37 @@ public:
 
         static if(axis)
         {
-            static foreach(i; 0 .. GrpRowType.length)
-                if(i == pos[1])
+
+            static if(kind == Universal)
+                Slice!(Type*, 1, kind) ret = slice!(Type)(elementCountTill[pos[0] + 1] - elementCountTill[pos[0]]).universal;
+            else static if(kind == Canonical)
+                Slice!(Type*, 1, kind) ret = slice!(Type)(elementCountTill[pos[0] + 1] - elementCountTill[pos[0]]).canonical;
+            else
+                Slice!(Type*, 1, kind) ret = slice!(Type)(elementCountTill[pos[0] + 1] - elementCountTill[pos[0]]);
+
+            void assignmentAux(ptrdiff_t si = -1)(size_t ri = 0) @property
+            {
+                static if(si > -1)
                 {
-                    static if(kind == Universal)
-                        Slice!(Type*, 1, kind) ret = slice!(Type)(elementCountTill[pos[0] + 1] - elementCountTill[pos[0]]).universal;
-                    else static if(kind == Canonical)
-                        Slice!(Type*, 1, kind) ret = slice!(string)(elementCountTill[pos[0] + 1] - elementCountTill[pos[0]]).canonical;
-                    else
-                        Slice!(Type*, 1, kind) ret = slice!(string)(elementCountTill[pos[0] + 1] - elementCountTill[pos[0]]);
-
-                    static if(__traits(isArithmetic, Type, GrpRowType[i]) || is(Type == GrpRowType[i]))
-                        foreach(j; elementCountTill[pos[0]] .. elementCountTill[pos[0] + 1])
-                            ret[j - elementCountTill[pos[0]]] = cast(Type)data[i][j];
-
-                    return ret;
+                    alias i = si;
+                    enum size_t typepos = si;
+                }
+                else
+                {
+                    size_t i = ri;
+                    enum size_t typepos = 0;
                 }
 
-                assert(0);
+                static if(__traits(isArithmetic, Type, GrpRowType[typepos]) || is(Type == GrpRowType[typepos]))
+                    foreach(j; elementCountTill[pos[0]] .. elementCountTill[pos[0] + 1])
+                        ret[j - elementCountTill[pos[0]]] = cast(Type)data[i][j];
+
+            }
+
+            mixin auxDispatch!(assignmentAux, isHomogeneousType, GrpRowType);
+            auxDispatch(pos[1]);
+            
+            return ret;
         }
         else
         {
@@ -717,6 +796,110 @@ public:
 
             return ret;
         }
+    }
+
+    auto aggregate(int axis, Ops...)() @property
+    {
+        void init(int axis, T)(ref T arg)
+        {
+            enum int perpendicular = ((axis)? 0: 1);
+
+            arg.groups = groups;
+            arg.grpIndex.indexing[axis] = grpIndex.indexing[axis];
+            arg.grpIndex.indexing[perpendicular].index.length = 1;
+            arg.grpIndex.indexing[perpendicular].codes.length = 1;
+
+            static if(axis)
+            {
+                ret.grpIndex.row.titles = ["Operation"];
+                ret.grpIndex.row.index[0].length = ret.groups.length * Ops.length;
+                ret.elementCountTill.length = groups.length + 1;
+
+                foreach(i; 0 .. ret.elementCountTill.length)
+                    ret.elementCountTill[i] = cast(int)(i * Ops.length);
+
+                static foreach(i; 0 .. GrpType.length)
+                    ret.data[i].length = ret.groups.length * Ops.length;
+                
+                foreach(i; 0 .. ret.groups.length)
+                    static foreach(j; 0 .. Ops.length)
+                        ret.grpIndex.row.index[0][i * Ops.length + j] = __traits(identifier, Ops[j]);
+            }
+            else
+            {
+                ret.elementCountTill = elementCountTill;
+                ret.grpIndex.column.index[0].length = Ops.length;
+
+                static foreach(i; 0 .. Ops.length)
+                    ret.grpIndex.column.index[0][i] = __traits(identifier, Ops[i]);
+
+                static foreach(i; 0 .. Ops.length)
+                    ret.data[i].length = ret.elementCountTill[$ -1];
+            }
+        }
+
+        static if(axis)
+        {
+            import std.meta: staticMap;
+
+            alias Resolve(T) = suitableType!(resolverInternal!(T, Ops));
+            alias ResolvedTypes = staticMap!(Resolve, GrpRowType);
+            Group!(ResolvedTypes) ret;
+            init!(axis)(ret);
+            
+            foreach(i; 0 .. ret.groups.length)
+                static foreach(j; 0 .. Ops.length)
+                    static foreach(k; 0 .. GrpRowType.length)
+                        static if(__traits(isArithmetic, GrpRowType[k]))
+                        {
+                            static if(__traits(compiles, Ops[j](data[k][elementCountTill[i] .. elementCountTill[i + 1]])))
+                                ret.data[k][i * Ops.length + j] = Ops[j](data[k][elementCountTill[i] .. elementCountTill[i + 1]]);
+                            else
+                            {
+                                import std.algorithm: map, reduce;
+                                if(__traits(compiles, data[k][elementCountTill[i] .. elementCountTill[i + 1]].map!(e => e).reduce!(Ops[j])))
+                                    ret.data[k][i * Ops.length + j] = cast(ResolvedTypes[k])data[k][elementCountTill[i] .. elementCountTill[i + 1]].map!(e => e).reduce!(Ops[j]);
+                            }
+                        }
+        }
+        else
+        {
+            alias AggregateType = aggregateType!(Ops);
+            Group!(AggregateType) ret;
+            init!(axis)(ret);
+
+            suitableType!(GrpRowType)[GrpRowType.length] opArr;
+            size_t k;
+
+            foreach(i; 0 .. ret.elementCountTill[$ - 1])
+            {
+                k = 0;
+                static foreach(j; 0 .. GrpType.length)
+                    static if(__traits(isArithmetic, GrpRowType[j]))
+                    {
+                        opArr[k] = data[j][i];
+                        ++k;
+                    }    
+
+                if(k == 0)
+                    break;
+                
+                static foreach(j; 0 .. Ops.length)
+                {
+                    static if(__traits(compiles, Ops[j](opArr[0 .. k])))
+                        ret.data[j][i] = Ops[j](opArr[0 .. k]);
+                    else
+                    {
+                        import std.algorithm: map, reduce;
+                        if(__traits(compiles, opArr[0 .. k].map!(e => e).reduce!(Ops[j])))
+                            ret.data[j][i] = cast(AggregateType[j])opArr[0 .. k].map!(e => e).reduce!(Ops[j]);
+                    }
+                }
+            }
+        }
+
+        ret.grpIndex.generateCodes();
+        return ret;
     }
 }
 
@@ -1303,4 +1486,98 @@ unittest
 
     gp[["Hello", "Hi", "1"], ["Hey"], 0] = gp.asSlice!(Universal)(["Hi", "Hello", "2"], ["Hello"]);
     assert(gp[["Hello", "Hi", "1"], ["Hey"], ["4"]] == 2);
+}
+
+// Aggregate on Group column
+unittest
+{
+    DataFrame!(int, 2, double, 2) df;
+    Index inx;
+    inx[0] = [["Hello", "Hello", "Hi", "Hi"], ["1", "2", "3", "4"]];
+    inx[1] = ["1", "2", "3", "4"];
+
+    df.setFrameIndex(inx);
+    df = [[1, 2, 3.3, 4.7], [1, 3, 4.8, 5.2], [2, 5, 6, 7.6], [2, 6, 7, 8.9]];
+    // df.display();
+
+    auto grp = df.groupBy!([0])([0]);
+    // grp.display();
+
+    import std.algorithm: max, min;
+    import std.math: approxEqual;
+
+    auto maxgrp = grp.aggregate!(1, max);
+    static assert(is(maxgrp.GrpType == AliasSeq!(int[], double[], double[])));
+    assert(maxgrp.data[0] == [3, 6]);
+    assert(approxEqual(maxgrp.data[1][0], 4.8, 1e-8) && approxEqual(maxgrp.data[1][1], 7, 1e-8));
+    assert(approxEqual(maxgrp.data[2][0], 5.2, 1e-8) && approxEqual(maxgrp.data[2][1], 8.9, 1e-8));
+
+    auto dub = grp.aggregate!(1, max, min);
+    static assert(is(dub.GrpType == AliasSeq!(int[], double[], double[])));
+    assert(dub.data[0] == [3, 2, 6, 5]);
+    assert(approxEqual(dub.data[1][0], 4.8, 1e-8) && approxEqual(dub.data[1][1], 3.3, 1e-8) && approxEqual(dub.data[1][2], 7, 1e-8) && approxEqual(dub.data[1][3], 6, 1e-8));
+    assert(approxEqual(dub.data[2][0], 5.2, 1e-8) && approxEqual(dub.data[2][1], 4.7, 1e-8) && approxEqual(dub.data[2][2], 8.9, 1e-8) && approxEqual(dub.data[2][3], 7.6, 1e-8));
+}
+
+// Aggregate on Group Row
+unittest
+{
+    DataFrame!(int, 2, double, 2) df;
+    Index inx;
+    inx[0] = [["Hello", "Hello", "Hi", "Hi"], ["1", "2", "3", "4"]];
+    inx[1] = ["1", "2", "3", "4"];
+
+    df.setFrameIndex(inx);
+    df = [[1, 2, 3.3, 4.7], [1, 3, 4.8, 5.2], [2, 5, 6, 7.6], [2, 6, 7, 8.9]];
+    // df.display();
+
+    auto grp = df.groupBy!([0])([0]);
+    // grp.display();
+
+    import std.algorithm: max, min;
+    import std.math: approxEqual;
+
+    auto maxgrp = grp.aggregate!(0, max);
+    static assert(is(maxgrp.GrpType == double[][1]));
+    assert(approxEqual(maxgrp.data[0][0], 4.7, 1e-8) && approxEqual(maxgrp.data[0][1], 5.2, 1e-8) && approxEqual(maxgrp.data[0][2], 7.6, 1e-8) && approxEqual(maxgrp.data[0][3], 8.9, 1e-8));
+
+    auto dub = grp.aggregate!(0, max, min);
+    assert(approxEqual(dub.data[0][0], 4.7, 1e-8) && approxEqual(dub.data[0][1], 5.2, 1e-8) && approxEqual(dub.data[0][2], 7.6, 1e-8) && approxEqual(dub.data[0][3], 8.9, 1e-8));
+    assert(approxEqual(dub.data[1][0], 2, 1e-8) && approxEqual(dub.data[1][1], 3, 1e-8) && approxEqual(dub.data[1][2], 5, 1e-8) && approxEqual(dub.data[1][3], 6, 1e-8));
+}
+
+// Aggregate with custom function
+unittest
+{
+    static auto customFunc(T)(T[] arr)
+    {
+        T res = 0;
+        foreach(i, ele; arr)
+            res += i * ele;
+        
+        return res;
+    }
+
+    DataFrame!(int, 2, double, 2) df;
+    Index inx;
+    inx[0] = [["Hello", "Hello", "Hi", "Hi"], ["1", "2", "3", "4"]];
+    inx[1] = ["1", "2", "3", "4"];
+
+    df.setFrameIndex(inx);
+    df = [[1, 2, 3.3, 4.7], [1, 3, 4.8, 5.2], [2, 5, 6, 7.6], [2, 6, 7, 8.9]];
+    // df.display();
+
+    auto grp = df.groupBy!([0])([0]);
+    // grp.display();
+
+    import std.algorithm: max, min;
+    import std.math: approxEqual;
+
+    auto maxgrp = grp.aggregate!(1, customFunc);
+    assert(maxgrp.data[0] == [3, 6]);
+    assert(approxEqual(maxgrp.data[1][0], 4.8, 1e-8) && approxEqual(maxgrp.data[1][1], 7, 1e-8));
+    assert(approxEqual(maxgrp.data[2][0], 5.2, 1e-8) && approxEqual(maxgrp.data[2][1], 8.9, 1e-8));
+
+    auto custom = grp.aggregate!(0, customFunc);
+    assert(approxEqual(custom.data[0][0], 12.7, 1e-8) && approxEqual(custom.data[0][1], 15.2, 1e-8) && approxEqual(custom.data[0][2], 21.2, 1e-8) && approxEqual(custom.data[0][3], 24.8, 1e-8));
 }

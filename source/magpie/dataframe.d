@@ -2,7 +2,7 @@ module magpie.dataframe;
 
 import magpie.axis: Axis, DataType;
 import magpie.index: Index;
-import magpie.helper: getArgsList, toArr;
+import magpie.helper: getArgsList, toArr, isHomogeneous, suitableType, auxDispatch;
 
 import std.meta: AliasSeq, Repeat, staticMap;
 import std.array: appender;
@@ -23,7 +23,13 @@ struct DataFrame(FrameFields...)
     else
         alias RowType = getArgsList!(FrameFields);
 
-    alias FrameType = staticMap!(toArr, RowType);
+    /// Flag to know if the DataFrame is homogeneous
+    enum bool isHomogeneousType = isHomogeneous!(RowType);
+
+    static if(!isHomogeneousType)
+        alias FrameType = staticMap!(toArr, RowType);
+    else
+        alias FrameType = toArr!(RowType[0])[RowType.length];
 
     ///
     size_t rows = 0;
@@ -41,6 +47,32 @@ private:
         return indx.getPosition!(axis)(index);
     }
 
+    template resolverInternal(T, Ops...)
+    {
+        import std.traits: ReturnType;
+        static if(Ops.length)
+        {
+            alias Op = Ops[0];
+            static if(__traits(compiles, ReturnType!(Op)))
+                alias resolverInternal = AliasSeq!(ReturnType!(Op), resolverInternal!(T, Ops[1 .. $]));
+            else static if(__traits(compiles, ReturnType!(Op!T)))
+                alias resolverInternal = AliasSeq!(ReturnType!(Op!T), resolverInternal!(T, Ops[1 .. $]));
+            else static if(__traits(compiles, ReturnType!(Op!(toArr!T))))
+                alias resolverInternal = AliasSeq!(ReturnType!(Op!(toArr!T)), resolverInternal!(T, Ops[1 .. $]));
+            else
+                alias resolverInternal = AliasSeq!(ReturnType!(Op!(T,T)), resolverInternal!(T, Ops[1 .. $]));
+        }
+        else 
+            alias resolverInternal = AliasSeq!();
+    }
+
+    template aggregateType(Ops...)
+    {
+        alias fwdType = suitableType!(RowType);
+        alias Resolved = resolverInternal!(fwdType, Ops);
+        alias aggregateType = Resolved;
+    }
+
 public:
     /++
     auto display(bool getStr = false, int maxwidth = 0)
@@ -50,6 +82,17 @@ public:
     +/
     auto display(bool getStr = false, int maxwidth = 0)
     {
+        import std.algorithm: map, reduce, max;
+        import std.conv: to;
+
+        auto gapCalc(T)(T[] arr)
+        {
+            static if(is(T == string))
+                return arr.map!(e => e.length).reduce!max;
+            else
+                return arr.map!(e => to!string(e).length).reduce!max;
+        }
+
         if(rows == 0)
         {
             if(!getStr)
@@ -80,8 +123,6 @@ public:
             bottom = 0;
         }
 
-        import std.algorithm: map, reduce, max;
-        import std.conv: to;
         size_t dataIndex = 0;
         foreach(i; 0 .. totalWidth)
         {
@@ -93,16 +134,13 @@ public:
                 {
                     size_t tmp = 0;
                     if(indx.row.codes[i].length == 0)
-                        tmp = indx.row.index[i][0 .. top - indx.column.index.length - extra].map!(e => e.length).reduce!max;
+                        tmp = gapCalc(indx.row.index[i][0 .. top - indx.column.index.length - extra]);
                     else if(indx.row.index[i].length == 0)
-                        tmp = indx.row.codes[i][0 .. top - indx.column.index.length - extra].map!(e => to!string(e).length).reduce!max;
+                        tmp = gapCalc(indx.row.codes[i][0 .. top - indx.column.index.length - extra]);
                     else
                         tmp = indx.row.codes[i][0 .. top - indx.column.index.length - extra].map!(e => indx.row.index[i][e].length).reduce!max;
 
-                    if(tmp > thisGap)
-                    {
-                        thisGap = tmp;
-                    }
+                    thisGap = max(thisGap, tmp);
                 }
 
                 if(bottom > 0)
@@ -111,44 +149,35 @@ public:
                     {
                         size_t tmp = 0;
                         if(indx.row.codes[i].length == 0)
-                            tmp = indx.row.index[i].map!(e => e.length).reduce!max;
+                            tmp = gapCalc(indx.row.index[i]);
                         else if(indx.row.index[i].length == 0)
-                            tmp = indx.row.codes[i].map!(e => to!string(e).length).reduce!max;
+                            tmp = gapCalc(indx.row.codes[i]);
                         else
                             tmp = indx.row.codes[i].map!(e => indx.row.index[i][e].length).reduce!max;
 
-                        if(tmp > thisGap)
-                        {
-                            thisGap = tmp;
-                        }
+                        thisGap = max(thisGap, tmp);
                     }
                     else
                     {
                         size_t tmp = 0;
                         if(indx.row.codes[i].length == 0)
-                            tmp = indx.row.index[i][$ - bottom .. $].map!(e => e.length).reduce!max;
+                            tmp = gapCalc(indx.row.index[i][$ - bottom .. $]);
                         else if(indx.row.index[i].length == 0)
-                            tmp = indx.row.codes[i][$ - bottom .. $].map!(e => to!string(e).length).reduce!max;
+                            tmp = gapCalc(indx.row.codes[i][$ - bottom .. $]);
                         else
                             tmp = indx.row.codes[i][$ - bottom .. $].map!(e => indx.row.index[i][e].length).reduce!max;
 
-                        if(tmp > thisGap)
-                        {
-                            thisGap = tmp;
-                        }
+                        thisGap = max(thisGap, tmp);
                     }
                 }
 
                 if(i == indx.row.index.length - 1 && indx.column.titles.length > 0)
                 {
                     const auto tmp = (indx.column.titles.length > top)
-                        ? indx.column.titles[0 .. top].map!(e => e.length).reduce!max
-                        : indx.column.titles.map!(e => e.length).reduce!max;
+                        ? gapCalc(indx.column.titles[0 .. top])
+                        : gapCalc(indx.column.titles);
 
-                    if(tmp > thisGap)
-                    {
-                        thisGap = tmp;
-                    }
+                    thisGap = max(thisGap, tmp);
                 }
 
                 gaps.put((thisGap < maxColSize)? thisGap: maxColSize);
@@ -166,7 +195,7 @@ public:
                     else
                         lenCol = indx.column.index[j][indx.column.codes[j][dataIndex]].length;
 
-                    maxGap = (maxGap > lenCol)? maxGap: lenCol;
+                    maxGap = max(maxGap, lenCol);
                 }
 
                 foreach(j; totalHeight - bottom .. indx.column.index.length)
@@ -179,32 +208,30 @@ public:
                     else
                         lenCol = indx.column.index[j][indx.column.codes[j][dataIndex]].length;
 
-                    maxGap = (maxGap > lenCol)? maxGap: lenCol;
+                    maxGap = max(maxGap, lenCol);
                 }
 
-                static foreach(j; 0 .. RowType.length)
+                size_t maxsize1 = 0, maxsize2 = 0;
+
+                void maxGapCalc(ptrdiff_t si = -1)(size_t ri = 0) @property
                 {
-                    if(j == dataIndex)
-                    {
-                        size_t maxsize1 = 0, maxsize2 = 0;
-                        if(top > indx.column.index.length + extra)
-                            maxsize1 = data[j][0 .. top - indx.column.index.length - extra].map!(e => to!string(e).length).reduce!max;
-                        if(bottom > data[j].length)
-                            maxsize2 = data[j].map!(e => to!string(e).length).reduce!max;
-                        else if(bottom > 0)
-                            maxsize2 = data[j][$ - bottom .. $].map!(e => to!string(e).length).reduce!max;
+                    static if(si > -1)
+                        alias j = si;
+                    else
+                        size_t j = ri;
 
-                        if(maxsize1 > maxGap)
-                        {
-                            maxGap = maxsize1;
-                        }
-                        if(maxsize2 > maxGap)
-                        {
-                            maxGap = maxsize2;
-                        }
-                    }
+                    if(top > indx.column.index.length + extra)
+                        maxsize1 = gapCalc(data[j][0 .. top - indx.column.index.length - extra]);
+                    if(bottom > data[j].length)
+                        maxsize2 = gapCalc(data[j]);
+                    else if(bottom > 0)
+                        maxsize2 = gapCalc(data[j][$ - bottom .. $]);
                 }
 
+                mixin auxDispatch!(maxGapCalc, isHomogeneousType, RowType);
+                auxDispatch(dataIndex);
+
+                maxGap = max(maxGap, maxsize1, maxsize2);
                 gaps.put((maxGap < maxColSize)? maxGap: maxColSize);
                 ++dataIndex;
             }
@@ -387,12 +414,20 @@ public:
                             else
                             {
                                 string idx = "";
-                                static foreach(k; 0 .. RowType.length)
+
+                                string toStringAux(ptrdiff_t si = -1)(size_t ri = 0) @property
                                 {
-                                    if(k == j - indx.row.index.length)
-                                        idx = to!string(data[k][dataIndex]);
+                                    static if(si > -1)
+                                        alias i = si;
+                                    else
+                                        size_t i = ri;
+
+                                    return to!string(data[i][dataIndex]);
                                 }
 
+                                mixin auxDispatch!(toStringAux, isHomogeneousType, RowType);
+                                idx = auxDispatch(j - indx.row.index.length);
+                                
                                 if(idx.length > maxColSize)
                                 {
                                     dispstr.put(idx[0 .. maxColSize]);
@@ -465,10 +500,21 @@ public:
     @params: writecolumn.index - write column index to the file
     @params: sep - data seperator
     +/
-    void to_csv(string path, bool writeIndex = true, bool writeColumn = true, char sep = ',')
+    void to_csv(int precision = 0)(string path, bool writeIndex = true, bool writeColumn = true, char sep = ',')
     {
         import std.array: appender;
         import std.conv: to;
+        import std.format: format;
+
+        string formatData(T)(T ele)
+        {
+            static if(__traits(isIntegral, T))
+                return format!"%d"(ele);
+            else static if(__traits(isFloating, T) && precision)
+                return format!("%." ~ to!string(precision) ~"f")(ele);
+            else
+                return to!string(ele);
+        }
 
         auto formatter = appender!(string);
         const size_t totalHeight = rows + indx.column.index.length +
@@ -563,11 +609,11 @@ public:
                     formatter.put(sep);
                 }
             }
-            formatter.put(to!string(data[0][i]));
+            formatter.put(formatData(data[0][i]));
             static foreach(j; 1 .. RowType.length)
             {
                 formatter.put(sep);
-                formatter.put(to!string(data[j][i]));
+                formatter.put(formatData(data[j][i]));
             }
 
             formatter.put("\n");
@@ -835,6 +881,30 @@ public:
         return data[i2][i1];
     }
 
+    RowType[i2] at(size_t i2)(size_t i1) @property
+        if(i2 < RowType.length)
+    {
+        return data[i2][i1];
+    }
+
+    auto at(size_t i1, size_t i2) @property
+    {
+        assert(i2 < cols && i1 < rows, "Index out of bound");
+
+        auto returnAux(ptrdiff_t si = -1)(size_t ri = 0) @property
+        {
+            static if(si > -1)
+                alias i = si;
+            else
+                size_t i = ri;
+
+            return data[i][i1];
+        }
+        
+        mixin auxDispatch!(returnAux, isHomogeneousType, RowType);
+        return auxDispatch(i2);
+    }
+
     /++
     void opIndexAssign(Args...)(Args ele, size_t i1, size_t i2)
     Description: Setting the element at an index
@@ -845,13 +915,19 @@ public:
         if(Args.length > 0)
     {
         assert(i1 < rows && i2 < cols, "Index out of bound");
-        static foreach(i; 0 .. RowType.length)
+
+        void assignAux(ptrdiff_t si = -1)(size_t ri = 0) @property
         {
-            if(i == i2)
-            {
-                data[i][i1] = ele[0];
-            }
+            static if(si > -1)
+                alias i = si;
+            else
+                size_t i = ri;
+
+            data[i][i1] = ele[0];
         }
+
+        mixin auxDispatch!(assignAux, isHomogeneousType, RowType);
+        auxDispatch(i2);
     }
 
     /++
@@ -869,13 +945,19 @@ public:
         ptrdiff_t i2 = getPosition!1(cindx);
 
         assert(i1 > -1 && i2 > -1, "Given headers don't match DataFrame Headers");
-        static foreach(i; 0 .. RowType.length)
+
+        void assignAux(ptrdiff_t si = -1)(size_t ri = 0) @property
         {
-            if(i == i2)
-            {
-                data[i][i1] = ele;
-            }
+            static if(si > -1)
+                alias i = si;
+            else
+                size_t i = ri;
+
+            data[i][i1] = ele;
         }
+
+        mixin auxDispatch!(assignAux, isHomogeneousType, RowType);
+        auxDispatch(i2);
     }
 
     /++
@@ -1019,6 +1101,7 @@ public:
     void assign(int axis, T, U...)(T index, U values)
         if(U.length > 0)
     {
+
         ptrdiff_t pos;
         static if(is(T == int))
             pos = index;
@@ -1034,15 +1117,28 @@ public:
         }
         else
         {
-            static foreach(i; 0 .. RowType.length)
+            void assignAux(ptrdiff_t si = -1)(size_t ri = 0) @property
             {
-                if(i == pos)
+                static if(si > -1)
                 {
-                    static if(is(FrameType[i] == U[0]))
-                        foreach(j; 0 .. (rows > values[0].length)? values[0].length: rows)
-                            data[i][j] = values[0][j];
+                    alias i = si;
+                    enum size_t typepos = i;
+                }
+                else
+                {
+                    size_t i = ri;
+                    enum size_t typepos = 0;
+                }
+
+                static if(is(toArr!(RowType[typepos]) == U[0]))
+                {
+                    foreach(j; 0 .. (rows > values[0].length)? values[0].length: rows)
+                        data[i][j] = values[0][j];
                 }
             }
+            
+            mixin auxDispatch!(assignAux, isHomogeneousType, RowType);
+            auxDispatch(pos);
         }
     }
 
@@ -1055,12 +1151,18 @@ public:
         assert(i1 <= rows, "Row index out of bound");
         assert(i2 <= cols, "Column index out of bound");
 
-        static foreach(i; 0 .. RowType.length)
-            if(i == i2)
-                return data[i][i1];
+        auto returnAux(ptrdiff_t si = -1)(size_t ri = 0) @property
+        {
+            static if(si > -1)
+                alias i = si;
+            else
+                size_t i = ri;
 
-        // If the above assertions pass, a value will be definitely returned
-        assert(0);
+            return data[i][i1];
+        }
+
+        mixin auxDispatch!(returnAux, isHomogeneousType, RowType);
+        return auxDispatch(i2);
     }
 
     /++
@@ -1085,11 +1187,19 @@ public:
             i2 = getPosition!1(cindx);
 
         assert(i1 > -1 && i2 > -1, "Given headers don't match DataFrame Headers");
-        static foreach(i; 0 .. RowType.length)
-            if(i == i2)
-                return data[i][i1];
+        
+        auto returnAux(ptrdiff_t si = -1)(size_t ri = 0) @property
+        {
+            static if(si > -1)
+                alias i = si;
+            else
+                size_t i = ri;
 
-        assert(0);
+            return data[i][i1];
+        }
+
+        mixin auxDispatch!(returnAux, isHomogeneousType, RowType);
+        return auxDispatch(i2);
     }
 
     /++
@@ -1113,11 +1223,20 @@ public:
         {
             import magpie.axis: Axis, DataType;
             Axis!void retcol;
-            static foreach(i; 0 .. RowType.length)
-                if(i == pos)
-                    foreach(j; data[i])
-                        retcol.data ~= DataType(j);
 
+            void axisAssignAux(ptrdiff_t si = -1)(size_t ri = 0) @property
+            {
+                static if(si > -1)
+                    alias i = si;
+                else
+                    size_t i = ri;
+                    
+                foreach(j; data[i])
+                    retcol.data ~= DataType(j);
+            }
+
+            mixin auxDispatch!(axisAssignAux, isHomogeneousType, RowType);
+            auxDispatch(pos);
             return retcol;
         }
         else
@@ -1149,25 +1268,36 @@ public:
         if(T.length == RowType.length || T.length == 1)
     {
         import std.traits: isArray;
-        static if(is(T[0] == void))
+        static if(is(T[0] == void) || (T.length == 1 && isArray!(T[0])))
         {
             assert(elements.data.length == rows, "Length of Axis.data is not equal to number of rows");
             ptrdiff_t pos = getPosition!1(index);
             assert(pos > -1, "Index not found");
-            static foreach(i; 0 .. RowType.length)
-                if(i == pos)
-                    foreach(j; 0 .. elements.data.length)
-                        mixin("data[i][j] " ~ op ~"= elements.data[j].get!(RowType[i]);");
-        }
-        else static if(T.length == 1 && isArray!(T[0]))
-        {
-            assert(elements.data.length == rows, "Length of Axis.data is not equal to number of rows");
-            ptrdiff_t pos = getPosition!1(index);
-            assert(pos > -1, "Index not found");
-            static foreach(i; 0 .. RowType.length)
-                if(i == pos)
-                    foreach(j; 0 .. elements.data.length)
-                        mixin("data[i][j] " ~ op ~"= elements.data[j];");
+
+            void mixinAux(ptrdiff_t si = -1)(size_t ri = 0) @property
+            {
+                static if(si > -1)
+                {
+                    alias i = si;
+                    enum size_t typepos = si;
+                }
+                else
+                {
+                    size_t i = ri;
+                    enum size_t typepos = 0;
+                }
+
+                static if(is(T[0] == void))
+                    enum string append = ".get!(RowType[typepos]);";
+                else
+                    enum string append = ";";
+
+                foreach(j; 0 .. elements.data.length)
+                    mixin("data[i][j] " ~ op ~"= elements.data[j]" ~ append);
+            }
+            
+            mixin auxDispatch!(mixinAux, isHomogeneousType, RowType);
+            auxDispatch(pos);
         }
         else
         {
@@ -1330,7 +1460,11 @@ public:
                 ret.indx.column.codes ~= dropper(positions, b);
             }
 
-            auto retdata = dropper!(positions, data);
+            static if(isHomogeneousType)
+                auto retdata = dropper(positions, data);
+            else
+                auto retdata = dropper!(positions, data);
+            
             static foreach(i; 0 .. ret.RowType.length)
                 ret.data[i] = retdata[i];
 
@@ -1494,26 +1628,34 @@ public:
         assert(pos > -1, "Index not found");
         static if(axis)
         {
-            static foreach(i; 0 .. RowType.length)
+            static if(kind == Universal)
+                Slice!(Type*, 1, kind) ret = slice!(Type)(rows).universal;
+            else static if(kind == Canonical)
+                Slice!(Type*, 1, kind) ret = slice!(Type)(rows).canonical;
+            else
+                Slice!(Type*, 1, kind) ret = slice!(Type)(rows);
+
+            void sliceAssignAux(ptrdiff_t si = -1)(size_t ri = 0) @property
             {
-                if(i == pos)
+                static if(si > -1)
                 {
-                    static if(kind == Universal)
-                        Slice!(Type*, 1, kind) ret = slice!(Type)(rows).universal;
-                    else static if(kind == Canonical)
-                        Slice!(Type*, 1, kind) ret = slice!(string)(rows).canonical;
-                    else
-                        Slice!(Type*, 1, kind) ret = slice!(string)(rows);
-
-                    static if(__traits(isArithmetic, Type, RowType[i]) || is(Type == RowType[i]))
-                        foreach(j; 0 .. rows)
-                            ret[j] = cast(Type)data[i][j];
-
-                    return ret;
+                    alias i = si;
+                    enum size_t typepos = si;
                 }
-            }
+                else
+                {
+                    size_t i = ri;
+                    enum size_t typepos = 0;
+                }
 
-            assert(0);
+                static if(__traits(isArithmetic, Type, RowType[typepos]) || is(Type == RowType[typepos]))
+                    foreach(j; 0 .. rows)
+                        ret[j] = cast(Type)data[i][j];
+            }
+            
+            mixin auxDispatch!(sliceAssignAux, isHomogeneousType, RowType);
+            auxDispatch(pos);
+            return ret;
         }
         else
         {
@@ -1532,20 +1674,119 @@ public:
             return ret;
         }
     }
+
+    /++
+    Applies mathematical operations on DataFrame row/column
+    Params:
+        axis: 0 to compute row wise, 1 to compute column wise
+        Ops: Mathematical operations to apply
+    Returns:
+        DataFrame with computed operations  
+    +/
+    auto aggregate(int axis, Ops...)() @property
+    {
+        void init(int axis, T)(ref T args)
+        {
+            enum int perpendicular = ((axis)? 0: 1);
+            
+            args.indx.indexing[axis] = indx.indexing[axis];
+            args.indx.indexing[perpendicular].index.length = 1;
+            args.indx.indexing[perpendicular].index[0].length = Ops.length;
+            args.indx.indexing[perpendicular].codes.length = 1;
+
+            static foreach(i; 0 .. Ops.length)
+                ret.indx.indexing[perpendicular].index[0][i] = __traits(identifier, Ops[0]);
+            
+            static if(axis)
+            {
+                args.indx.row.titles = ["Operation"];
+                args.rows = Ops.length;
+
+                static foreach(i; 0 .. RowType.length)
+                    ret.data[i].length = Ops.length;
+            }
+            else
+            {
+                args.rows = rows;
+                static foreach(i; 0 .. Ops.length)
+                    ret.data[i].length = rows;
+            }
+        }
+
+        static if(axis)
+        {
+            import std.meta: staticMap;
+
+            alias Resolve(T) = suitableType!(resolverInternal!(T, Ops));
+            DataFrame!(true, staticMap!(Resolve, RowType)) ret;
+            init!(axis)(ret);
+
+            static foreach(i; 0 .. RowType.length)
+                static if(__traits(isArithmetic, RowType[i]))
+                    static foreach(j; 0 .. Ops.length)
+                    {
+                        static if(__traits(compiles, Ops[j](data[i])))
+                            ret.data[i][j] = Ops[j](data[i]);
+                        else
+                        {
+                            import std.algorithm: map, reduce;
+                            if(__traits(compiles, data[i].map!(e => e).reduce!(Ops[j])))
+                                ret.data[i][j] = cast(ret.RowType[i])data[i].map!(e => e).reduce!(Ops[j]);
+                        }
+                    }
+        }
+        else
+        {
+            DataFrame!(true, aggregateType!(Ops)) ret;
+            init!(axis)(ret);
+
+            suitableType!(RowType)[RowType.length] oparr;
+            size_t k;
+
+            foreach(i; 0 .. rows)
+            {
+                k = 0;
+                static foreach(j; 0 .. RowType.length)
+                    static if(__traits(isArithmetic, RowType[j]))
+                    {
+                        oparr[k] = data[j][i];
+                        ++k;
+                    }
+                
+                static foreach(j; 0 .. Ops.length)
+                {
+                    static if(__traits(compiles, Ops[j](oparr[0 .. k])))
+                    {
+                        if(k > 0)
+                            ret.data[j][i] = Ops[j](oparr[0 .. k]);
+                    }
+                    else
+                    {
+                        import std.algorithm: map, reduce;
+                        if(k > 0 && __traits(compiles, oparr[0 .. k].map!(e => e).reduce!(Ops[j])))
+                            ret.data[j][i] = cast(ret.RowType[j])oparr[0 .. k].map!(e => e).reduce!(Ops[j]);
+                    }
+                }
+            }
+        }
+
+        ret.indx.generateCodes();
+        return ret;
+    }
 }
 
 // Testing DataFrame Definition - O(n + log(n))
 unittest
 {
     DataFrame!(int, 2) df;
-    assert(is(typeof(df.data) == Repeat!(2, int[])));
+    assert(is(typeof(df.data) == int[][2]));
 }
 
 // O(log(n)) init
 unittest
 {
     DataFrame!(true, double, double, double) df;
-    assert(is(typeof(df.data) == Repeat!(3, double[])));
+    assert(is(typeof(df.data) == double[][3]));
 }
 
 // Initialize from struct - O(log(n))
@@ -1587,7 +1828,7 @@ unittest
 unittest
 {
     DataFrame!(int, 2) df;
-    assert(is(typeof(df.data) == Repeat!(2, int[])));
+    assert(is(typeof(df.data) == int[][2]));
 
     df.indx.row.titles = ["Index1"];
     df.indx.row.index = [["Hello", "Hi"]];
@@ -1614,7 +1855,7 @@ unittest
 unittest
 {
     DataFrame!(int, 2) df;
-    assert(is(typeof(df.data) == Repeat!(2, int[])));
+    assert(is(typeof(df.data) == int[][2]));
 
     df.indx.row.titles = ["Index1"];
     df.indx.row.index = [["Hello", "Hi"]];
@@ -1634,7 +1875,7 @@ unittest
 unittest
 {
     DataFrame!(int, 2) df;
-    assert(is(typeof(df.data) == Repeat!(2, int[])));
+    assert(is(typeof(df.data) == int[][2]));
 
     df.indx.row.titles = ["Index1", "Index2", "Index3"];
     df.indx.row.index = [["Hello", "Hi"], ["Hello"], []];
@@ -1668,7 +1909,7 @@ unittest
 unittest
 {
     DataFrame!(int, 2) df;
-    assert(is(typeof(df.data) == Repeat!(2, int[])));
+    assert(is(typeof(df.data) == int[][2]));
 
     df.indx.row.titles = ["Index1", "Index2", "Index3"];
     df.indx.row.index = [["Hello", "Hi"], ["Hello"], []];
@@ -1691,7 +1932,7 @@ unittest
 unittest
 {
     DataFrame!(int, 2) df;
-    assert(is(typeof(df.data) == Repeat!(2, int[])));
+    assert(is(typeof(df.data) == int[][2]));
 
     df.indx.row.titles = ["Index1", "Index2", "Index3"];
     df.indx.row.index = [["Hello", "Hi"], ["Hello"], []];
@@ -1846,7 +2087,7 @@ unittest
 unittest
 {
     DataFrame!(int, 2) df;
-    assert(is(typeof(df.data) == Repeat!(2, int[])));
+    assert(is(typeof(df.data) == int[][2]));
 
     df.indx.row.titles = ["Index1", "Index2", "Index3"];
     df.indx.row.index = [["Hello", "Hi"],["Hello"], []];
@@ -2047,7 +2288,7 @@ unittest
 unittest
 {
     DataFrame!(int, 2) df;
-    assert(is(typeof(df.data) == Repeat!(2, int[])));
+    assert(is(typeof(df.data) == int[][2]));
 
     df.indx.row.titles = ["Index1"];
     df.indx.row.index = [["Hello", "Hi"]];
@@ -2069,7 +2310,7 @@ unittest
 unittest
 {
     DataFrame!(int, 2) df;
-    assert(is(typeof(df.data) == Repeat!(2, int[])));
+    assert(is(typeof(df.data) == int[][2]));
 
     df.indx.row.titles = ["Index1"];
     df.indx.row.index = [["Hello", "Hi"]];
@@ -2093,7 +2334,7 @@ unittest
 unittest
 {
     DataFrame!(int, 2) df;
-    assert(is(typeof(df.data) == Repeat!(2, int[])));
+    assert(is(typeof(df.data) == int[][2]));
 
     df.indx.row.titles = ["Index1", "Index2"];
     df.indx.row.index = [["Hello", "Hi"], ["Hello", "Hi"]];
@@ -2115,7 +2356,7 @@ unittest
 unittest
 {
     DataFrame!(int, 2) df;
-    assert(is(typeof(df.data) == Repeat!(2, int[])));
+    assert(is(typeof(df.data) == int[][2]));
 
     df.indx.row.titles = ["Index1"];
     df.indx.row.index = [["Hello", "Hi"]];
@@ -2139,7 +2380,7 @@ unittest
 unittest
 {
     DataFrame!(int, 2) df;
-    assert(is(typeof(df.data) == Repeat!(2, int[])));
+    assert(is(typeof(df.data) == int[][2]));
 
     df.indx.row.titles = ["Index1"];
     df.indx.row.index = [["Hello", "Hi"]];
@@ -2164,7 +2405,7 @@ unittest
 unittest
 {
     DataFrame!(int, 20) df;
-    assert(is(typeof(df.data) == Repeat!(20, int[])));
+    assert(is(typeof(df.data) == int[][20]));
 
     df.indx.row.titles = ["Index1"];
     df.indx.row.index = [["Hello", "Hi"]];
@@ -2193,7 +2434,7 @@ unittest
 unittest
 {
     DataFrame!(int, 2) df;
-    assert(is(typeof(df.data) == Repeat!(2, int[])));
+    assert(is(typeof(df.data) == int[][2]));
 
     df.indx.row.titles = ["Index1"];
     df.indx.row.index = [[]];
@@ -2271,7 +2512,7 @@ unittest
 unittest
 {
     DataFrame!(int, 2) df;
-    assert(is(typeof(df.data) == Repeat!(2, int[])));
+    assert(is(typeof(df.data) == int[][2]));
 
     df.indx.row.titles = ["Index1", "Index2", "Index3"];
     df.indx.row.index = [["Hello", "Hi"], ["Hello"], []];
@@ -2295,7 +2536,7 @@ unittest
 unittest
 {
     DataFrame!(int, 2) df;
-    assert(is(typeof(df.data) == Repeat!(2, int[])));
+    assert(is(typeof(df.data) == int[][2]));
 
     df.indx.row.titles = ["Index1", "Index2", "Index3"];
     df.indx.row.index = [["Hello", "Hi"], ["Hello"], []];
@@ -2322,7 +2563,7 @@ unittest
 unittest
 {
     DataFrame!(int, 2) df;
-    assert(is(typeof(df.data) == Repeat!(2, int[])));
+    assert(is(typeof(df.data) == int[][2]));
 
     df.indx.row.titles = ["Index1", "Index2", "Index3"];
     df.indx.row.index = [["Hello", "Hi"], ["Hello"], []];
@@ -2347,7 +2588,7 @@ unittest
 unittest
 {
     DataFrame!(int, 2) df;
-    assert(is(typeof(df.data) == Repeat!(2, int[])));
+    assert(is(typeof(df.data) == int[][2]));
 
     df.indx.row.titles = ["Index1", "Index2", "Index3"];
     df.indx.row.index = [["Hello", "Hi"], ["Hello"], []];
@@ -2375,7 +2616,7 @@ unittest
 unittest
 {
     DataFrame!(int, 2) df;
-    assert(is(typeof(df.data) == Repeat!(2, int[])));
+    assert(is(typeof(df.data) == int[][2]));
 
     df.indx.row.titles = ["Index1", "Index2", "Index3"];
     df.indx.row.index = [["Hello", "Hi"], ["Hello"], []];
@@ -2414,7 +2655,7 @@ unittest
 unittest
 {
     DataFrame!(int, 2) df;
-    assert(is(typeof(df.data) == Repeat!(2, int[])));
+    assert(is(typeof(df.data) == int[][2]));
 
     df.indx.row.titles = ["Index1", "Index2", "Index3"];
     df.indx.row.index = [["Hello", "Hi"], ["Hello"], []];
@@ -2449,7 +2690,7 @@ unittest
 unittest
 {
     DataFrame!(int, 2) df;
-    assert(is(typeof(df.data) == Repeat!(2, int[])));
+    assert(is(typeof(df.data) == int[][2]));
 
     df.indx.row.titles = ["Index1", "Index2", "Index3"];
     df.indx.row.index = [["Hello", "Hi"],["Hello"], []];
@@ -2487,7 +2728,7 @@ unittest
 unittest
 {
     DataFrame!(int, 2) df;
-    assert(is(typeof(df.data) == Repeat!(2, int[])));
+    assert(is(typeof(df.data) == int[][2]));
 
     df.indx.row.titles = ["Index1", "Index2", "Index3"];
     df.indx.row.index = [["Hello", "Hi"],["Hello"], []];
@@ -2522,7 +2763,7 @@ unittest
 unittest
 {
     DataFrame!(int, 2) df;
-    assert(is(typeof(df.data) == Repeat!(2, int[])));
+    assert(is(typeof(df.data) == int[][2]));
 
     df.indx.row.titles = ["Index1", "Index2", "Index3"];
     df.indx.row.index = [["Hello", "Hi"], ["Hello"], []];
@@ -2870,10 +3111,10 @@ unittest
 // Parsing dataset 2 with gaps in data
 unittest
 {
-    DataFrame!(double, 23) df;
+    DataFrame!(int, double, 22) df;
     df.from_csv("./test/fromcsv/dataset2.csv", 2, 1);
     //df.display();
-    df.to_csv("./test/tocsv/ex4p1.csv");
+    df.to_csv!(4)("./test/tocsv/ex4p1.csv");
 
     import std.stdio: File;
     import std.string: chomp;
@@ -3417,4 +3658,116 @@ unittest
 
     df[["Hello", "Hi", "Hey"], 0] = df.asSlice!(Universal)(["Hi", "Hello", "Hello"]);
     assert(df.asSlice!(Universal)(["Hello", "Hi", "Hey"]) == ["0", "2", "2", "nan", "2"]);
+}
+
+// Aggregate Operation on DataFrame Columns
+unittest
+{
+    DataFrame!(int, 2, double, 2) df;
+    Index inx;
+
+    inx[0] = ["Row1", "Row2"];
+    inx[1] = ["Col1", "Col2", "Col3", "Col4"];
+
+    df.setFrameIndex(inx);
+    df = [[1, 2, 3.4, 5.6], [2, 8, 7.9, 5.6]];
+    // df.display();
+
+    import std.algorithm: max, min;
+    assert(df.aggregate!(1, max).display(true, 200) == "Operation  Col1  Col2  Col3  Col4\n"
+        ~ "max        2     8     7.9   5.6 \n"
+    );
+
+    auto mindf = df.aggregate!(1, min);
+    import std.math: approxEqual;
+    static assert(is(mindf.RowType == AliasSeq!(int, int, double, double)));
+    assert(mindf.data[0][0] == 1 && mindf.data[1][0] == 2);
+    assert(approxEqual(mindf.data[2][0], 3.4, 1e-8) && approxEqual(mindf.data[3][0], 5.6, 1e-8));
+
+    auto doubledf = df.aggregate!(1, max, min);
+    static assert(is(doubledf.RowType == AliasSeq!(int, int, double, double)));
+    assert(doubledf.data[0][0] == 2 && doubledf.data[1][0] == 8);
+    assert(approxEqual(doubledf.data[2][0], 7.9, 1e-8) && approxEqual(doubledf.data[3][0], 5.6, 1e-8));
+    assert(doubledf.data[0][1] == 1 && doubledf.data[1][1] == 2);
+    assert(approxEqual(doubledf.data[2][1], 3.4, 1e-8) && approxEqual(doubledf.data[3][1], 5.6, 1e-8));
+}
+
+// Aggregate Operation on DataFrame Columns
+unittest
+{
+    DataFrame!(int, 2, double, 2) df;
+    Index inx;
+
+    inx[0] = ["Row1", "Row2"];
+    inx[1] = ["Col1", "Col2", "Col3", "Col4"];
+
+    df.setFrameIndex(inx);
+    df = [[1, 2, 3.4, 5.6], [2, 8, 7.9, 5.6]];
+    // df.display();
+
+    import std.algorithm: max, min;
+    import std.math: approxEqual;
+
+    auto maxdf = df.aggregate!(0, max);
+    assert(approxEqual(maxdf.data[0][0], 5.6, 1e-8) && approxEqual(maxdf.data[0][1], 8, 1e-8));
+
+    auto mindf = df.aggregate!(0, min);
+    assert(approxEqual(mindf.data[0][0], 1, 1e-8) && approxEqual(mindf.data[0][1], 2, 1e-8));
+
+    auto doubledf = df.aggregate!(0, min, max);
+    assert(approxEqual(doubledf.data[0][0], 1, 1e-8) && approxEqual(doubledf.data[0][1], 2, 1e-8));
+    assert(approxEqual(doubledf.data[1][0], 5.6, 1e-8) && approxEqual(doubledf.data[1][1], 8, 1e-8));
+}
+
+// Custom function passed to aggregate
+unittest
+{
+    static auto customFunc(T)(T[] arr)
+    {
+        T res = 0;
+        foreach(i, ele; arr)
+            res += i * ele;
+        
+        return res;
+    }
+
+    DataFrame!(int, 2, double, 2) df;
+    Index inx;
+
+    inx[0] = ["Row1", "Row2"];
+    inx[1] = ["Col1", "Col2", "Col3", "Col4"];
+
+    df.setFrameIndex(inx);
+    df = [[1, 2, 3.4, 5.6], [2, 8, 7.9, 5.6]];
+    // df.display();
+
+    import std.math: approxEqual;
+    auto customdf = df.aggregate!(1, customFunc);
+    assert(customdf.data[0][0] == 2 && customdf.data[1][0] == 8);
+    assert(approxEqual(customdf.data[2][0], 7.9, 1e-8) && approxEqual(customdf.data[3][0], 5.6, 1e-8)); 
+}
+
+// Return Type optimization for Aggregate
+unittest
+{
+    DataFrame!(int, 4) df;
+    Index inx;
+
+    inx[0] = ["Row1", "Row2"];
+    inx[1] = ["Col1", "Col2", "Col3", "Col4"];
+
+    df.setFrameIndex(inx);
+    df = [[1, 2, 3, 5], [2, 8, 7, 6]];
+    // df.display();
+
+    import std.algorithm: max, min;
+    import std.math: approxEqual;
+
+    auto maxdf = df.aggregate!(0, max);
+    static assert(is(maxdf.FrameType == int[][1]));
+    assert(maxdf.data[0][0] == 5 && maxdf.data[0][1] == 8);
+
+    auto maxdfc = df.aggregate!(1, max);
+    static assert(is(maxdfc.FrameType == int[][4]));
+    assert(maxdfc.data[0][0] == 2 && maxdfc.data[1][0] == 8 && maxdfc.data[2][0] == 7 && maxdfc.data[3][0] == 6);
 }
