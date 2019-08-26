@@ -169,6 +169,7 @@ struct Index
 * [I/O](#I/O)
 * [Slice Integration](#Slice)
 * [Aggregate](#Aggregate)
+* [Filter](#Filter)
 
 ### Index
 
@@ -1197,7 +1198,6 @@ Aggregate allows user to perform mathematical operation on row or columns of the
 ```d
 import magpie.dataframe: DataFrame;
 import magpie.index: Index;
-import magpie.operation: aggregate, AggregateOp;
 import std.algorithm: max, min;
 
 DataFrame!(int, 3, double, 2) df;
@@ -1241,6 +1241,40 @@ aggregate!(0, max, min).display();
  *  Row2  4    0
  */
 ```
+
+### Filter
+
+Filter operation allows you to drop specific rows of DataFrame based on the result of specific alias being passed.
+
+`df.filter!(alias Func)`
+* `Func` - alias based on which the row of DataFrame will be dropped
+
+#### Usage
+
+```d
+import magpie.dataframe: DataFrame;
+import magpie.index: Index;
+
+DataFrame!(float, float) df;
+Index inx;
+inx[0] = ["Firm1", "Firm2", "Firm3", "Firm4", "Firm5"];
+inx[1] = ["Assets", "Valuation"];
+df.setFrameIndex(inx);
+
+static bool filterFunc(T)(T ele)
+{
+    return (ele[0] > ele[1]);
+}
+
+df = [[1.2, 2.3], [0.8, 1.2], [4.2, 1.2], [7.2, 9.4], [1.1, 0.5]];
+
+// Find undervalued function
+df.filter!(filterFunc).display();
+       Assets  Valuation
+Firm3  4.2     1.2      
+Firm5  1.1     0.5      
+```
+
 
 ##### Dataset Sources
 
