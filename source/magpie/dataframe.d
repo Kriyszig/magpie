@@ -682,11 +682,8 @@ public:
         size_t line = 0;
         indx = Index();
 
-        foreach(i; 0 .. indexDepth)
-        {
-            indx.row.codes ~= [[]];
-            indx.row.index ~= [[]];
-        }
+        indx.row.codes.length = indexDepth;
+        indx.row.index.length = indexDepth;
 
         size_t dataIndex = 0;
         while(!csvfile.eof())
@@ -1050,16 +1047,18 @@ public:
         {
             indx.column.index = [[]];
             indx.column.codes = [[]];
+            indx.column.codes[0].length = cols;
             foreach(i; 0 .. cols)
-                indx.column.codes[0] ~= cast(int)i;
+                indx.column.codes[0][i] = cast(int)i;
         }
 
         if(needsPadding)
         {
             static foreach(i; 0 .. RowType.length)
             {
+                data[i].length += rows - data[i].length;
                 foreach(j; data[i].length .. rows)
-                    data[i] ~= RowType[i].init;
+                    data[i][j] = RowType[i].init;
             }
         }
     }
@@ -1258,8 +1257,9 @@ public:
                 else
                     size_t i = ri;
                     
-                foreach(j; data[i])
-                    retcol.data ~= DataType(j);
+                retcol.data.length = data[i].length;
+                foreach(j, ele; data[i])
+                    retcol.data[j] = DataType(ele);
             }
 
             mixin auxDispatch!(axisAssignAux, isHomogeneousType, RowType);
@@ -1460,11 +1460,14 @@ public:
             ret.indx.indexing[0] = indx.indexing[0];
             ret.indx.column.titles = indx.column.titles;
 
+            ret.indx.column.index.length = indx.column.index.length;
+            ret.indx.column.codes.length = indx.column.index.length;
+
             import std.range: lockstep;
-            foreach(a, b; lockstep(indx.column.index, indx.column.codes))
+            foreach(pos, a, b; lockstep(indx.column.index, indx.column.codes))
             {
-                ret.indx.column.index ~= a;
-                ret.indx.column.codes ~= dropper(positions, b);
+                ret.indx.column.index[pos] = a;
+                ret.indx.column.codes[pos] = dropper(positions, b);
             }
 
             static if(isHomogeneousType)
