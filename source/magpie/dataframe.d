@@ -1833,7 +1833,7 @@ public:
     auto pivot(size_t col_size)(int[] index, int[] columns, int[] values)
     {
         import std.conv: to;
-        import std.algorithm: countUntil;
+        import std.algorithm: countUntil, max;
 
         DataFrame!(suitableType!RowType, col_size) ret;
         Index inx;
@@ -1897,17 +1897,9 @@ public:
                         dfval = to!(toArr!(ret.RowType[0]))(data[j]);
                 }
 
-            size_t start;
-            while((start < dfval.length) && (start / level_size < ret.rows))
+            foreach(j; 0 .. max(dfval.length, ret.rows * level_size))
             {
-                foreach(j; 0 .. level_size)
-                {
-                    if(start > dfval.length - 1)
-                        break;
-                    
-                    ret.data[i * level_size + j][start / level_size] = dfval[start];
-                    ++start;
-                }
+                ret.data[(i * level_size) + (j % level_size)][j / level_size] = dfval[j];
             }
         }
 
