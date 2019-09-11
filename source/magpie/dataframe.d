@@ -1833,7 +1833,7 @@ public:
     auto pivot(size_t col_size)(int[] index, int[] columns, int[] values)
     {
         import std.conv: to;
-        import std.algorithm: countUntil, max, min;
+        import std.algorithm: countUntil, min;
 
         DataFrame!(suitableType!RowType, col_size) ret;
         Index inx;
@@ -1876,7 +1876,7 @@ public:
             }
         }
 
-        const size_t level_size = indices[0][$ - 1].length;
+        const size_t level_size = indices[1][$ - 1].length;
         inx.constructFromLevels!0(indices[0], titles);
         inx.constructFromLevels!1(indices[1]);
         ret.setFrameIndex(inx);
@@ -1894,7 +1894,7 @@ public:
                         dfval = to!(toArr!(ret.RowType[0]))(data[j]);
                 }
 
-            foreach(j; 0 .. max(dfval.length, ret.rows * level_size))
+            foreach(j; 0 .. min(dfval.length, ret.rows * level_size))
             {
                 ret.data[(i * level_size) + (j % level_size)][j / level_size] = dfval[j];
             }
@@ -4000,5 +4000,21 @@ unittest
         ~ "Index0  3  4  3  4\n"
         ~ "3       1  2  3  3\n"
         ~ "4       3  4  4  4\n"
+    );
+}
+
+// Pivot Operation on heterogeneous DataFrame
+unittest
+{
+    DataFrame!(int, double, 2) df;
+    Index inx;
+    inx[0] = ["0", "1", "2", "3"];
+    inx[1] = ["Foo", "Bar", "Baz"];
+    df.setFrameIndex(inx);
+
+    df = [[1,3,1],[1,3,2],[1,4,3],[1,4,4]];
+    assert(df.pivot!1([1], [0], [2]).display(true, 200) == "Index0  1\n"
+        ~ "3       1\n"
+        ~ "4       2\n"
     );
 }
