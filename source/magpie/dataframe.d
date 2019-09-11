@@ -1833,7 +1833,7 @@ public:
     auto pivot(size_t col_size)(int[] index, int[] columns, int[] values)
     {
         import std.conv: to;
-        import std.algorithm: countUntil, max;
+        import std.algorithm: countUntil, max, min;
 
         DataFrame!(suitableType!RowType, col_size) ret;
         Index inx;
@@ -1882,18 +1882,15 @@ public:
         ret.setFrameIndex(inx);
         ret.rows = ret.indx.indexing[0].codes[0].length;
 
-        foreach(i, ele; values)
+        foreach(i; 0 .. min(values.length, col_size / level_size))
         {
-            if(i > col_size / level_size - 1)
-                break;
-
             toArr!(ret.RowType[0]) dfval;
             static if(isHomogeneousType)
-                dfval = to!(toArr!(ret.RowType[0]))(data[ele]);
+                dfval = to!(toArr!(ret.RowType[0]))(data[values[i]]);
             else
                 static foreach(j; 0 .. RowType.length)
                 {
-                    if(j == ele)
+                    if(j == values[i])
                         dfval = to!(toArr!(ret.RowType[0]))(data[j]);
                 }
 
