@@ -1829,6 +1829,84 @@ public:
 
         return dropperRuntimeInternal(pos[0 .. k]);
     }
+
+    auto pivot(size_t col_size)(int[] index, int[] columns, int[] values)
+    {
+        import std.conv: to;
+        import std.algorithm: countUntil, min;
+
+
+        static assert(col_size > 0, "Cannot construct a DataFrame with no columns");
+        assert(index.length && columns.length, "DataFrame cannot be pivoted without specifying index values");
+        assert(values.length > 0, "Cannot pivot a DataFrame with no values");
+
+        DataFrame!(suitableType!RowType, col_size) ret;
+        Index inx;
+        string[][][2] indices;
+        string[] titles;
+
+        indices[0].length = index.length;
+        titles.length = index.length;
+        indices[1].length = columns.length;
+
+        static foreach(k; 0 .. 2)
+        {
+            foreach(pos, i; ((k == 0) ? index : columns))
+            {
+                string[] indxdata;
+                string[] unique;
+                int end;
+                
+                static if(isHomogeneousType)
+                    indxdata = to!(string[])(data[i]);
+                else
+                    static foreach(j; 0 .. RowType.length)
+                        if(i == j)
+                            indxdata = to!(string[])(data[j]);
+
+                unique.length = rows;
+                // Getting Unique indexes in order to prevent index collision
+                foreach(j; indxdata)
+                {
+                    if(countUntil(unique, j) == -1)
+                    {
+                        unique[end] = j;
+                        ++end;
+                    }
+                }
+                
+                indices[k][pos] = unique[0 .. end];
+                if(!k)
+                    titles[pos] = "Index" ~ to!string(pos);
+            }
+        }
+
+        const size_t level_size = indices[1][$ - 1].length;
+        inx.constructFromLevels!0(indices[0], titles);
+        inx.constructFromLevels!1(indices[1]);
+        ret.setFrameIndex(inx);
+        ret.rows = ret.indx.indexing[0].codes[0].length;
+
+        foreach(i; 0 .. min(values.length, col_size / level_size))
+        {
+            toArr!(ret.RowType[0]) dfval;
+            static if(isHomogeneousType)
+                dfval = to!(toArr!(ret.RowType[0]))(data[values[i]]);
+            else
+                static foreach(j; 0 .. RowType.length)
+                {
+                    if(j == values[i])
+                        dfval = to!(toArr!(ret.RowType[0]))(data[j]);
+                }
+
+            foreach(j; 0 .. min(dfval.length, ret.rows * level_size))
+            {
+                ret.data[(i * level_size) + (j % level_size)][j / level_size] = dfval[j];
+            }
+        }
+
+        return ret;
+    }
 }
 
 // Testing DataFrame Definition - O(n + log(n))
@@ -3877,5 +3955,71 @@ unittest
     assert(df.filter!(filterFunc).display(true, 200) == "       Assets  Valuation\n"
         ~ "Firm3  4.2     1.2      \n"
         ~ "Firm5  1.1     0.5      \n"
+    );
+}
+
+// Pivot Operation
+unittest
+{
+    DataFrame!(float, 3) df;
+    Index inx;
+    inx[0] = ["0", "1", "2", "3"];
+    inx[1] = ["Foo", "Bar", "Baz"];
+    df.setFrameIndex(inx);
+
+    df = [[1,3,1],[1,3,2],[2,4,3],[2,4,4]];
+
+    // Single Index
+    assert(df.pivot!2([1],[0],[2]).display(true, 200) == "Index0  1  2\n"
+        ~ "3       1  2\n"
+        ~ "4       3  4\n"
+    );
+
+    // Multi-Index
+    assert(df.pivot!4([1],[0, 1],[2, 1]).display(true, 200) == "        1  1  2  2\n"
+        ~ "Index0  3  4  3  4\n"
+        ~ "3       1  2  3  3\n"
+        ~ "4       3  4  4  4\n"
+    );
+}
+
+// Pivot Operation on heterogeneous DataFrame
+unittest
+{
+    DataFrame!(int, double, 2) df;
+    Index inx;
+    inx[0] = ["0", "1", "2", "3"];
+    inx[1] = ["Foo", "Bar", "Baz"];
+    df.setFrameIndex(inx);
+
+    df = [[1,3,1],[1,3,2],[2,4,3],[2,4,4]];
+
+    // Single Index
+    assert(df.pivot!2([1],[0],[2]).display(true, 200) == "Index0  1  2\n"
+        ~ "3       1  2\n"
+        ~ "4       3  4\n"
+    );
+
+    // Multi-Index
+    assert(df.pivot!4([1],[0, 1],[2, 1]).display(true, 200) == "        1  1  2  2\n"
+        ~ "Index0  3  4  3  4\n"
+        ~ "3       1  2  3  3\n"
+        ~ "4       3  4  4  4\n"
+    );
+}
+
+// Pivot Operation on heterogeneous DataFrame
+unittest
+{
+    DataFrame!(int, double, 2) df;
+    Index inx;
+    inx[0] = ["0", "1", "2", "3"];
+    inx[1] = ["Foo", "Bar", "Baz"];
+    df.setFrameIndex(inx);
+
+    df = [[1,3,1],[1,3,2],[1,4,3],[1,4,4]];
+    assert(df.pivot!1([1], [0], [2]).display(true, 200) == "Index0  1\n"
+        ~ "3       1\n"
+        ~ "4       2\n"
     );
 }
