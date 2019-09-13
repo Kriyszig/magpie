@@ -1835,6 +1835,11 @@ public:
         import std.conv: to;
         import std.algorithm: countUntil, min;
 
+
+        static assert(col_size > 0, "Cannot construct a DataFrame with no columns");
+        assert(index.length && columns.length, "DataFrame cannot be pivoted without specifying index values");
+        assert(values.length > 0, "Cannot pivot a DataFrame with no values");
+
         DataFrame!(suitableType!RowType, col_size) ret;
         Index inx;
         string[][][2] indices;
